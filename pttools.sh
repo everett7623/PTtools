@@ -193,6 +193,8 @@ load_config() {
     else
         log_info "配置文件 $CONFIG_FILE 不存在，正在创建默认配置。"
         create_default_config
+        # MODIFIED: 创建默认配置后立即加载，以确保变量被设置
+        source "$CONFIG_FILE"
     fi
 }
 
@@ -244,7 +246,6 @@ prompt_user() {
         read -p "$(echo -e "${BLUE}$prompt${NC}: ")" response
         echo "$response"
     fi
-    # 移除了此处的额外 echo，因为用户输入后 Bash 自动换行
 }
 
 # 提示用户输入密码（隐藏输入）
