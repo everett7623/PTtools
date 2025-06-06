@@ -58,6 +58,7 @@ chmod -R 777 "$VERTEX_APP_DIR" # 确保容器有权限写入
 # 2. 生成 Docker Compose 文件
 log_info ">> (2/3) 生成 Vertex Docker Compose 文件..."
 cat <<DOCKER_COMPOSE > "$VERTEX_APP_DIR/docker-compose.yml"
+version: '3.8'
 services:
   vertex:
     image: lswl/vertex:stable # 使用您提供的镜像名称
@@ -89,4 +90,41 @@ log_info ">> (3/3) 部署并启动 Vertex Docker 容器..."
 cd "$VERTEX_APP_DIR" || log_error "无法进入 Vertex 容器目录: $VERTEX_APP_DIR"
 docker compose up -d || log_error "启动 Vertex Docker 容器失败。请检查 Docker Compose 文件或日志。"
 
-log_info "Vertex (Docker) 安装完成。您可以通过 http://您的服务器IP:${VERTEX_HOST_PORT} 访问。"
+# ==== 添加 Vertex 登录信息提示 (直接打印密码版本) ====
+echo
+echo -e "${GREEN}===============================================${NC}"
+echo -e "${GREEN}         Vertex 安装成功！重要提示           ${NC}"
+echo -e "${GREEN}===============================================${NC}"
+echo -e "${BLUE}Vertex WebUI 地址: ${YELLOW}http://您的服务器IP:${VERTEX_HOST_PORT}${NC}"
+echo -e "${BLUE}默认登录用户名:     ${YELLOW}admin${NC}"
+
+# 尝试读取并打印密码
+PASSWORD_FILE="${VERTEX_APP_DIR}/data/password"
+MAX_ATTEMPTS=10 # 尝试读取密码文件的最大次数
+WAIT_SECONDS=3  # 每次尝试之间的等待时间
+
+log_info "正在等待 Vertex 容器生成初始密码文件..."
+for (( i=1; i<=MAX_ATTEMPTS; i++ )); do
+    if [[ -f "$PASSWORD_FILE" ]]; then
+        INITIAL_PASSWORD=$(cat "$PASSWORD_FILE")
+        if [[ -n "$INITIAL_PASSWORD" ]]; then
+            echo -e "${BLUE}您的初始登录密码是: ${RED}${INITIAL_PASSWORD}${NC}"
+            echo -e "${YELLOW}警告: 此密码已直接显示在终端。请务必尽快登录 WebUI 修改密码！${NC}"
+            break
+        fi
+    fi
+    log_info "  (${i}/${MAX_ATTEMPTS}) 密码文件未生成或为空，等待 ${WAIT_SECONDS} 秒..."
+    sleep "$WAIT_SECONDS"
+done
+
+if [[ ! -f "$PASSWORD_FILE" || -z "$INITIAL_PASSWORD" ]]; then
+    log_warn "未能自动获取初始密码。这可能是由于容器仍在启动或密码文件生成延迟。"
+    echo -e "${BLUE}请您手动查看初始登录密码，路径为:${YELLOW} ${PASSWORD_FILE}${NC}"
+    echo -e "您可以使用以下命令查看:"
+    echo -e "${YELLOW}  cat ${PASSWORD_FILE}${NC}"
+    echo -e "如果文件不存在，请稍等片刻，等待容器完全启动并生成密码文件。"
+fi
+
+echo -e "${GREEN}===============================================${NC}"
+echo
+# ==================================
