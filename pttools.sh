@@ -366,7 +366,7 @@ install_qb_439_jerry() {
     
     # Build command
     local cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
-    cmd+=" -u $username -p $password -c $cache_size -q 4.3.9 -l v1.2.19"
+    cmd+=" -u $username -p $password -c $cache_size -q 4.3.9 -l v1.2.20"
     
     if [[ -n "$custom_port" ]]; then
         cmd+=" -o $custom_port"
