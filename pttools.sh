@@ -17,25 +17,18 @@ NC='\033[0m' # No Color
 # 全局变量
 DOCKER_PATH="/opt/docker"
 LOG_FILE="/tmp/pttools_install.log"
-CREDENTIALS_FILE="/root/pttools_credentials.txt"
+GITHUB_USER="everett7623"
+GITHUB_REPO="pttools"
 
-# 清理凭据文件
-clean_credentials() {
-    if [[ -f "$CREDENTIALS_FILE" ]]; then
-        print_color $YELLOW "检测到旧的安装记录，正在清理..."
-        rm -f "$CREDENTIALS_FILE"
-        print_color $GREEN "凭据文件已清理"
-    fi
+# 显示安装成功信息
+show_success_info() {
+    local app_name="$1"
+    local info="$2"
     
-    # 创建新的凭据文件头部
-    cat > "$CREDENTIALS_FILE" << EOF
-╔══════════════════════════════════════════════════════════════╗
-║                   PTtools 安装信息记录                        ║
-║                 安装时间: $(date '+%Y-%m-%d %H:%M:%S')                 ║
-╚══════════════════════════════════════════════════════════════╝
-
-EOF
-    chmod 600 "$CREDENTIALS_FILE"
+    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_color $WHITE "🎉 $app_name 安装成功！"
+    print_color $CYAN "$info"
+    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
 # 打印带颜色的文本
@@ -168,21 +161,20 @@ install_qb_438() {
     print_color $WHITE "WebUI端口: $QB_PORT"
     print_color $WHITE "监听端口: $QB_LISTEN_PORT"
     
-    # 执行安装脚本
-    bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "$QB_USER" "$QB_PASS" "$QB_PORT" "$QB_LISTEN_PORT"
+    # 从自己的GitHub仓库下载安装脚本
+    bash <(wget -qO- https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/main/scripts/qb438.sh) "$QB_USER" "$QB_PASS" "$QB_PORT" "$QB_LISTEN_PORT"
     
     if [[ $? -eq 0 ]]; then
         print_color $GREEN "qBittorrent 4.3.8 安装完成"
         log "qBittorrent 4.3.8 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
         
-        # 根据安装模式记录信息
+        # 显示安装信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
-            echo "🚀 qBittorrent 4.3.8 (PT脚本版本)" >> "$CREDENTIALS_FILE"
-            echo "   登录地址: http://服务器IP:$QB_PORT" >> "$CREDENTIALS_FILE"
-            echo "   用户名: $QB_USER" >> "$CREDENTIALS_FILE"
-            echo "   密码: $QB_PASS" >> "$CREDENTIALS_FILE"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            show_success_info "qBittorrent 4.3.8 (PT脚本版本)" "
+   🌐 登录地址: http://你的服务器IP:$QB_PORT
+   👤 用户名: $QB_USER
+   🔑 密码: $QB_PASS
+   🔧 监听端口: $QB_LISTEN_PORT"
         fi
     else
         print_color $RED "qBittorrent 4.3.8 安装失败"
@@ -205,8 +197,8 @@ install_qb_439() {
     print_color $WHITE "密码: $QB_PASS"
     print_color $WHITE "缓存大小: ${QB_CACHE}MB"
     
-    # 执行安装脚本，根据VPS性能自动优化
-    bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) \
+    # 从自己的GitHub仓库下载安装脚本
+    bash <(wget -qO- https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/main/scripts/qb439.sh) \
         -u "$QB_USER" \
         -p "$QB_PASS" \
         -c "$QB_CACHE" \
@@ -218,15 +210,14 @@ install_qb_439() {
         print_color $GREEN "qBittorrent 4.3.9 安装完成"
         log "qBittorrent 4.3.9 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
         
-        # 根据安装模式记录信息
+        # 显示安装信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
-            echo "🚀 qBittorrent 4.3.9 (杰瑞大佬脚本)" >> "$CREDENTIALS_FILE"
-            echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
-            echo "   用户名: $QB_USER" >> "$CREDENTIALS_FILE"
-            echo "   密码: $QB_PASS" >> "$CREDENTIALS_FILE"
-            echo "   缓存大小: ${QB_CACHE}MB" >> "$CREDENTIALS_FILE"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            show_success_info "qBittorrent 4.3.9 (杰瑞大佬脚本)" "
+   🌐 登录地址: http://你的服务器IP:8080
+   👤 用户名: $QB_USER
+   🔑 密码: $QB_PASS
+   💾 缓存大小: ${QB_CACHE}MB
+   ⚡ 已启用BBR v3优化"
         fi
     else
         print_color $RED "qBittorrent 4.3.9 安装失败"
@@ -235,38 +226,40 @@ install_qb_439() {
     fi
 }
 
-# 记录组合安装信息
-record_combo_install() {
+# 显示组合安装信息
+show_combo_success() {
     local qb_version="$1"
     local qb_user="$QB_USER"
     local qb_pass="$QB_PASS"
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     if [[ $qb_version == "4.3.8" ]]; then
-        echo "🔥 组合安装: qBittorrent 4.3.8 + Vertex" >> "$CREDENTIALS_FILE"
-        echo "" >> "$CREDENTIALS_FILE"
-        echo "📥 qBittorrent 4.3.8 (PT脚本版本):" >> "$CREDENTIALS_FILE"
-        echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
-        echo "   用户名: $qb_user" >> "$CREDENTIALS_FILE"
-        echo "   密码: $qb_pass" >> "$CREDENTIALS_FILE"
-        echo "" >> "$CREDENTIALS_FILE"
-        echo "🔧 Vertex 媒体管理工具:" >> "$CREDENTIALS_FILE"
-        echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
-        echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
+        print_color $WHITE "🔥 组合安装成功: qBittorrent 4.3.8 + Vertex"
+        print_color $CYAN "
+📥 qBittorrent 4.3.8 (PT脚本版本):
+   🌐 登录地址: http://你的服务器IP:8080
+   👤 用户名: $qb_user
+   🔑 密码: $qb_pass
+   🔧 监听端口: 23333
+
+🔧 Vertex 媒体管理工具:
+   🌐 登录地址: http://你的服务器IP:3334
+   ℹ️  说明: 初次访问需要设置管理员账号密码"
     else
-        echo "🔥 组合安装: qBittorrent 4.3.9 + Vertex" >> "$CREDENTIALS_FILE"
-        echo "" >> "$CREDENTIALS_FILE"
-        echo "📥 qBittorrent 4.3.9 (杰瑞大佬脚本):" >> "$CREDENTIALS_FILE"
-        echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
-        echo "   用户名: $qb_user" >> "$CREDENTIALS_FILE"
-        echo "   密码: $qb_pass" >> "$CREDENTIALS_FILE"
-        echo "   缓存大小: ${QB_CACHE}MB" >> "$CREDENTIALS_FILE"
-        echo "" >> "$CREDENTIALS_FILE"
-        echo "🔧 Vertex 媒体管理工具:" >> "$CREDENTIALS_FILE"
-        echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
-        echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
+        print_color $WHITE "🔥 组合安装成功: qBittorrent 4.3.9 + Vertex"
+        print_color $CYAN "
+📥 qBittorrent 4.3.9 (杰瑞大佬脚本):
+   🌐 登录地址: http://你的服务器IP:8080
+   👤 用户名: $qb_user
+   🔑 密码: $qb_pass
+   💾 缓存大小: ${QB_CACHE}MB
+   ⚡ 已启用BBR v3优化
+
+🔧 Vertex 媒体管理工具:
+   🌐 登录地址: http://你的服务器IP:3334
+   ℹ️  说明: 初次访问需要设置管理员账号密码"
     fi
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
 # 安装Vertex
@@ -298,16 +291,14 @@ EOF
     
     if [[ $? -eq 0 ]]; then
         print_color $GREEN "Vertex 安装完成"
-        print_color $WHITE "访问地址: http://你的IP:3334"
         log "Vertex 安装完成"
         
-        # 根据安装模式记录信息
+        # 显示安装信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
-            echo "🔧 Vertex 媒体管理工具" >> "$CREDENTIALS_FILE"
-            echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
-            echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            show_success_info "Vertex 媒体管理工具" "
+   🌐 登录地址: http://你的服务器IP:3334
+   ℹ️  说明: 初次访问需要设置管理员账号密码
+   📁 数据目录: $DOCKER_PATH/vertex"
         fi
     else
         print_color $RED "Vertex 安装失败"
@@ -328,8 +319,6 @@ show_menu() {
     print_color $YELLOW "  4. qBittorrent 4.3.9 + Vertex"
     echo
     print_color $CYAN "▶ 管理选项"
-    print_color $YELLOW "  7. 清理安装记录"
-    print_color $YELLOW "  8. 查看安装信息"
     print_color $YELLOW "  9. 卸载应用"
     print_color $YELLOW "  0. 退出脚本"
     echo
@@ -414,41 +403,28 @@ main() {
         
         case $choice in
             1)
-                clean_credentials
                 install_docker
                 create_directories
                 install_qb_438 "single"
                 ;;
             2)
-                clean_credentials
                 install_docker
                 create_directories
                 install_qb_439 "single"
                 ;;
             3)
-                clean_credentials
                 install_docker
                 create_directories
                 if install_qb_438 "combo" && install_vertex "combo"; then
-                    record_combo_install "4.3.8"
+                    show_combo_success "4.3.8"
                 fi
                 ;;
             4)
-                clean_credentials
                 install_docker
                 create_directories
                 if install_qb_439 "combo" && install_vertex "combo"; then
-                    record_combo_install "4.3.9"
+                    show_combo_success "4.3.9"
                 fi
-                ;;
-            7)
-                clean_credentials
-                print_color $GREEN "安装记录已清理完成！"
-                print_color $WHITE "按任意键返回主菜单..."
-                read -n 1
-                ;;
-            8)
-                show_info
                 ;;
             9)
                 uninstall_apps
@@ -463,6 +439,72 @@ main() {
                 sleep 2
                 ;;
         esac
+# 卸载功能
+uninstall_apps() {
+    print_color $CYAN "=== 卸载选项 ==="
+    echo "1. 卸载所有Docker应用"
+    echo "2. 卸载qBittorrent"
+    echo "3. 卸载Vertex"
+    echo "0. 返回主菜单"
+    echo
+    read -p "请选择要卸载的选项: " uninstall_choice
+    
+    case $uninstall_choice in
+        1)
+            print_color $YELLOW "正在卸载所有Docker应用..."
+            docker stop $(docker ps -aq) 2>/dev/null
+            docker rm $(docker ps -aq) 2>/dev/null
+            docker rmi $(docker images -q) 2>/dev/null
+            rm -rf "$DOCKER_PATH"
+            print_color $GREEN "所有Docker应用已卸载"
+            ;;
+        2)
+            print_color $YELLOW "正在卸载qBittorrent..."
+            # 停止qBittorrent相关进程
+            pkill -f qbittorrent
+            systemctl stop qbittorrent 2>/dev/null
+            systemctl disable qbittorrent 2>/dev/null
+            rm -rf /home/*/qbittorrent-nox
+            print_color $GREEN "qBittorrent已卸载"
+            ;;
+        3)
+            print_color $YELLOW "正在卸载Vertex..."
+            cd "$DOCKER_PATH/vertex" 2>/dev/null && docker-compose down
+            docker rmi lswl/vertex:stable 2>/dev/null
+            rm -rf "$DOCKER_PATH/vertex"
+            print_color $GREEN "Vertex已卸载"
+            ;;
+        0)
+            return
+            ;;
+        *)
+            print_color $RED "无效选择"
+            ;;
+    esac
+    
+    print_color $WHITE "按任意键继续..."
+    read -n 1
+}
+
+# 显示主菜单
+show_menu() {
+    show_banner
+    print_color $WHITE "请选择要安装的选项:"
+    echo
+    print_color $GREEN "▶ 核心安装选项 (PT刷流优化)"
+    print_color $YELLOW "  1. qBittorrent 4.3.8 (PT脚本版本)"
+    print_color $YELLOW "  2. qBittorrent 4.3.9 (杰瑞大佬脚本)"
+    print_color $YELLOW "  3. qBittorrent 4.3.8 + Vertex"
+    print_color $YELLOW "  4. qBittorrent 4.3.9 + Vertex"
+    echo
+    print_color $CYAN "▶ 管理选项"
+    print_color $YELLOW "  9. 卸载应用"
+    print_color $YELLOW "  0. 退出脚本"
+    echo
+    print_color $BLUE "选择安装的应用更多功能正在开发中..."
+    echo
+}
+
         
         if [[ $choice =~ ^[1-4]$ ]]; then
             print_color $GREEN "安装完成！"
