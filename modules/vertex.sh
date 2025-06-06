@@ -53,7 +53,6 @@ chmod -R 777 "$VERTEX_APP_DIR" # 确保容器有权限写入
 # 2. 生成 Docker Compose 文件
 log_info ">> (2/3) 生成 Vertex Docker Compose 文件..."
 cat <<DOCKER_COMPOSE > "$VERTEX_APP_DIR/docker-compose.yml"
-version: '3.8'
 services:
   vertex:
     image: everett7623/vertex:latest # 请确保此镜像存在且可访问
