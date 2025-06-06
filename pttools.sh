@@ -244,6 +244,8 @@ prompt_user() {
         read -p "$(echo -e "${BLUE}$prompt${NC}: ")" response
         echo "$response"
     fi
+    ### MODIFIED: 添加一个换行，确保后续提示另起一行 ###
+    echo 
 }
 
 # 提示用户输入密码（隐藏输入）
@@ -264,7 +266,7 @@ validate_port() {
     if ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then # 避免常见系统端口
         log_error "无效的 ${port_name} 端口号: $port。端口必须是 1024 到 65535 之间的数字。"
         return 1
-    fi
+    Ffi
     
     if ss -tulwn | grep -q ":$port "; then
         log_warn "警告: ${port_name} 端口 $port 已经被占用。"
@@ -281,7 +283,7 @@ validate_port() {
 # Docker 环境管理函数
 # ===============================================
 
-# 设置 Docker 环境目录
+# 设置 Docker 环境目录 (修改此函数以接收需要创建的目录列表)
 setup_docker_environment() {
     log_info "正在设置 Docker 环境目录..."
     
@@ -293,12 +295,23 @@ setup_docker_environment() {
     mkdir -p "$DOWNLOAD_PATH"
     chmod -R 777 "$DOWNLOAD_PATH"
     
-    # 为每个应用创建子目录 (如果需要)
-    local apps=("qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot" "vertex" "nas-tools" "filebrowser" "metatube" "byte-muse")
-    for app in "${apps[@]}"; do
-        mkdir -p "$DOCKER_PATH/$app"
-        log_info "已创建 Docker 应用目录: $DOCKER_PATH/$app"
-    done
+    ### MODIFIED: 根据传入的参数创建特定应用的子目录，不再硬编码所有目录 ###
+    local apps_to_create=("$@") # 接收传入的应用程序列表
+    
+    if [[ ${#apps_to_create[@]} -eq 0 ]]; then
+        log_warn "没有指定要创建的 Docker 应用目录，跳过创建特定子目录。"
+        # 即使没有指定，也创建一个基础的 /opt/docker/config 目录作为通用配置存放地
+        mkdir -p "$DOCKER_PATH/config"
+        chmod -R 777 "$DOCKER_PATH/config"
+        log_info "已创建通用 Docker 配置目录: $DOCKER_PATH/config"
+    else
+        for app in "${apps_to_create[@]}"; do
+            mkdir -p "$DOCKER_PATH/$app"
+            chmod -R 777 "$DOCKER_PATH/$app" # 确保容器有权限写入
+            log_info "已创建 Docker 应用目录: $DOCKER_PATH/$app"
+        done
+    fi
+    ### END MODIFIED ###
     
     log_info "Docker 环境设置完成。"
 }
@@ -327,10 +340,10 @@ EOF
 show_main_menu() {
     show_banner
     echo "主菜单:"
-    echo "1. 安装 qBittorrent 4.3.8"
-    echo "2. 安装 qBittorrent 4.3.9"
-    echo "3. 安装 qBittorrent 4.3.8 + Vertex"
-    echo "4. 安装 qBittorrent 4.3.9 + Vertex"
+    echo "1. 安装 qBittorrent 4.3.8 (独立安装)"
+    echo "2. 安装 qBittorrent 4.3.9 (Jerry's Script)"
+    echo "3. 安装 qBittorrent 4.3.8 + Vertex (Docker)"
+    echo "4. 安装 qBittorrent 4.3.9 + Vertex (Jerry's Script + Docker)"
     echo "5. 安装选定应用程序 (Docker Compose)"
     echo "6. VPS 优化 (针对 PT 流量)"
     echo "7. 卸载选项"
@@ -369,6 +382,8 @@ install_qb_438() {
     SEEDBOX_USER=$(prompt_user "请输入 qBittorrent WebUI 用户名" "${SEEDBOX_USER}")
     # 密码单独处理，因为 qb438.sh 的第二个参数应该是密码，不是 passkey
     SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
+    # ### MODIFIED: 移除这里额外的 echo，因为 prompt_password 内部已包含 ###
+    # echo # 添加一个换行
     # 验证密码是否为空
     while [ -z "$SEEDBOX_PASSWORD" ]; do
         log_warn "密码不能为空，请重新输入。"
@@ -460,8 +475,9 @@ install_qb_438_vertex_combo() {
     # 保存配置
     save_config
 
-    # 2. 首先安装 Docker 环境 (如果尚未安装)
-    setup_docker_environment
+    # 2. 首先安装 Docker 环境 (如果尚未安装)，并只为 Vertex 创建目录
+    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
+    setup_docker_environment "vertex" 
 
     # 3. 安装 Vertex (Docker 版) - 注意这里路径已更新
     log_info "正在安装 Vertex (Docker 版)..."
@@ -503,8 +519,9 @@ install_qb_439_vertex_combo() {
     if [[ -n "$custom_port" ]]; then WEBUI_PORT="$custom_port"; fi
     save_config
 
-    # 2. 首先安装 Docker 环境 (如果尚未安装)
-    setup_docker_environment
+    # 2. 首先安装 Docker 环境 (如果尚未安装)，并只为 Vertex 创建目录
+    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
+    setup_docker_environment "vertex"
 
     # 3. 安装 Vertex (Docker 版) - 注意这里路径已更新
     log_info "正在安装 Vertex (Docker 版)..."
@@ -528,12 +545,13 @@ install_qb_439_vertex_combo() {
     show_main_menu
 }
 
-# 仅安装 Vertex (Docker) - 新增选项 
+# 仅安装 Vertex (Docker) - 新增选项 
 install_vertex_only() {
     log_info "正在独立安装 Vertex (Docker 版)..."
 
-    # 1. 确保 Docker 环境已设置
-    setup_docker_environment
+    # 1. 确保 Docker 环境已设置，并只为 Vertex 创建目录
+    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
+    setup_docker_environment "vertex"
 
     # 2. 调用 Vertex 安装模块 - 注意这里路径已更新
     bash <(wget -qO- "$GITHUB_RAW/modules/vertex.sh") "latest" "$DOCKER_PATH"
@@ -618,8 +636,9 @@ install_docker_apps() {
     
     log_info "正在安装选定的 Docker 应用程序: ${apps[*]}"
     
-    # 设置 Docker 环境
-    setup_docker_environment
+    # 设置 Docker 环境，只创建用户选择的应用程序目录
+    ### MODIFIED: 传递选定的应用列表给 setup_docker_environment ###
+    setup_docker_environment "${apps[@]}" 
     
     # 生成 docker-compose.yml 文件
     log_info "正在生成 docker-compose.yml 文件..."
