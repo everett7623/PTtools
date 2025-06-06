@@ -244,8 +244,7 @@ prompt_user() {
         read -p "$(echo -e "${BLUE}$prompt${NC}: ")" response
         echo "$response"
     fi
-    ### MODIFIED: 添加一个换行，确保后续提示另起一行 ###
-    echo 
+    # 移除了此处的额外 echo，因为用户输入后 Bash 自动换行
 }
 
 # 提示用户输入密码（隐藏输入）
@@ -254,7 +253,7 @@ prompt_password() {
     local password
     
     read -s -p "$(echo -e "${BLUE}$prompt${NC}: ")" password
-    echo # 换行
+    echo # 确保输入密码后光标换行，但只换一行
     echo "$password"
 }
 
@@ -266,7 +265,7 @@ validate_port() {
     if ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then # 避免常见系统端口
         log_error "无效的 ${port_name} 端口号: $port。端口必须是 1024 到 65535 之间的数字。"
         return 1
-    Ffi
+    fi # <--- 修正了 Ffi 为 fi
     
     if ss -tulwn | grep -q ":$port "; then
         log_warn "警告: ${port_name} 端口 $port 已经被占用。"
@@ -289,13 +288,13 @@ setup_docker_environment() {
     
     # 创建主 Docker 目录
     mkdir -p "$DOCKER_PATH"
+    # 注意：777 权限较为宽松，生产环境请根据实际需求调整
     chmod -R 777 "$DOCKER_PATH" # 赋予写入权限，方便容器内读写
 
     # 创建下载目录
     mkdir -p "$DOWNLOAD_PATH"
     chmod -R 777 "$DOWNLOAD_PATH"
     
-    ### MODIFIED: 根据传入的参数创建特定应用的子目录，不再硬编码所有目录 ###
     local apps_to_create=("$@") # 接收传入的应用程序列表
     
     if [[ ${#apps_to_create[@]} -eq 0 ]]; then
@@ -311,7 +310,6 @@ setup_docker_environment() {
             log_info "已创建 Docker 应用目录: $DOCKER_PATH/$app"
         done
     fi
-    ### END MODIFIED ###
     
     log_info "Docker 环境设置完成。"
 }
@@ -324,10 +322,10 @@ setup_docker_environment() {
 show_banner() {
     clear
     cat << 'EOF'
- ____  _____   _____         _    
-|  _ \|_  __| |_  __|___  ___ | |___ 
+ ____  _____   _____          _   
+| _ \|_  __| |_  __|___  ___ | |___ 
 | |_) | | |     | | / _ \/ _ \| / __|
-|  __/  | |     | || (_) | (_) | \__ \
+| __/  | |     | || (_) | (_) | \__ \
 |_|     |_|     |_| \___/ \___/|_|___/
                                      
 EOF
@@ -380,10 +378,8 @@ install_qb_438() {
     
     # 获取用户输入
     SEEDBOX_USER=$(prompt_user "请输入 qBittorrent WebUI 用户名" "${SEEDBOX_USER}")
-    # 密码单独处理，因为 qb438.sh 的第二个参数应该是密码，不是 passkey
+    
     SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
-    # ### MODIFIED: 移除这里额外的 echo，因为 prompt_password 内部已包含 ###
-    # echo # 添加一个换行
     # 验证密码是否为空
     while [ -z "$SEEDBOX_PASSWORD" ]; do
         log_warn "密码不能为空，请重新输入。"
@@ -447,9 +443,9 @@ install_qb_439() {
     register_installation "qbittorrent" "4.3.9"
     log_info "qBittorrent 4.3.9 安装完成。"
     
-    log_info "Jerry's 脚本可能需要重启，请根据提示操作或手动重启以应用所有更改。"
-    read -p "安装完成。按 Enter 返回主菜单..."
-    show_main_menu
+    log_info "Jerry's 脚本可能需要重启，系统将在 1 分钟后自动重启以应用所有更改。"
+    shutdown -r +1 "PTtools: qBittorrent 4.3.9 安装完成，系统将重启。"
+    exit 0 # 触发重启后退出主脚本
 }
 
 # 组合安装：qBittorrent 4.3.8 + Vertex
@@ -476,7 +472,6 @@ install_qb_438_vertex_combo() {
     save_config
 
     # 2. 首先安装 Docker 环境 (如果尚未安装)，并只为 Vertex 创建目录
-    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
     setup_docker_environment "vertex" 
 
     # 3. 安装 Vertex (Docker 版) - 注意这里路径已更新
@@ -520,7 +515,6 @@ install_qb_439_vertex_combo() {
     save_config
 
     # 2. 首先安装 Docker 环境 (如果尚未安装)，并只为 Vertex 创建目录
-    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
     setup_docker_environment "vertex"
 
     # 3. 安装 Vertex (Docker 版) - 注意这里路径已更新
@@ -539,18 +533,16 @@ install_qb_439_vertex_combo() {
     register_installation "qbittorrent" "4.3.9"
 
     log_info "qBittorrent 4.3.9 + Vertex 组合安装完成。"
-    log_info "请检查 qBittorrent 和 Vertex 服务是否已正常启动。"
-    log_info "Jerry's 脚本可能需要重启，请根据提示操作或手动重启以应用所有更改。"
-    read -p "安装完成。按 Enter 返回主菜单..."
-    show_main_menu
+    log_info "系统将在 1 分钟后自动重启以应用所有更改。如果 Jerry's 脚本内部已重启，请忽略此消息。"
+    shutdown -r +1 "PTtools: qBittorrent 4.3.9 + Vertex 组合安装完成，系统将重启。"
+    exit 0 # 触发重启后退出主脚本
 }
 
-# 仅安装 Vertex (Docker) - 新增选项 
+# 仅安装 Vertex (Docker) - 新增选项 
 install_vertex_only() {
     log_info "正在独立安装 Vertex (Docker 版)..."
 
     # 1. 确保 Docker 环境已设置，并只为 Vertex 创建目录
-    ### MODIFIED: 传递 "vertex" 给 setup_docker_environment ###
     setup_docker_environment "vertex"
 
     # 2. 调用 Vertex 安装模块 - 注意这里路径已更新
@@ -637,7 +629,6 @@ install_docker_apps() {
     log_info "正在安装选定的 Docker 应用程序: ${apps[*]}"
     
     # 设置 Docker 环境，只创建用户选择的应用程序目录
-    ### MODIFIED: 传递选定的应用列表给 setup_docker_environment ###
     setup_docker_environment "${apps[@]}" 
     
     # 生成 docker-compose.yml 文件
@@ -766,7 +757,7 @@ complete_system_cleanup() {
 register_installation() {
     local app_name="$1"
     local version="$2"
-    local install_path="${3:-$DOCKER_PATH/$app_name}"
+    local install_path="${3:-$DOCKER_PATH/$app_name}" # 对于独立安装的qb438，此路径可能需要精确指定
     
     # 将安装信息保存到安装记录文件
     echo "$app_name|$version|$install_path|$(date '+%Y-%m-%d %H:%M:%S')" >> /etc/pttools/installed.list
