@@ -345,7 +345,7 @@ install_qb_438() {
     
     # Run installation script
     log_info "Running qBittorrent 4.3.8 installation script..."
-    bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) \
+    bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/modules/qb438.sh) \
         "$SEEDBOX_USER" "$PASSKEY" "$WEBUI_PORT" "$DAEMON_PORT"
     
     register_installation "qbittorrent" "4.3.8"
