@@ -327,10 +327,10 @@ EOF
 show_main_menu() {
     show_banner
     echo "主菜单:"
-    echo "1. 安装 qBittorrent 4.3.8 (独立安装)"
-    echo "2. 安装 qBittorrent 4.3.9 (Jerry's Script)"
-    echo "3. 安装 qBittorrent 4.3.8 + Vertex (Docker)"
-    echo "4. 安装 qBittorrent 4.3.9 + Vertex (Jerry's Script + Docker)"
+    echo "1. 安装 qBittorrent 4.3.8"
+    echo "2. 安装 qBittorrent 4.3.9"
+    echo "3. 安装 qBittorrent 4.3.8 + Vertex"
+    echo "4. 安装 qBittorrent 4.3.9 + Vertex"
     echo "5. 安装选定应用程序 (Docker Compose)"
     echo "6. VPS 优化 (针对 PT 流量)"
     echo "7. 卸载选项"
@@ -342,7 +342,7 @@ show_main_menu() {
     
     case "$choice" in
         1) install_qb_438 ;;
-        2) install_qb_439_jerry ;;
+        2) install_qb_439 ;;
         3) install_qb_438_vertex_combo ;; # 调用组合安装函数
         4) install_qb_439_vertex_combo ;; # 调用组合安装函数
         5) show_app_selection_menu ;;
@@ -405,7 +405,7 @@ install_qb_438() {
 }
 
 # 安装 qBittorrent 4.3.9 (Jerry's Script)
-install_qb_439_jerry() {
+install_qb_439() {
     log_info "正在使用 Jerry's Script 安装 qBittorrent 4.3.9..."
     
     local username=$(prompt_user "请输入 qBittorrent 用户名" "${SEEDBOX_USER}")
