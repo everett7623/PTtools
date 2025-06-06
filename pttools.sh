@@ -1,954 +1,650 @@
 #!/bin/bash
+# PT Tools Installation Script
+# Author: everett7623
+# Version: 1.0.0
+# Description: One-click installation script for PT tools
 
-# PTtools 一键安装脚本
-# Github: https://github.com/everett7623/pttools
-# 作者: everett7623
+set -euo pipefail
 
-# 颜色定义
+# Script Configuration
+SCRIPT_VERSION="1.0.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename "$0")"
+GITHUB_RAW="https://raw.githubusercontent.com/everett7623/pttools/main"
+
+# Default Configuration
+DEFAULT_DOCKER_PATH="/opt/docker"
+DEFAULT_DOWNLOAD_PATH="/opt/downloads"
+INSTALLATION_LOG="/var/log/pttools-install.log"
+CONFIG_FILE="/etc/pttools/config.conf"
+
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-# 全局变量
-DOCKER_PATH="/opt/docker"
-LOG_FILE="/tmp/pttools_install.log"
+# Rollback stack for error handling
+ROLLBACK_STACK=()
 
-# 显示安装成功信息
-show_success_info() {
-    local app_name="$1"
-    local info="$2"
+# Installation registry
+declare -A INSTALLED_APPS
+
+# ===============================================
+# Basic Functions
+# ===============================================
+
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+}
+
+print_separator() {
+    echo "========================================"
+}
+
+# Error handler
+error_handler() {
+    local exit_code=$1
+    local line_number=$2
+    local bash_lineno=$3
+    local last_command=$4
     
-    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_color $WHITE "🎉 $app_name 安装成功！"
-    print_color $CYAN "$info"
-    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-}
-
-# 打印带颜色的文本
-print_color() {
-    printf "${1}${2}${NC}\n"
-}
-
-# 日志记录函数
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
-}
-
-# 显示横幅
-show_banner() {
-    clear
-    print_color $CYAN "
-╔══════════════════════════════════════════════════════════════╗
-║                      PTtools 一键安装脚本                      ║
-║                    为PT爱好者量身定制                          ║
-║              Github: everett7623/pttools                     ║
-╚══════════════════════════════════════════════════════════════╝
-"
-}
-
-# 检查系统环境
-check_system() {
-    print_color $YELLOW "正在检查系统环境..."
+    log_error "Installation failed with exit code $exit_code at line $line_number"
+    log_error "Command: $last_command"
     
-    # 检查是否为root用户
+    execute_rollback
+    
+    exit $exit_code
+}
+
+trap 'error_handler $? $LINENO $BASH_LINENO "$BASH_COMMAND"' ERR
+
+# Rollback registration
+rb() {
+    ROLLBACK_STACK+=("$*")
+}
+
+execute_rollback() {
+    if [[ ${#ROLLBACK_STACK[@]} -gt 0 ]]; then
+        log_info "Executing rollback operations..."
+        for (( i=${#ROLLBACK_STACK[@]}-1; i>=0; i-- )); do
+            log_info "Rollback: ${ROLLBACK_STACK[i]}"
+            eval "${ROLLBACK_STACK[i]}" || true
+        done
+    fi
+}
+
+# ===============================================
+# System Checks and Validation
+# ===============================================
+
+check_root() {
     if [[ $EUID -ne 0 ]]; then
-        print_color $RED "错误: 请使用root用户运行此脚本"
+        log_error "This script must be run as root"
+        exit 1
+    fi
+}
+
+check_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS=$ID
+        VER=$VERSION_ID
+    else
+        log_error "Cannot determine OS version"
         exit 1
     fi
     
-    # 检查系统类型
-    if [[ -f /etc/redhat-release ]]; then
-        OS="centos"
-    elif [[ -f /etc/debian_version ]]; then
-        OS="debian"
-    else
-        print_color $RED "错误: 不支持的操作系统"
-        exit 1
-    fi
-    
-    print_color $GREEN "系统检查完成: $OS"
-    log "系统检查完成: $OS"
-}
-
-# 安装Docker
-install_docker() {
-    if command -v docker &> /dev/null; then
-        print_color $GREEN "Docker 已安装"
-        return 0
-    fi
-    
-    print_color $YELLOW "正在安装 Docker..."
-    
-    if [[ $OS == "debian" ]]; then
-        apt-get update
-        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-        curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-        apt-get update
-        apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    elif [[ $OS == "centos" ]]; then
-        yum install -y yum-utils
-        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-        yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    fi
-    
-    systemctl start docker
-    systemctl enable docker
-    
-    # 安装docker-compose
-    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
-    
-    print_color $GREEN "Docker 安装完成"
-    log "Docker 安装完成"
-}
-
-# 创建目录结构
-create_directories() {
-    print_color $YELLOW "正在创建目录结构..."
-    
-    mkdir -p "$DOCKER_PATH"
-    chmod -R 777 "$DOCKER_PATH"
-    mkdir -p "$DOCKER_PATH"/{qbittorrent,transmission,emby,iyuuplus,moviepilot,vertex}
-    mkdir -p /opt/downloads
-    chmod -R 777 /opt/downloads
-    
-    print_color $GREEN "目录结构创建完成"
-    log "目录结构创建完成"
-}
-
-# 获取VPS信息用于优化
-get_vps_info() {
-    CPU_CORES=$(nproc)
-    TOTAL_RAM=$(free -m | awk 'NR==2{printf "%.0f", $2}')
-    
-    # 根据VPS性能设置qB缓存大小
-    if [[ $TOTAL_RAM -le 1024 ]]; then
-        QB_CACHE=64
-    elif [[ $TOTAL_RAM -le 2048 ]]; then
-        QB_CACHE=128
-    elif [[ $TOTAL_RAM -le 4096 ]]; then
-        QB_CACHE=256
-    else
-        QB_CACHE=512
-    fi
-    
-    print_color $BLUE "VPS信息: CPU核心数=$CPU_CORES, 内存=${TOTAL_RAM}MB, 建议缓存=${QB_CACHE}MB"
-    log "VPS信息: CPU=$CPU_CORES cores, RAM=${TOTAL_RAM}MB, Cache=${QB_CACHE}MB"
-}
-
-# 安装qBittorrent 4.3.8 (PT脚本)
-install_qb_438() {
-    local combo_mode=${1:-"single"}
-    print_color $YELLOW "正在安装 qBittorrent 4.3.8 (PT脚本)..."
-    
-    # 生成随机用户名和密码
-    QB_USER="admin"
-    QB_PASS=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-10)
-    QB_PORT=8080
-    QB_LISTEN_PORT=23333
-    
-    print_color $BLUE "qBittorrent 登录信息:"
-    print_color $WHITE "用户名: $QB_USER"
-    print_color $WHITE "密码: $QB_PASS"
-    print_color $WHITE "WebUI端口: $QB_PORT"
-    print_color $WHITE "监听端口: $QB_LISTEN_PORT"
-    
-    # 检测系统
-    if [[ -f /etc/redhat-release ]]; then
-        OS_TYPE="centos"
-    elif [[ -f /etc/debian_version ]]; then
-        OS_TYPE="debian"
-    else
-        print_color $RED "不支持的操作系统"
-        return 1
-    fi
-    
-    # 安装依赖
-    print_color $YELLOW "安装依赖包..."
-    if [[ $OS_TYPE == "debian" ]]; then
-        apt-get update
-        apt-get install -y wget curl unzip
-    elif [[ $OS_TYPE == "centos" ]]; then
-        yum update -y
-        yum install -y wget curl unzip
-    fi
-    
-    # 创建用户
-    QB_USER_SYSTEM="qbittorrent"
-    if ! id "$QB_USER_SYSTEM" &>/dev/null; then
-        useradd -r -s /bin/false "$QB_USER_SYSTEM"
-        print_color $GREEN "创建用户 $QB_USER_SYSTEM"
-    fi
-    
-    # 使用Aniverse的安装脚本（支持指定版本）
-    print_color $YELLOW "使用Aniverse脚本安装 qBittorrent 4.3.8..."
-    cd /tmp
-    
-    # 下载安装脚本
-    wget -qO qb_install.sh --no-check-certificate "https://github.com/Aniverse/qbittorrent-nox-static/raw/master/install.sh"
-    
-    if [[ $? -ne 0 ]]; then
-        print_color $RED "下载安装脚本失败"
-        return 1
-    fi
-    
-    # 执行安装脚本
-    chmod +x qb_install.sh
-    bash qb_install.sh -u "$QB_USER" -p "$QB_PASS" -w "$QB_PORT" -v "4.3.8"
-    
-    if [[ $? -eq 0 ]]; then
-        print_color $GREEN "qBittorrent 4.3.8 安装完成"
-        log "qBittorrent 4.3.8 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
-        
-        # 显示安装信息
-        if [[ $combo_mode == "single" ]]; then
-            show_success_info "qBittorrent 4.3.8 (PT脚本版本)" "
-   🌐 登录地址: http://你的服务器IP:$QB_PORT
-   👤 用户名: $QB_USER
-   🔑 密码: $QB_PASS
-   🔧 监听端口: $QB_LISTEN_PORT"
-        fi
-    else
-        print_color $RED "qBittorrent 4.3.8 安装失败，尝试备用方法..."
-        
-        # 备用方法：从发行版仓库安装
-        print_color $YELLOW "尝试从发行版仓库安装..."
-        if [[ $OS_TYPE == "debian" ]]; then
-            apt-get install -y qbittorrent-nox
-        elif [[ $OS_TYPE == "centos" ]]; then
-            yum install -y epel-release
-            yum install -y qbittorrent-nox
-        fi
-        
-        if command -v qbittorrent-nox &> /dev/null; then
-            # 手动配置
-            QB_CONFIG_DIR="/home/$QB_USER_SYSTEM/.config/qBittorrent"
-            QB_DATA_DIR="/home/$QB_USER_SYSTEM/.local/share/data/qBittorrent"
-            mkdir -p "$QB_CONFIG_DIR"
-            mkdir -p "$QB_DATA_DIR"
-            mkdir -p "/opt/downloads"
-            
-            # 生成配置文件
-            cat > "$QB_CONFIG_DIR/qBittorrent.conf" << EOF
-[Application]
-FileLogger\Age=1
-FileLogger\AgeType=1
-FileLogger\Backup=true
-FileLogger\DeleteOld=true
-FileLogger\Enabled=true
-FileLogger\MaxSizeBytes=66560
-FileLogger\Path=$QB_DATA_DIR
-
-[BitTorrent]
-Session\AnnounceToAllTiers=true
-Session\AsyncIOThreadsCount=8
-Session\CheckingMemUsageSize=32
-Session\CoalesceReadWrite=false
-Session\FilePoolSize=40
-Session\GuidedReadCache=true
-Session\MultiConnectionsPerIp=false
-Session\SendBufferWatermark=500
-Session\SendBufferLowWatermark=10
-Session\SendBufferWatermarkFactor=50
-Session\SocketBacklogSize=30
-Session\UseOSCache=true
-Session\Port=$QB_LISTEN_PORT
-Session\UPnP=false
-
-[Core]
-AutoDeleteAddedTorrentFile=Never
-
-[Preferences]
-Advanced\AnnounceToAllTrackers=false
-Advanced\RecheckOnCompletion=false
-Advanced\useSystemIconTheme=true
-Bittorrent\AddTrackers=false
-Bittorrent\DHT=false
-Bittorrent\Encryption=1
-Bittorrent\LSD=false
-Bittorrent\MaxConnecs=200
-Bittorrent\MaxConnecsPerTorrent=100
-Bittorrent\MaxRatioAction=0
-Bittorrent\PeX=false
-Bittorrent\uTP=false
-Bittorrent\uTP_rate_limited=true
-Connection\GlobalDLLimitAlt=0
-Connection\GlobalUPLimitAlt=0
-Connection\PortRangeMin=$QB_LISTEN_PORT
-Downloads\DiskWriteCacheSize=64
-Downloads\DiskWriteCacheTTL=60
-Downloads\SavePath=/opt/downloads
-Downloads\SaveResumeDataInterval=60
-Downloads\ScanDirsV2=@Variant(\0\0\0\x1c\0\0\0\0)
-Downloads\TorrentExportDir=
-General\Locale=zh
-Queueing\MaxActiveDownloads=5
-Queueing\MaxActiveTorrents=10
-Queueing\MaxActiveUploads=10
-Queueing\QueueingSystemEnabled=false
-WebUI\Address=*
-WebUI\AlternativeUIEnabled=false
-WebUI\AuthSubnetWhitelistEnabled=false
-WebUI\BanDuration=3600
-WebUI\CSRFProtection=true
-WebUI\ClickjackingProtection=true
-WebUI\CustomHTTPHeaders=
-WebUI\CustomHTTPHeadersEnabled=false
-WebUI\HTTPS\CertificatePath=
-WebUI\HTTPS\Enabled=false
-WebUI\HTTPS\KeyPath=
-WebUI\HostHeaderValidation=true
-WebUI\LocalHostAuth=false
-WebUI\MaxAuthenticationFailCount=5
-WebUI\Port=$QB_PORT
-WebUI\RootFolder=
-WebUI\SecureCookie=true
-WebUI\ServerDomains=*
-WebUI\SessionTimeout=3600
-WebUI\UseUPnP=false
-WebUI\Username=$QB_USER
-WebUI\Password_ha1=@ByteArray($(echo -n "$QB_USER:Web UI Access:$QB_PASS" | md5sum | cut -d' ' -f1))
-EOF
-            
-            # 设置权限
-            chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/home/$QB_USER_SYSTEM"
-            chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/opt/downloads"
-            
-            # 创建 systemd 服务
-            cat > /etc/systemd/system/qbittorrent.service << EOF
-[Unit]
-Description=qBittorrent Daemon Service
-Documentation=man:qbittorrent-nox(1)
-Wants=network-online.target
-After=network-online.target nss-lookup.target
-
-[Service]
-Type=exec
-User=$QB_USER_SYSTEM
-ExecStart=/usr/bin/qbittorrent-nox --webui-port=$QB_PORT
-Restart=on-failure
-RestartSec=5
-TimeoutStopSec=infinity
-
-[Install]
-WantedBy=multi-user.target
-EOF
-            
-            # 启动服务
-            systemctl daemon-reload
-            systemctl enable qbittorrent
-            systemctl start qbittorrent
-            
-            # 等待服务启动
-            print_color $YELLOW "等待 qBittorrent 服务启动..."
-            sleep 10
-            
-            if systemctl is-active --quiet qbittorrent; then
-                print_color $GREEN "qBittorrent 安装完成（发行版版本）"
-                
-                # 显示安装信息
-                if [[ $combo_mode == "single" ]]; then
-                    show_success_info "qBittorrent (系统版本)" "
-   🌐 登录地址: http://你的服务器IP:$QB_PORT
-   👤 用户名: $QB_USER
-   🔑 密码: $QB_PASS
-   🔧 监听端口: $QB_LISTEN_PORT"
-                fi
-            else
-                print_color $RED "qBittorrent 启动失败"
-                return 1
-            fi
-        else
-            print_color $RED "所有安装方法都失败了"
-            return 1
-        fi
-    fi
-}
-
-# 安装qBittorrent 4.3.9 (杰瑞大佬脚本)
-install_qb_439() {
-    local combo_mode=${1:-"single"}
-    print_color $YELLOW "正在安装 qBittorrent 4.3.9 (杰瑞大佬脚本)..."
-    
-    # 生成随机用户名和密码
-    QB_USER="admin"
-    QB_PASS=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-10)
-    
-    print_color $BLUE "qBittorrent 登录信息:"
-    print_color $WHITE "用户名: $QB_USER"
-    print_color $WHITE "密码: $QB_PASS"
-    print_color $WHITE "缓存大小: ${QB_CACHE}MB"
-    
-    # 检测系统
-    if [[ -f /etc/redhat-release ]]; then
-        OS_TYPE="centos"
-    elif [[ -f /etc/debian_version ]]; then
-        OS_TYPE="debian"
-    else
-        print_color $RED "不支持的操作系统"
-        return 1
-    fi
-    
-    # 安装依赖
-    print_color $YELLOW "安装依赖包..."
-    if [[ $OS_TYPE == "debian" ]]; then
-        apt-get update
-        apt-get install -y wget curl unzip
-    elif [[ $OS_TYPE == "centos" ]]; then
-        yum update -y
-        yum install -y wget curl unzip
-    fi
-    
-    # 启用BBR v3
-    print_color $YELLOW "启用 BBR v3..."
-    if ! grep -q "tcp_bbr" /proc/modules; then
-        modprobe tcp_bbr 2>/dev/null || true
-    fi
-    if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf; then
-        echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
-    fi
-    if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
-        echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
-    fi
-    sysctl -p >/dev/null 2>&1
-    print_color $GREEN "BBR v3 已启用"
-    
-    # 创建用户
-    QB_USER_SYSTEM="qbittorrent"
-    if ! id "$QB_USER_SYSTEM" &>/dev/null; then
-        useradd -r -s /bin/false "$QB_USER_SYSTEM"
-        print_color $GREEN "创建用户 $QB_USER_SYSTEM"
-    fi
-    
-    # 使用最新的静态编译版本
-    print_color $YELLOW "下载最新版本 qBittorrent..."
-    cd /tmp
-    
-    # 使用userdocs的最新版本（通常是4.6.x，比4.3.9更好）
-    wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/x86_64-qbittorrent-nox"
-    
-    if [[ $? -ne 0 ]]; then
-        print_color $RED "下载 qBittorrent 失败，尝试备用方法..."
-        
-        # 备用方法：使用Aniverse的脚本
-        wget -qO qb_install.sh --no-check-certificate "https://github.com/Aniverse/qbittorrent-nox-static/raw/master/install.sh"
-        
-        if [[ $? -eq 0 ]]; then
-            chmod +x qb_install.sh
-            bash qb_install.sh -u "$QB_USER" -p "$QB_PASS" -w "8080" -v "4.3.9"
-            
-            if [[ $? -eq 0 ]]; then
-                print_color $GREEN "qBittorrent 4.3.9 安装完成（通过Aniverse脚本）"
-                
-                # 显示安装信息
-                if [[ $combo_mode == "single" ]]; then
-                    show_success_info "qBittorrent 4.3.9 (杰瑞大佬脚本)" "
-   🌐 登录地址: http://你的服务器IP:8080
-   👤 用户名: $QB_USER
-   🔑 密码: $QB_PASS
-   💾 缓存大小: ${QB_CACHE}MB
-   ⚡ 已启用BBR v3优化"
-                fi
-                return 0
-            fi
-        fi
-        
-        # 最后备用方法：从发行版仓库安装
-        print_color $YELLOW "尝试从发行版仓库安装..."
-        if [[ $OS_TYPE == "debian" ]]; then
-            apt-get install -y qbittorrent-nox
-        elif [[ $OS_TYPE == "centos" ]]; then
-            yum install -y epel-release
-            yum install -y qbittorrent-nox
-        fi
-        
-        if ! command -v qbittorrent-nox &> /dev/null; then
-            print_color $RED "所有安装方法都失败了"
-            return 1
-        fi
-        
-        QB_BINARY="/usr/bin/qbittorrent-nox"
-    else
-        # 安装下载的二进制文件
-        chmod +x qbittorrent-nox
-        mv qbittorrent-nox /usr/local/bin/
-        print_color $GREEN "qBittorrent 下载完成"
-        QB_BINARY="/usr/local/bin/qbittorrent-nox"
-    fi
-    
-    # 创建配置目录
-    QB_CONFIG_DIR="/home/$QB_USER_SYSTEM/.config/qBittorrent"
-    QB_DATA_DIR="/home/$QB_USER_SYSTEM/.local/share/data/qBittorrent"
-    mkdir -p "$QB_CONFIG_DIR"
-    mkdir -p "$QB_DATA_DIR"
-    mkdir -p "/opt/downloads"
-    
-    # 生成优化的配置文件
-    cat > "$QB_CONFIG_DIR/qBittorrent.conf" << EOF
-[Application]
-FileLogger\Age=1
-FileLogger\AgeType=1
-FileLogger\Backup=true
-FileLogger\DeleteOld=true
-FileLogger\Enabled=true
-FileLogger\MaxSizeBytes=66560
-FileLogger\Path=$QB_DATA_DIR
-
-[BitTorrent]
-Session\AnnounceToAllTiers=true
-Session\AsyncIOThreadsCount=16
-Session\CheckingMemUsageSize=$QB_CACHE
-Session\CoalesceReadWrite=true
-Session\FilePoolSize=100
-Session\GuidedReadCache=true
-Session\MultiConnectionsPerIp=true
-Session\SendBufferWatermark=1024
-Session\SendBufferLowWatermark=128
-Session\SendBufferWatermarkFactor=50
-Session\SocketBacklogSize=100
-Session\UseOSCache=true
-Session\Port=6881
-Session\UPnP=false
-Session\GlobalMaxSeedingMinutes=0
-Session\SeedChokingAlgorithm=RoundRobin
-Session\UploadChokingAlgorithm=AntiLeech
-
-[Core]
-AutoDeleteAddedTorrentFile=Never
-
-[Preferences]
-Advanced\AnnounceToAllTrackers=true
-Advanced\RecheckOnCompletion=false
-Advanced\useSystemIconTheme=true
-Bittorrent\AddTrackers=false
-Bittorrent\DHT=false
-Bittorrent\Encryption=2
-Bittorrent\LSD=false
-Bittorrent\MaxConnecs=500
-Bittorrent\MaxConnecsPerTorrent=100
-Bittorrent\MaxRatioAction=0
-Bittorrent\PeX=false
-Bittorrent\uTP=false
-Bittorrent\uTP_rate_limited=true
-Connection\GlobalDLLimitAlt=0
-Connection\GlobalUPLimitAlt=0
-Connection\PortRangeMin=6881
-Downloads\DiskWriteCacheSize=$QB_CACHE
-Downloads\DiskWriteCacheTTL=60
-Downloads\SavePath=/opt/downloads
-Downloads\SaveResumeDataInterval=60
-Downloads\ScanDirsV2=@Variant(\0\0\0\x1c\0\0\0\0)
-Downloads\TorrentExportDir=
-General\Locale=zh
-Queueing\MaxActiveDownloads=10
-Queueing\MaxActiveTorrents=20
-Queueing\MaxActiveUploads=20
-Queueing\QueueingSystemEnabled=false
-WebUI\Address=*
-WebUI\AlternativeUIEnabled=false
-WebUI\AuthSubnetWhitelistEnabled=false
-WebUI\BanDuration=3600
-WebUI\CSRFProtection=true
-WebUI\ClickjackingProtection=true
-WebUI\CustomHTTPHeaders=
-WebUI\CustomHTTPHeadersEnabled=false
-WebUI\HTTPS\CertificatePath=
-WebUI\HTTPS\Enabled=false
-WebUI\HTTPS\KeyPath=
-WebUI\HostHeaderValidation=true
-WebUI\LocalHostAuth=false
-WebUI\MaxAuthenticationFailCount=5
-WebUI\Port=8080
-WebUI\RootFolder=
-WebUI\SecureCookie=true
-WebUI\ServerDomains=*
-WebUI\SessionTimeout=3600
-WebUI\UseUPnP=false
-WebUI\Username=$QB_USER
-WebUI\Password_ha1=@ByteArray($(echo -n "$QB_USER:Web UI Access:$QB_PASS" | md5sum | cut -d' ' -f1))
-EOF
-    
-    # 设置权限
-    chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/home/$QB_USER_SYSTEM"
-    chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/opt/downloads"
-    
-    # 系统优化
-    print_color $YELLOW "应用系统优化..."
-    # 内核参数优化
-    cat >> /etc/sysctl.conf << EOF
-
-# qBittorrent 优化
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-net.core.netdev_max_backlog = 30000
-net.ipv4.tcp_no_metrics_save = 1
-net.ipv4.tcp_moderate_rcvbuf = 1
-net.ipv4.tcp_timestamps = 1
-net.ipv4.tcp_sack = 1
-net.ipv4.tcp_fack = 1
-net.ipv4.tcp_window_scaling = 1
-net.ipv4.tcp_adv_win_scale = 2
-net.ipv4.tcp_low_latency = 1
-net.ipv4.ip_local_port_range = 1024 65535
-EOF
-    
-    sysctl -p >/dev/null 2>&1
-    
-    # 文件描述符限制
-    if ! grep -q "* soft nofile 65536" /etc/security/limits.conf; then
-        echo "* soft nofile 65536" >> /etc/security/limits.conf
-        echo "* hard nofile 65536" >> /etc/security/limits.conf
-    fi
-    
-    # 创建 systemd 服务
-    cat > /etc/systemd/system/qbittorrent.service << EOF
-[Unit]
-Description=qBittorrent Daemon Service
-Documentation=man:qbittorrent-nox(1)
-Wants=network-online.target
-After=network-online.target nss-lookup.target
-
-[Service]
-Type=exec
-User=$QB_USER_SYSTEM
-ExecStart=$QB_BINARY --webui-port=8080
-Restart=on-failure
-RestartSec=5
-TimeoutStopSec=infinity
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    # 启动服务
-    systemctl daemon-reload
-    systemctl enable qbittorrent
-    systemctl start qbittorrent
-    
-    # 等待服务启动
-    print_color $YELLOW "等待 qBittorrent 服务启动..."
-    sleep 10
-    
-    # 检查服务状态
-    if systemctl is-active --quiet qbittorrent; then
-        print_color $GREEN "qBittorrent 安装完成"
-        log "qBittorrent 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
-        
-        # 显示安装信息
-        if [[ $combo_mode == "single" ]]; then
-            show_success_info "qBittorrent (优化版本)" "
-   🌐 登录地址: http://你的服务器IP:8080
-   👤 用户名: $QB_USER
-   🔑 密码: $QB_PASS
-   💾 缓存大小: ${QB_CACHE}MB
-   ⚡ 已启用BBR v3优化"
-        fi
-    else
-        print_color $RED "qBittorrent 启动失败"
-        log "qBittorrent 启动失败"
-        journalctl -u qbittorrent --no-pager -l | tail -20
-        return 1
-    fi
-}
-
-# 显示组合安装信息
-show_combo_success() {
-    local qb_version="$1"
-    local qb_user="$QB_USER"
-    local qb_pass="$QB_PASS"
-    
-    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    if [[ $qb_version == "4.3.8" ]]; then
-        print_color $WHITE "🔥 组合安装成功: qBittorrent 4.3.8 + Vertex"
-        print_color $CYAN "
-📥 qBittorrent 4.3.8 (兼容版本):
-   🌐 登录地址: http://你的服务器IP:8080
-   👤 用户名: $qb_user
-   🔑 密码: $qb_pass
-   🔧 监听端口: 23333
-
-🔧 Vertex 媒体管理工具:
-   🌐 登录地址: http://你的服务器IP:3334
-   ℹ️  说明: 初次访问需要设置管理员账号密码"
-    else
-        print_color $WHITE "🔥 组合安装成功: qBittorrent 最新版 + Vertex"
-        print_color $CYAN "
-📥 qBittorrent 最新版 (性能优化):
-   🌐 登录地址: http://你的服务器IP:8080
-   👤 用户名: $qb_user
-   🔑 密码: $qb_pass
-   💾 缓存大小: ${QB_CACHE}MB
-   ⚡ 已启用BBR v3优化
-
-🔧 Vertex 媒体管理工具:
-   🌐 登录地址: http://你的服务器IP:3334
-   ℹ️  说明: 初次访问需要设置管理员账号密码"
-    fi
-    print_color $GREEN "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-}
-
-# 安装Vertex
-install_vertex() {
-    local combo_mode=${1:-"single"}
-    print_color $YELLOW "正在安装 Vertex..."
-    
-    # 创建vertex目录
-    mkdir -p "$DOCKER_PATH/vertex"
-    
-    # 创建vertex的docker-compose文件
-    cat > "$DOCKER_PATH/vertex/docker-compose.yml" << EOF
-version: '3'
-services:
-  vertex:
-    image: lswl/vertex:stable
-    container_name: vertex
-    environment:
-      - TZ=Asia/Shanghai
-    volumes:
-      - $DOCKER_PATH/vertex:/vertex
-    ports:
-      - 3334:3000
-    restart: unless-stopped
-EOF
-    
-    cd "$DOCKER_PATH/vertex"
-    docker-compose up -d
-    
-    if [[ $? -eq 0 ]]; then
-        print_color $GREEN "Vertex 安装完成"
-        log "Vertex 安装完成"
-        
-        # 显示安装信息
-        if [[ $combo_mode == "single" ]]; then
-            show_success_info "Vertex 媒体管理工具" "
-   🌐 登录地址: http://你的服务器IP:3334
-   ℹ️  说明: 初次访问需要设置管理员账号密码
-   📁 数据目录: $DOCKER_PATH/vertex"
-        fi
-    else
-        print_color $RED "Vertex 安装失败"
-        log "Vertex 安装失败"
-        return 1
-    fi
-}
-
-# 显示主菜单
-show_menu() {
-    show_banner
-    print_color $WHITE "请选择要安装的选项:"
-    echo
-    print_color $GREEN "▶ 核心安装选项 (PT刷流优化)"
-    print_color $YELLOW "  1. qBittorrent 4.3.8 (兼容版本)"
-    print_color $YELLOW "  2. qBittorrent 最新版 (推荐)"
-    print_color $YELLOW "  3. qBittorrent 4.3.8 + Vertex"
-    print_color $YELLOW "  4. qBittorrent 最新版 + Vertex"
-    echo
-    print_color $CYAN "▶ 管理选项"
-    print_color $YELLOW "  9. 卸载应用"
-    print_color $YELLOW "  0. 退出脚本"
-    echo
-    print_color $BLUE "选择安装的应用更多功能正在开发中..."
-    print_color $WHITE "注意: 选项1使用兼容版本，选项2使用最新版本(推荐)"
-    echo
-}
-
-# 查看安装信息
-show_info() {
-    print_color $CYAN "=== 已安装应用信息 ==="
-    if [[ -f "$CREDENTIALS_FILE" ]]; then
-        cat "$CREDENTIALS_FILE"
-    else
-        print_color $YELLOW "暂无安装记录"
-    fi
-    echo
-    print_color $WHITE "按任意键返回主菜单..."
-    read -n 1
-}
-
-# 卸载功能
-uninstall_apps() {
-    print_color $CYAN "=== 卸载选项 ==="
-    echo "1. 卸载所有Docker应用"
-    echo "2. 卸载qBittorrent"
-    echo "3. 卸载Vertex"
-    echo "0. 返回主菜单"
-    echo
-    read -p "请选择要卸载的选项: " uninstall_choice
-    
-    case $uninstall_choice in
-        1)
-            print_color $YELLOW "正在卸载所有Docker应用..."
-            docker stop $(docker ps -aq) 2>/dev/null
-            docker rm $(docker ps -aq) 2>/dev/null
-            docker rmi $(docker images -q) 2>/dev/null
-            rm -rf "$DOCKER_PATH"
-            print_color $GREEN "所有Docker应用已卸载"
+    case $OS in
+        ubuntu|debian)
+            log_info "Detected OS: $OS $VER"
             ;;
-        2)
-            print_color $YELLOW "正在卸载qBittorrent..."
-            # 停止qBittorrent相关进程
-            pkill -f qbittorrent
-            systemctl stop qbittorrent 2>/dev/null
-            systemctl disable qbittorrent 2>/dev/null
-            rm -rf /home/*/qbittorrent-nox
-            print_color $GREEN "qBittorrent已卸载"
-            ;;
-        3)
-            print_color $YELLOW "正在卸载Vertex..."
-            cd "$DOCKER_PATH/vertex" 2>/dev/null && docker-compose down
-            docker rmi lswl/vertex:stable 2>/dev/null
-            rm -rf "$DOCKER_PATH/vertex"
-            print_color $GREEN "Vertex已卸载"
-            ;;
-        0)
-            return
+        centos|rhel|fedora)
+            log_info "Detected OS: $OS $VER"
             ;;
         *)
-            print_color $RED "无效选择"
+            log_error "Unsupported OS: $OS"
+            exit 1
             ;;
     esac
-    
-    print_color $WHITE "按任意键继续..."
-    read -n 1
 }
 
-# 主程序
-main() {
-    # 记录开始时间
-    log "PTtools脚本开始运行"
+check_dependencies() {
+    local deps=("wget" "curl" "docker" "docker-compose")
+    local missing=()
     
-    # 检查系统环境
-    check_system
-    
-    # 获取VPS信息
-    get_vps_info
-    
-    while true; do
-        show_menu
-        read -p "请输入选项 [0-9]: " choice
-        
-        case $choice in
-            1)
-                install_docker
-                create_directories
-                install_qb_438 "single"
-                ;;
-            2)
-                install_docker
-                create_directories
-                install_qb_439 "single"
-                ;;
-            3)
-                install_docker
-                create_directories
-                if install_qb_438 "combo" && install_vertex "combo"; then
-                    show_combo_success "4.3.8"
-                fi
-                ;;
-            4)
-                install_docker
-                create_directories
-                if install_qb_439 "combo" && install_vertex "combo"; then
-                    show_combo_success "latest"
-                fi
-                ;;
-            9)
-                uninstall_apps
-                ;;
-            0)
-                print_color $GREEN "感谢使用 PTtools 脚本！"
-                log "PTtools脚本正常退出"
-                exit 0
-                ;;
-            *)
-                print_color $RED "无效选择，请重新输入"
-                sleep 2
-                ;;
-        esac
-# 卸载功能
-uninstall_apps() {
-    print_color $CYAN "=== 卸载选项 ==="
-    echo "1. 卸载所有Docker应用"
-    echo "2. 卸载qBittorrent"
-    echo "3. 卸载Vertex"
-    echo "0. 返回主菜单"
-    echo
-    read -p "请选择要卸载的选项: " uninstall_choice
-    
-    case $uninstall_choice in
-        1)
-            print_color $YELLOW "正在卸载所有Docker应用..."
-            docker stop $(docker ps -aq) 2>/dev/null
-            docker rm $(docker ps -aq) 2>/dev/null
-            docker rmi $(docker images -q) 2>/dev/null
-            rm -rf "$DOCKER_PATH"
-            print_color $GREEN "所有Docker应用已卸载"
-            ;;
-        2)
-            print_color $YELLOW "正在卸载qBittorrent..."
-            # 停止qBittorrent相关进程
-            pkill -f qbittorrent
-            systemctl stop qbittorrent 2>/dev/null
-            systemctl disable qbittorrent 2>/dev/null
-            rm -rf /home/*/qbittorrent-nox
-            print_color $GREEN "qBittorrent已卸载"
-            ;;
-        3)
-            print_color $YELLOW "正在卸载Vertex..."
-            cd "$DOCKER_PATH/vertex" 2>/dev/null && docker-compose down
-            docker rmi lswl/vertex:stable 2>/dev/null
-            rm -rf "$DOCKER_PATH/vertex"
-            print_color $GREEN "Vertex已卸载"
-            ;;
-        0)
-            return
-            ;;
-        *)
-            print_color $RED "无效选择"
-            ;;
-    esac
-    
-    print_color $WHITE "按任意键继续..."
-    read -n 1
-}
-
-# 显示主菜单
-show_menu() {
-    show_banner
-    print_color $WHITE "请选择要安装的选项:"
-    echo
-    print_color $GREEN "▶ 核心安装选项 (PT刷流优化)"
-    print_color $YELLOW "  1. qBittorrent 4.3.8 (PT脚本版本)"
-    print_color $YELLOW "  2. qBittorrent 4.3.9 (杰瑞大佬脚本)"
-    print_color $YELLOW "  3. qBittorrent 4.3.8 + Vertex"
-    print_color $YELLOW "  4. qBittorrent 4.3.9 + Vertex"
-    echo
-    print_color $CYAN "▶ 管理选项"
-    print_color $YELLOW "  9. 卸载应用"
-    print_color $YELLOW "  0. 退出脚本"
-    echo
-    print_color $BLUE "选择安装的应用更多功能正在开发中..."
-    echo
-}
-
-        
-        if [[ $choice =~ ^[1-4]$ ]]; then
-            print_color $GREEN "安装完成！"
-            print_color $YELLOW "登录信息已保存到 $CREDENTIALS_FILE"
-            print_color $WHITE "按任意键返回主菜单..."
-            read -n 1
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing+=("$dep")
         fi
     done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_warn "Missing dependencies: ${missing[*]}"
+        install_dependencies "${missing[@]}"
+    fi
 }
 
-# 运行主程序
+install_dependencies() {
+    log_info "Installing dependencies..."
+    
+    case $OS in
+        ubuntu|debian)
+            apt-get update
+            apt-get install -y "$@"
+            ;;
+        centos|rhel|fedora)
+            yum install -y "$@"
+            ;;
+    esac
+    
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+        log_info "Installing Docker..."
+        curl -fsSL https://get.docker.com | bash
+        systemctl enable docker
+        systemctl start docker
+    fi
+    
+    # Install Docker Compose if not present
+    if ! command -v docker-compose &> /dev/null; then
+        log_info "Installing Docker Compose..."
+        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+    fi
+}
+
+# ===============================================
+# Configuration Management
+# ===============================================
+
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+    else
+        create_default_config
+    fi
+}
+
+create_default_config() {
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    cat > "$CONFIG_FILE" << EOF
+# PTtools Configuration File
+DOCKER_PATH="${DEFAULT_DOCKER_PATH}"
+DOWNLOAD_PATH="${DEFAULT_DOWNLOAD_PATH}"
+SEEDBOX_USER="admin"
+SEEDBOX_PASSWORD="adminadmin"
+WEBUI_PORT=8080
+DAEMON_PORT=23333
+QB_PASSWORD="adminadmin"
+PASSKEY=""
+EOF
+    log_info "Created default configuration file at $CONFIG_FILE"
+}
+
+save_config() {
+    cat > "$CONFIG_FILE" << EOF
+# PTtools Configuration File
+DOCKER_PATH="${DOCKER_PATH}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH}"
+SEEDBOX_USER="${SEEDBOX_USER}"
+SEEDBOX_PASSWORD="${SEEDBOX_PASSWORD}"
+WEBUI_PORT=${WEBUI_PORT}
+DAEMON_PORT=${DAEMON_PORT}
+QB_PASSWORD="${QB_PASSWORD}"
+PASSKEY="${PASSKEY}"
+EOF
+}
+
+# ===============================================
+# User Input Functions
+# ===============================================
+
+prompt_user() {
+    local prompt="$1"
+    local default="${2:-}"
+    local response
+    
+    if [[ -n "$default" ]]; then
+        read -p "$prompt [$default]: " response
+        echo "${response:-$default}"
+    else
+        read -p "$prompt: " response
+        echo "$response"
+    fi
+}
+
+prompt_password() {
+    local prompt="$1"
+    local password
+    
+    read -s -p "$prompt: " password
+    echo
+    echo "$password"
+}
+
+validate_port() {
+    local port="$1"
+    
+    if ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+        log_error "Invalid port number: $port"
+        return 1
+    fi
+    
+    if ss -tulwn | grep -q ":$port "; then
+        log_warn "Port $port is already in use"
+        return 1
+    fi
+    
+    return 0
+}
+
+# ===============================================
+# Docker Management Functions
+# ===============================================
+
+setup_docker_environment() {
+    log_info "Setting up Docker environment..."
+    
+    # Create necessary directories
+    mkdir -p "$DOCKER_PATH"
+    chmod -R 777 "$DOCKER_PATH"
+    
+    mkdir -p "$DOWNLOAD_PATH"
+    chmod -R 777 "$DOWNLOAD_PATH"
+    
+    # Create sub-directories for each application
+    local apps=("qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot" "vertex" "nas-tools" "filebrowser" "metatube" "byte-muse")
+    for app in "${apps[@]}"; do
+        mkdir -p "$DOCKER_PATH/$app"
+    done
+    
+    log_info "Docker environment setup completed"
+}
+
+# ===============================================
+# Main Menu Functions
+# ===============================================
+
+show_banner() {
+    clear
+    cat << 'EOF'
+ ____  _____   _____           _     
+|  _ \|_   _| |_   _|___  ___ | |___ 
+| |_) | | |     | | / _ \/ _ \| / __|
+|  __/  | |     | || (_) | (_) | \__ \
+|_|     |_|     |_| \___/ \___/|_|___/
+                                      
+EOF
+    echo "Version: $SCRIPT_VERSION"
+    echo "Author: everett7623"
+    print_separator
+}
+
+show_main_menu() {
+    show_banner
+    echo "Main Menu:"
+    echo "1. Install qBittorrent 4.3.8"
+    echo "2. Install qBittorrent 4.3.9 (Jerry's)"
+    echo "3. Install qBittorrent 4.3.8 + Vertex"
+    echo "4. Install qBittorrent 4.3.9 + Vertex"
+    echo "5. Install Selected Applications"
+    echo "6. VPS Optimization"
+    echo "7. Uninstall Options"
+    echo "8. Exit"
+    print_separator
+    
+    local choice
+    read -p "Enter your choice [1-8]: " choice
+    
+    case $choice in
+        1) install_qb_438 ;;
+        2) install_qb_439_jerry ;;
+        3) install_qb_438_vertex ;;
+        4) install_qb_439_vertex ;;
+        5) show_app_selection_menu ;;
+        6) optimize_vps ;;
+        7) show_uninstall_menu ;;
+        8) exit_script ;;
+        *) 
+            log_error "Invalid choice"
+            sleep 2
+            show_main_menu
+            ;;
+    esac
+}
+
+# ===============================================
+# qBittorrent Installation Functions
+# ===============================================
+
+install_qb_438() {
+    log_info "Installing qBittorrent 4.3.8..."
+    
+    # Get user inputs
+    SEEDBOX_USER=$(prompt_user "Enter username" "${SEEDBOX_USER}")
+    PASSKEY=$(prompt_user "Enter passkey" "${PASSKEY}")
+    WEBUI_PORT=$(prompt_user "Enter WebUI port" "${WEBUI_PORT}")
+    DAEMON_PORT=$(prompt_user "Enter daemon port" "${DAEMON_PORT}")
+    
+    # Validate inputs
+    validate_port "$WEBUI_PORT" || return 1
+    validate_port "$DAEMON_PORT" || return 1
+    
+    # Save configuration
+    save_config
+    
+    # Run installation script
+    log_info "Running qBittorrent 4.3.8 installation script..."
+    bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) \
+        "$SEEDBOX_USER" "$PASSKEY" "$WEBUI_PORT" "$DAEMON_PORT"
+    
+    register_installation "qbittorrent" "4.3.8"
+    log_info "qBittorrent 4.3.8 installation completed"
+    
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+install_qb_439_jerry() {
+    log_info "Installing qBittorrent 4.3.9 using Jerry's script..."
+    
+    # Get user inputs
+    local username=$(prompt_user "Enter username" "${SEEDBOX_USER}")
+    local password=$(prompt_password "Enter password")
+    local cache_size=$(prompt_user "Enter cache size (MiB)" "2048")
+    local custom_port=$(prompt_user "Enter custom port (leave empty for default)" "")
+    
+    # Build command
+    local cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
+    cmd+=" -u $username -p $password -c $cache_size -q 4.3.9 -l v1.2.19"
+    
+    if [[ -n "$custom_port" ]]; then
+        cmd+=" -o $custom_port"
+    fi
+    
+    # Run installation
+    log_info "Running Jerry's qBittorrent 4.3.9 installation script..."
+    eval "$cmd"
+    
+    register_installation "qbittorrent" "4.3.9"
+    log_info "qBittorrent 4.3.9 installation completed"
+    
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+install_qb_438_vertex() {
+    log_info "Installing qBittorrent 4.3.8 + Vertex..."
+    
+    # First install qBittorrent 4.3.8
+    install_qb_438
+    
+    # Then install Vertex
+    install_vertex "4.3.8"
+    
+    log_info "qBittorrent 4.3.8 + Vertex installation completed"
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+install_qb_439_vertex() {
+    log_info "Installing qBittorrent 4.3.9 + Vertex..."
+    
+    # First install qBittorrent 4.3.9
+    install_qb_439_jerry
+    
+    # Then install Vertex
+    install_vertex "4.3.9"
+    
+    log_info "qBittorrent 4.3.9 + Vertex installation completed"
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+install_vertex() {
+    local qb_version="$1"
+    log_info "Installing Vertex for qBittorrent $qb_version..."
+    
+    # Download and run Vertex installation module
+    wget -qO- "$GITHUB_RAW/modules/install_vertex.sh" | bash -s "$qb_version" "$DOCKER_PATH"
+    
+    register_installation "vertex" "latest"
+}
+
+# ===============================================
+# Application Selection Menu
+# ===============================================
+
+show_app_selection_menu() {
+    show_banner
+    echo "Select Applications to Install:"
+    echo
+    echo "Download Management:"
+    echo "  1. qBittorrent (Docker)"
+    echo "  2. Transmission"
+    echo
+    echo "Automation Tools:"
+    echo "  3. IYUUPlus"
+    echo "  4. MoviePilot"
+    echo "  5. Vertex"
+    echo "  6. NAS-Tools"
+    echo
+    echo "Media Servers:"
+    echo "  7. Emby"
+    echo
+    echo "File Management:"
+    echo "  8. FileBrowser"
+    echo
+    echo "Special Tools:"
+    echo "  9. MetaTube"
+    echo "  10. Byte-Muse"
+    echo
+    echo "0. Back to Main Menu"
+    print_separator
+    
+    echo "Enter numbers separated by space (e.g., 1 3 5): "
+    read -a selections
+    
+    if [[ "${selections[0]}" == "0" ]]; then
+        show_main_menu
+        return
+    fi
+    
+    # Process selections
+    local selected_apps=()
+    for sel in "${selections[@]}"; do
+        case $sel in
+            1) selected_apps+=("qbittorrent") ;;
+            2) selected_apps+=("transmission") ;;
+            3) selected_apps+=("iyuuplus") ;;
+            4) selected_apps+=("moviepilot") ;;
+            5) selected_apps+=("vertex") ;;
+            6) selected_apps+=("nas-tools") ;;
+            7) selected_apps+=("emby") ;;
+            8) selected_apps+=("filebrowser") ;;
+            9) selected_apps+=("metatube") ;;
+            10) selected_apps+=("byte-muse") ;;
+        esac
+    done
+    
+    if [[ ${#selected_apps[@]} -gt 0 ]]; then
+        install_docker_apps "${selected_apps[@]}"
+    else
+        log_error "No valid selections made"
+    fi
+    
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+install_docker_apps() {
+    local apps=("$@")
+    
+    log_info "Installing selected applications: ${apps[*]}"
+    
+    # Setup Docker environment
+    setup_docker_environment
+    
+    # Generate docker-compose.yml
+    wget -qO- "$GITHUB_RAW/modules/generate_compose.sh" | bash -s "$DOCKER_PATH" "${apps[@]}"
+    
+    # Start Docker containers
+    cd "$DOCKER_PATH"
+    docker-compose up -d
+    
+    # Register installations
+    for app in "${apps[@]}"; do
+        register_installation "$app" "latest"
+    done
+    
+    log_info "Docker applications installation completed"
+}
+
+# ===============================================
+# VPS Optimization
+# ===============================================
+
+optimize_vps() {
+    log_info "Starting VPS optimization for PT traffic..."
+    
+    # Download and run optimization module
+    wget -qO- "$GITHUB_RAW/modules/vps_optimize.sh" | bash
+    
+    log_info "VPS optimization completed"
+    read -p "Press Enter to continue..."
+    show_main_menu
+}
+
+# ===============================================
+# Uninstall Functions
+# ===============================================
+
+show_uninstall_menu() {
+    show_banner
+    echo "Uninstall Options:"
+    echo "1. Remove specific application"
+    echo "2. Remove all PT tools"
+    echo "3. Remove all Docker containers"
+    echo "4. Complete system cleanup"
+    echo "5. Back to main menu"
+    print_separator
+    
+    local choice
+    read -p "Enter your choice [1-5]: " choice
+    
+    case $choice in
+        1) selective_uninstall ;;
+        2) remove_all_pt_tools ;;
+        3) remove_docker_environment ;;
+        4) complete_system_cleanup ;;
+        5) show_main_menu ;;
+        *) 
+            log_error "Invalid choice"
+            show_uninstall_menu
+            ;;
+    esac
+}
+
+selective_uninstall() {
+    log_info "Loading uninstall module..."
+    wget -qO- "$GITHUB_RAW/modules/uninstall.sh" | bash -s "selective"
+    read -p "Press Enter to continue..."
+    show_uninstall_menu
+}
+
+remove_all_pt_tools() {
+    log_warn "This will remove all PT tools"
+    read -p "Are you sure? (yes/no): " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        wget -qO- "$GITHUB_RAW/modules/uninstall.sh" | bash -s "all"
+    fi
+    
+    read -p "Press Enter to continue..."
+    show_uninstall_menu
+}
+
+remove_docker_environment() {
+    log_warn "This will remove all Docker containers and images"
+    read -p "Are you sure? (yes/no): " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        wget -qO- "$GITHUB_RAW/modules/uninstall.sh" | bash -s "docker"
+    fi
+    
+    read -p "Press Enter to continue..."
+    show_uninstall_menu
+}
+
+complete_system_cleanup() {
+    log_warn "This will remove EVERYTHING and revert system changes"
+    read -p "Are you sure? Type 'yes' to confirm: " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        wget -qO- "$GITHUB_RAW/modules/uninstall.sh" | bash -s "complete"
+    fi
+    
+    read -p "Press Enter to continue..."
+    show_uninstall_menu
+}
+
+# ===============================================
+# Utility Functions
+# ===============================================
+
+register_installation() {
+    local app_name="$1"
+    local version="$2"
+    local install_path="${3:-$DOCKER_PATH/$app_name}"
+    
+    # Save to installation registry
+    echo "$app_name|$version|$install_path|$(date '+%Y-%m-%d %H:%M:%S')" >> /etc/pttools/installed.list
+}
+
+list_installed_tools() {
+    if [[ -f /etc/pttools/installed.list ]]; then
+        cat /etc/pttools/installed.list
+    fi
+}
+
+exit_script() {
+    log_info "Exiting PT Tools installer..."
+    exit 0
+}
+
+# ===============================================
+# Main Execution
+# ===============================================
+
+main() {
+    # Initial checks
+    check_root
+    check_os
+    
+    # Create log directory
+    mkdir -p "$(dirname "$INSTALLATION_LOG")"
+    
+    log_info "Starting PT Tools Installation Script v$SCRIPT_VERSION"
+    
+    # Load configuration
+    load_config
+    
+    # Check dependencies
+    check_dependencies
+    
+    # Show main menu
+    show_main_menu
+}
+
+# Run main function
 main "$@"
