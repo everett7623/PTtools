@@ -17,6 +17,26 @@ NC='\033[0m' # No Color
 # 全局变量
 DOCKER_PATH="/opt/docker"
 LOG_FILE="/tmp/pttools_install.log"
+CREDENTIALS_FILE="/root/pttools_credentials.txt"
+
+# 清理凭据文件
+clean_credentials() {
+    if [[ -f "$CREDENTIALS_FILE" ]]; then
+        print_color $YELLOW "检测到旧的安装记录，正在清理..."
+        rm -f "$CREDENTIALS_FILE"
+        print_color $GREEN "凭据文件已清理"
+    fi
+    
+    # 创建新的凭据文件头部
+    cat > "$CREDENTIALS_FILE" << EOF
+╔══════════════════════════════════════════════════════════════╗
+║                   PTtools 安装信息记录                        ║
+║                 安装时间: $(date '+%Y-%m-%d %H:%M:%S')                 ║
+╚══════════════════════════════════════════════════════════════╝
+
+EOF
+    chmod 600 "$CREDENTIALS_FILE"
+}
 
 # 打印带颜色的文本
 print_color() {
@@ -157,12 +177,12 @@ install_qb_438() {
         
         # 根据安装模式记录信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
-            echo "🚀 qBittorrent 4.3.8 (PT脚本版本)" >> /root/pttools_credentials.txt
-            echo "   登录地址: http://服务器IP:$QB_PORT" >> /root/pttools_credentials.txt
-            echo "   用户名: $QB_USER" >> /root/pttools_credentials.txt
-            echo "   密码: $QB_PASS" >> /root/pttools_credentials.txt
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            echo "🚀 qBittorrent 4.3.8 (PT脚本版本)" >> "$CREDENTIALS_FILE"
+            echo "   登录地址: http://服务器IP:$QB_PORT" >> "$CREDENTIALS_FILE"
+            echo "   用户名: $QB_USER" >> "$CREDENTIALS_FILE"
+            echo "   密码: $QB_PASS" >> "$CREDENTIALS_FILE"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
         fi
     else
         print_color $RED "qBittorrent 4.3.8 安装失败"
@@ -200,13 +220,13 @@ install_qb_439() {
         
         # 根据安装模式记录信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
-            echo "🚀 qBittorrent 4.3.9 (杰瑞大佬脚本)" >> /root/pttools_credentials.txt
-            echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
-            echo "   用户名: $QB_USER" >> /root/pttools_credentials.txt
-            echo "   密码: $QB_PASS" >> /root/pttools_credentials.txt
-            echo "   缓存大小: ${QB_CACHE}MB" >> /root/pttools_credentials.txt
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            echo "🚀 qBittorrent 4.3.9 (杰瑞大佬脚本)" >> "$CREDENTIALS_FILE"
+            echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
+            echo "   用户名: $QB_USER" >> "$CREDENTIALS_FILE"
+            echo "   密码: $QB_PASS" >> "$CREDENTIALS_FILE"
+            echo "   缓存大小: ${QB_CACHE}MB" >> "$CREDENTIALS_FILE"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
         fi
     else
         print_color $RED "qBittorrent 4.3.9 安装失败"
@@ -221,32 +241,32 @@ record_combo_install() {
     local qb_user="$QB_USER"
     local qb_pass="$QB_PASS"
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
     if [[ $qb_version == "4.3.8" ]]; then
-        echo "🔥 组合安装: qBittorrent 4.3.8 + Vertex" >> /root/pttools_credentials.txt
-        echo "" >> /root/pttools_credentials.txt
-        echo "📥 qBittorrent 4.3.8 (PT脚本版本):" >> /root/pttools_credentials.txt
-        echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
-        echo "   用户名: $qb_user" >> /root/pttools_credentials.txt
-        echo "   密码: $qb_pass" >> /root/pttools_credentials.txt
-        echo "" >> /root/pttools_credentials.txt
-        echo "🔧 Vertex 媒体管理工具:" >> /root/pttools_credentials.txt
-        echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
-        echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
+        echo "🔥 组合安装: qBittorrent 4.3.8 + Vertex" >> "$CREDENTIALS_FILE"
+        echo "" >> "$CREDENTIALS_FILE"
+        echo "📥 qBittorrent 4.3.8 (PT脚本版本):" >> "$CREDENTIALS_FILE"
+        echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
+        echo "   用户名: $qb_user" >> "$CREDENTIALS_FILE"
+        echo "   密码: $qb_pass" >> "$CREDENTIALS_FILE"
+        echo "" >> "$CREDENTIALS_FILE"
+        echo "🔧 Vertex 媒体管理工具:" >> "$CREDENTIALS_FILE"
+        echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
+        echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
     else
-        echo "🔥 组合安装: qBittorrent 4.3.9 + Vertex" >> /root/pttools_credentials.txt
-        echo "" >> /root/pttools_credentials.txt
-        echo "📥 qBittorrent 4.3.9 (杰瑞大佬脚本):" >> /root/pttools_credentials.txt
-        echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
-        echo "   用户名: $qb_user" >> /root/pttools_credentials.txt
-        echo "   密码: $qb_pass" >> /root/pttools_credentials.txt
-        echo "   缓存大小: ${QB_CACHE}MB" >> /root/pttools_credentials.txt
-        echo "" >> /root/pttools_credentials.txt
-        echo "🔧 Vertex 媒体管理工具:" >> /root/pttools_credentials.txt
-        echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
-        echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
+        echo "🔥 组合安装: qBittorrent 4.3.9 + Vertex" >> "$CREDENTIALS_FILE"
+        echo "" >> "$CREDENTIALS_FILE"
+        echo "📥 qBittorrent 4.3.9 (杰瑞大佬脚本):" >> "$CREDENTIALS_FILE"
+        echo "   登录地址: http://服务器IP:8080" >> "$CREDENTIALS_FILE"
+        echo "   用户名: $qb_user" >> "$CREDENTIALS_FILE"
+        echo "   密码: $qb_pass" >> "$CREDENTIALS_FILE"
+        echo "   缓存大小: ${QB_CACHE}MB" >> "$CREDENTIALS_FILE"
+        echo "" >> "$CREDENTIALS_FILE"
+        echo "🔧 Vertex 媒体管理工具:" >> "$CREDENTIALS_FILE"
+        echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
+        echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
     fi
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
 }
 
 # 安装Vertex
@@ -283,11 +303,11 @@ EOF
         
         # 根据安装模式记录信息
         if [[ $combo_mode == "single" ]]; then
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
-            echo "🔧 Vertex 媒体管理工具" >> /root/pttools_credentials.txt
-            echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
-            echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
+            echo "🔧 Vertex 媒体管理工具" >> "$CREDENTIALS_FILE"
+            echo "   登录地址: http://服务器IP:3334" >> "$CREDENTIALS_FILE"
+            echo "   说明: 初次访问需要设置管理员账号密码" >> "$CREDENTIALS_FILE"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$CREDENTIALS_FILE"
         fi
     else
         print_color $RED "Vertex 安装失败"
@@ -308,6 +328,7 @@ show_menu() {
     print_color $YELLOW "  4. qBittorrent 4.3.9 + Vertex"
     echo
     print_color $CYAN "▶ 管理选项"
+    print_color $YELLOW "  7. 清理安装记录"
     print_color $YELLOW "  8. 查看安装信息"
     print_color $YELLOW "  9. 卸载应用"
     print_color $YELLOW "  0. 退出脚本"
@@ -319,8 +340,8 @@ show_menu() {
 # 查看安装信息
 show_info() {
     print_color $CYAN "=== 已安装应用信息 ==="
-    if [[ -f /root/pttools_credentials.txt ]]; then
-        cat /root/pttools_credentials.txt
+    if [[ -f "$CREDENTIALS_FILE" ]]; then
+        cat "$CREDENTIALS_FILE"
     else
         print_color $YELLOW "暂无安装记录"
     fi
@@ -393,16 +414,19 @@ main() {
         
         case $choice in
             1)
+                clean_credentials
                 install_docker
                 create_directories
                 install_qb_438 "single"
                 ;;
             2)
+                clean_credentials
                 install_docker
                 create_directories
                 install_qb_439 "single"
                 ;;
             3)
+                clean_credentials
                 install_docker
                 create_directories
                 if install_qb_438 "combo" && install_vertex "combo"; then
@@ -410,11 +434,18 @@ main() {
                 fi
                 ;;
             4)
+                clean_credentials
                 install_docker
                 create_directories
                 if install_qb_439 "combo" && install_vertex "combo"; then
                     record_combo_install "4.3.9"
                 fi
+                ;;
+            7)
+                clean_credentials
+                print_color $GREEN "安装记录已清理完成！"
+                print_color $WHITE "按任意键返回主菜单..."
+                read -n 1
                 ;;
             8)
                 show_info
@@ -435,7 +466,7 @@ main() {
         
         if [[ $choice =~ ^[1-4]$ ]]; then
             print_color $GREEN "安装完成！"
-            print_color $YELLOW "登录信息已保存到 /root/pttools_credentials.txt"
+            print_color $YELLOW "登录信息已保存到 $CREDENTIALS_FILE"
             print_color $WHITE "按任意键返回主菜单..."
             read -n 1
         fi
