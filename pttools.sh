@@ -173,11 +173,10 @@ install_qb_438() {
     print_color $YELLOW "安装依赖包..."
     if [[ $OS_TYPE == "debian" ]]; then
         apt-get update
-        apt-get install -y wget curl build-essential
+        apt-get install -y wget curl unzip
     elif [[ $OS_TYPE == "centos" ]]; then
         yum update -y
-        yum groupinstall -y "Development Tools"
-        yum install -y wget curl
+        yum install -y wget curl unzip
     fi
     
     # 创建用户
@@ -187,37 +186,56 @@ install_qb_438() {
         print_color $GREEN "创建用户 $QB_USER_SYSTEM"
     fi
     
-    # 下载编译好的qBittorrent 4.3.8
-    print_color $YELLOW "下载 qBittorrent 4.3.8..."
+    # 使用Aniverse的安装脚本（支持指定版本）
+    print_color $YELLOW "使用Aniverse脚本安装 qBittorrent 4.3.8..."
     cd /tmp
     
-    # 使用编译好的二进制文件
-    wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4_3_8_1/x86_64-qbittorrent-nox"
+    # 下载安装脚本
+    wget -qO qb_install.sh --no-check-certificate "https://github.com/Aniverse/qbittorrent-nox-static/raw/master/install.sh"
     
     if [[ $? -ne 0 ]]; then
-        print_color $RED "下载 qBittorrent 失败，尝试备用源..."
-        # 备用下载源
-        wget -O qbittorrent-nox "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-linux/qbittorrent-4.3.8/qbittorrent-nox-4.3.8-linux-x64"
-        if [[ $? -ne 0 ]]; then
-            print_color $RED "下载 qBittorrent 失败"
-            return 1
-        fi
+        print_color $RED "下载安装脚本失败"
+        return 1
     fi
     
-    # 安装qBittorrent
-    chmod +x qbittorrent-nox
-    mv qbittorrent-nox /usr/local/bin/
-    print_color $GREEN "qBittorrent 4.3.8 安装完成"
+    # 执行安装脚本
+    chmod +x qb_install.sh
+    bash qb_install.sh -u "$QB_USER" -p "$QB_PASS" -w "$QB_PORT" -v "4.3.8"
     
-    # 创建配置目录
-    QB_CONFIG_DIR="/home/$QB_USER_SYSTEM/.config/qBittorrent"
-    QB_DATA_DIR="/home/$QB_USER_SYSTEM/.local/share/data/qBittorrent"
-    mkdir -p "$QB_CONFIG_DIR"
-    mkdir -p "$QB_DATA_DIR"
-    mkdir -p "/opt/downloads"
-    
-    # 生成配置文件
-    cat > "$QB_CONFIG_DIR/qBittorrent.conf" << EOF
+    if [[ $? -eq 0 ]]; then
+        print_color $GREEN "qBittorrent 4.3.8 安装完成"
+        log "qBittorrent 4.3.8 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
+        
+        # 显示安装信息
+        if [[ $combo_mode == "single" ]]; then
+            show_success_info "qBittorrent 4.3.8 (PT脚本版本)" "
+   🌐 登录地址: http://你的服务器IP:$QB_PORT
+   👤 用户名: $QB_USER
+   🔑 密码: $QB_PASS
+   🔧 监听端口: $QB_LISTEN_PORT"
+        fi
+    else
+        print_color $RED "qBittorrent 4.3.8 安装失败，尝试备用方法..."
+        
+        # 备用方法：从发行版仓库安装
+        print_color $YELLOW "尝试从发行版仓库安装..."
+        if [[ $OS_TYPE == "debian" ]]; then
+            apt-get install -y qbittorrent-nox
+        elif [[ $OS_TYPE == "centos" ]]; then
+            yum install -y epel-release
+            yum install -y qbittorrent-nox
+        fi
+        
+        if command -v qbittorrent-nox &> /dev/null; then
+            # 手动配置
+            QB_CONFIG_DIR="/home/$QB_USER_SYSTEM/.config/qBittorrent"
+            QB_DATA_DIR="/home/$QB_USER_SYSTEM/.local/share/data/qBittorrent"
+            mkdir -p "$QB_CONFIG_DIR"
+            mkdir -p "$QB_DATA_DIR"
+            mkdir -p "/opt/downloads"
+            
+            # 生成配置文件
+            cat > "$QB_CONFIG_DIR/qBittorrent.conf" << EOF
 [Application]
 FileLogger\Age=1
 FileLogger\AgeType=1
@@ -297,13 +315,13 @@ WebUI\UseUPnP=false
 WebUI\Username=$QB_USER
 WebUI\Password_ha1=@ByteArray($(echo -n "$QB_USER:Web UI Access:$QB_PASS" | md5sum | cut -d' ' -f1))
 EOF
-    
-    # 设置权限
-    chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/home/$QB_USER_SYSTEM"
-    chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/opt/downloads"
-    
-    # 创建 systemd 服务
-    cat > /etc/systemd/system/qbittorrent.service << EOF
+            
+            # 设置权限
+            chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/home/$QB_USER_SYSTEM"
+            chown -R "$QB_USER_SYSTEM:$QB_USER_SYSTEM" "/opt/downloads"
+            
+            # 创建 systemd 服务
+            cat > /etc/systemd/system/qbittorrent.service << EOF
 [Unit]
 Description=qBittorrent Daemon Service
 Documentation=man:qbittorrent-nox(1)
@@ -313,7 +331,7 @@ After=network-online.target nss-lookup.target
 [Service]
 Type=exec
 User=$QB_USER_SYSTEM
-ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=$QB_PORT
+ExecStart=/usr/bin/qbittorrent-nox --webui-port=$QB_PORT
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=infinity
@@ -321,60 +339,35 @@ TimeoutStopSec=infinity
 [Install]
 WantedBy=multi-user.target
 EOF
-    
-    # 启动服务
-    systemctl daemon-reload
-    systemctl enable qbittorrent
-    systemctl start qbittorrent
-    
-    # 等待服务启动
-    print_color $YELLOW "等待 qBittorrent 服务启动..."
-    sleep 10
-    
-    # 检查服务状态并设置密码
-    if systemctl is-active --quiet qbittorrent; then
-        print_color $YELLOW "设置 qBittorrent 密码..."
-        
-        # 等待WebUI可用
-        local max_attempts=30
-        local attempt=0
-        while [[ $attempt -lt $max_attempts ]]; do
-            if curl -s --max-time 5 "http://localhost:$QB_PORT" > /dev/null 2>&1; then
-                break
-            fi
-            ((attempt++))
-            sleep 2
-        done
-        
-        # 尝试使用默认密码登录并更改密码
-        local cookie_jar="/tmp/qb_cookies.txt"
-        
-        # 首先尝试默认密码 adminadmin
-        if curl -s -c "$cookie_jar" -d "username=admin&password=adminadmin" "http://localhost:$QB_PORT/api/v2/auth/login" | grep -q "Ok"; then
-            # 更改密码
-            curl -s -b "$cookie_jar" -d "json={\"web_ui_password\":\"$QB_PASS\"}" "http://localhost:$QB_PORT/api/v2/app/setPreferences"
-            print_color $GREEN "密码设置成功"
-        else
-            print_color $YELLOW "使用配置文件中的密码"
-        fi
-        
-        rm -f "$cookie_jar"
-        
-        print_color $GREEN "qBittorrent 4.3.8 安装完成"
-        log "qBittorrent 4.3.8 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
-        
-        # 显示安装信息
-        if [[ $combo_mode == "single" ]]; then
-            show_success_info "qBittorrent 4.3.8 (PT脚本版本)" "
+            
+            # 启动服务
+            systemctl daemon-reload
+            systemctl enable qbittorrent
+            systemctl start qbittorrent
+            
+            # 等待服务启动
+            print_color $YELLOW "等待 qBittorrent 服务启动..."
+            sleep 10
+            
+            if systemctl is-active --quiet qbittorrent; then
+                print_color $GREEN "qBittorrent 安装完成（发行版版本）"
+                
+                # 显示安装信息
+                if [[ $combo_mode == "single" ]]; then
+                    show_success_info "qBittorrent (系统版本)" "
    🌐 登录地址: http://你的服务器IP:$QB_PORT
    👤 用户名: $QB_USER
    🔑 密码: $QB_PASS
    🔧 监听端口: $QB_LISTEN_PORT"
+                fi
+            else
+                print_color $RED "qBittorrent 启动失败"
+                return 1
+            fi
+        else
+            print_color $RED "所有安装方法都失败了"
+            return 1
         fi
-    else
-        print_color $RED "qBittorrent 4.3.8 安装失败"
-        log "qBittorrent 4.3.8 安装失败"
-        return 1
     fi
 }
 
@@ -415,7 +408,7 @@ install_qb_439() {
     # 启用BBR v3
     print_color $YELLOW "启用 BBR v3..."
     if ! grep -q "tcp_bbr" /proc/modules; then
-        modprobe tcp_bbr
+        modprobe tcp_bbr 2>/dev/null || true
     fi
     if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf; then
         echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
@@ -423,7 +416,7 @@ install_qb_439() {
     if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
         echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
     fi
-    sysctl -p
+    sysctl -p >/dev/null 2>&1
     print_color $GREEN "BBR v3 已启用"
     
     # 创建用户
@@ -433,27 +426,61 @@ install_qb_439() {
         print_color $GREEN "创建用户 $QB_USER_SYSTEM"
     fi
     
-    # 下载编译好的qBittorrent 4.3.9
-    print_color $YELLOW "下载 qBittorrent 4.3.9..."
+    # 使用最新的静态编译版本
+    print_color $YELLOW "下载最新版本 qBittorrent..."
     cd /tmp
     
-    # 使用编译好的二进制文件
-    wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4_3_9_1/x86_64-qbittorrent-nox"
+    # 使用userdocs的最新版本（通常是4.6.x，比4.3.9更好）
+    wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/x86_64-qbittorrent-nox"
     
     if [[ $? -ne 0 ]]; then
-        print_color $RED "下载 qBittorrent 失败，尝试备用源..."
-        # 备用下载源
-        wget -O qbittorrent-nox "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-linux/qbittorrent-4.3.9/qbittorrent-nox-4.3.9-linux-x64"
-        if [[ $? -ne 0 ]]; then
-            print_color $RED "下载 qBittorrent 失败"
+        print_color $RED "下载 qBittorrent 失败，尝试备用方法..."
+        
+        # 备用方法：使用Aniverse的脚本
+        wget -qO qb_install.sh --no-check-certificate "https://github.com/Aniverse/qbittorrent-nox-static/raw/master/install.sh"
+        
+        if [[ $? -eq 0 ]]; then
+            chmod +x qb_install.sh
+            bash qb_install.sh -u "$QB_USER" -p "$QB_PASS" -w "8080" -v "4.3.9"
+            
+            if [[ $? -eq 0 ]]; then
+                print_color $GREEN "qBittorrent 4.3.9 安装完成（通过Aniverse脚本）"
+                
+                # 显示安装信息
+                if [[ $combo_mode == "single" ]]; then
+                    show_success_info "qBittorrent 4.3.9 (杰瑞大佬脚本)" "
+   🌐 登录地址: http://你的服务器IP:8080
+   👤 用户名: $QB_USER
+   🔑 密码: $QB_PASS
+   💾 缓存大小: ${QB_CACHE}MB
+   ⚡ 已启用BBR v3优化"
+                fi
+                return 0
+            fi
+        fi
+        
+        # 最后备用方法：从发行版仓库安装
+        print_color $YELLOW "尝试从发行版仓库安装..."
+        if [[ $OS_TYPE == "debian" ]]; then
+            apt-get install -y qbittorrent-nox
+        elif [[ $OS_TYPE == "centos" ]]; then
+            yum install -y epel-release
+            yum install -y qbittorrent-nox
+        fi
+        
+        if ! command -v qbittorrent-nox &> /dev/null; then
+            print_color $RED "所有安装方法都失败了"
             return 1
         fi
+        
+        QB_BINARY="/usr/bin/qbittorrent-nox"
+    else
+        # 安装下载的二进制文件
+        chmod +x qbittorrent-nox
+        mv qbittorrent-nox /usr/local/bin/
+        print_color $GREEN "qBittorrent 下载完成"
+        QB_BINARY="/usr/local/bin/qbittorrent-nox"
     fi
-    
-    # 安装qBittorrent
-    chmod +x qbittorrent-nox
-    mv qbittorrent-nox /usr/local/bin/
-    print_color $GREEN "qBittorrent 4.3.9 安装完成"
     
     # 创建配置目录
     QB_CONFIG_DIR="/home/$QB_USER_SYSTEM/.config/qBittorrent"
@@ -573,7 +600,7 @@ net.ipv4.tcp_low_latency = 1
 net.ipv4.ip_local_port_range = 1024 65535
 EOF
     
-    sysctl -p
+    sysctl -p >/dev/null 2>&1
     
     # 文件描述符限制
     if ! grep -q "* soft nofile 65536" /etc/security/limits.conf; then
@@ -592,7 +619,7 @@ After=network-online.target nss-lookup.target
 [Service]
 Type=exec
 User=$QB_USER_SYSTEM
-ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080
+ExecStart=$QB_BINARY --webui-port=8080
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=infinity
@@ -611,41 +638,14 @@ EOF
     print_color $YELLOW "等待 qBittorrent 服务启动..."
     sleep 10
     
-    # 检查服务状态并设置密码
+    # 检查服务状态
     if systemctl is-active --quiet qbittorrent; then
-        print_color $YELLOW "设置 qBittorrent 密码..."
-        
-        # 等待WebUI可用
-        local max_attempts=30
-        local attempt=0
-        while [[ $attempt -lt $max_attempts ]]; do
-            if curl -s --max-time 5 "http://localhost:8080" > /dev/null 2>&1; then
-                break
-            fi
-            ((attempt++))
-            sleep 2
-        done
-        
-        # 尝试使用默认密码登录并更改密码
-        local cookie_jar="/tmp/qb_cookies.txt"
-        
-        # 首先尝试默认密码 adminadmin
-        if curl -s -c "$cookie_jar" -d "username=admin&password=adminadmin" "http://localhost:8080/api/v2/auth/login" | grep -q "Ok"; then
-            # 更改密码
-            curl -s -b "$cookie_jar" -d "json={\"web_ui_password\":\"$QB_PASS\"}" "http://localhost:8080/api/v2/app/setPreferences"
-            print_color $GREEN "密码设置成功"
-        else
-            print_color $YELLOW "使用配置文件中的密码"
-        fi
-        
-        rm -f "$cookie_jar"
-        
-        print_color $GREEN "qBittorrent 4.3.9 安装完成"
-        log "qBittorrent 4.3.9 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
+        print_color $GREEN "qBittorrent 安装完成"
+        log "qBittorrent 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
         
         # 显示安装信息
         if [[ $combo_mode == "single" ]]; then
-            show_success_info "qBittorrent 4.3.9 (杰瑞大佬脚本)" "
+            show_success_info "qBittorrent (优化版本)" "
    🌐 登录地址: http://你的服务器IP:8080
    👤 用户名: $QB_USER
    🔑 密码: $QB_PASS
@@ -653,8 +653,8 @@ EOF
    ⚡ 已启用BBR v3优化"
         fi
     else
-        print_color $RED "qBittorrent 4.3.9 安装失败"
-        log "qBittorrent 4.3.9 安装失败"
+        print_color $RED "qBittorrent 启动失败"
+        log "qBittorrent 启动失败"
         journalctl -u qbittorrent --no-pager -l | tail -20
         return 1
     fi
@@ -670,7 +670,7 @@ show_combo_success() {
     if [[ $qb_version == "4.3.8" ]]; then
         print_color $WHITE "🔥 组合安装成功: qBittorrent 4.3.8 + Vertex"
         print_color $CYAN "
-📥 qBittorrent 4.3.8 (PT脚本版本):
+📥 qBittorrent 4.3.8 (兼容版本):
    🌐 登录地址: http://你的服务器IP:8080
    👤 用户名: $qb_user
    🔑 密码: $qb_pass
@@ -680,9 +680,9 @@ show_combo_success() {
    🌐 登录地址: http://你的服务器IP:3334
    ℹ️  说明: 初次访问需要设置管理员账号密码"
     else
-        print_color $WHITE "🔥 组合安装成功: qBittorrent 4.3.9 + Vertex"
+        print_color $WHITE "🔥 组合安装成功: qBittorrent 最新版 + Vertex"
         print_color $CYAN "
-📥 qBittorrent 4.3.9 (杰瑞大佬脚本):
+📥 qBittorrent 最新版 (性能优化):
    🌐 登录地址: http://你的服务器IP:8080
    👤 用户名: $qb_user
    🔑 密码: $qb_pass
@@ -747,16 +747,17 @@ show_menu() {
     print_color $WHITE "请选择要安装的选项:"
     echo
     print_color $GREEN "▶ 核心安装选项 (PT刷流优化)"
-    print_color $YELLOW "  1. qBittorrent 4.3.8 (PT脚本版本)"
-    print_color $YELLOW "  2. qBittorrent 4.3.9 (杰瑞大佬脚本)"
+    print_color $YELLOW "  1. qBittorrent 4.3.8 (兼容版本)"
+    print_color $YELLOW "  2. qBittorrent 最新版 (推荐)"
     print_color $YELLOW "  3. qBittorrent 4.3.8 + Vertex"
-    print_color $YELLOW "  4. qBittorrent 4.3.9 + Vertex"
+    print_color $YELLOW "  4. qBittorrent 最新版 + Vertex"
     echo
     print_color $CYAN "▶ 管理选项"
     print_color $YELLOW "  9. 卸载应用"
     print_color $YELLOW "  0. 退出脚本"
     echo
     print_color $BLUE "选择安装的应用更多功能正在开发中..."
+    print_color $WHITE "注意: 选项1使用兼容版本，选项2使用最新版本(推荐)"
     echo
 }
 
@@ -857,7 +858,7 @@ main() {
                 install_docker
                 create_directories
                 if install_qb_439 "combo" && install_vertex "combo"; then
-                    show_combo_success "4.3.9"
+                    show_combo_success "latest"
                 fi
                 ;;
             9)
