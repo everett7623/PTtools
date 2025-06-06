@@ -133,6 +133,7 @@ get_vps_info() {
 
 # 安装qBittorrent 4.3.8 (PT脚本)
 install_qb_438() {
+    local combo_mode=${1:-"single"}
     print_color $YELLOW "正在安装 qBittorrent 4.3.8 (PT脚本)..."
     
     # 生成随机用户名和密码
@@ -153,15 +154,26 @@ install_qb_438() {
     if [[ $? -eq 0 ]]; then
         print_color $GREEN "qBittorrent 4.3.8 安装完成"
         log "qBittorrent 4.3.8 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
-        echo "qBittorrent 4.3.8 - 用户名: $QB_USER 密码: $QB_PASS 端口: $QB_PORT" >> /root/pttools_credentials.txt
+        
+        # 根据安装模式记录信息
+        if [[ $combo_mode == "single" ]]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "🚀 qBittorrent 4.3.8 (PT脚本版本)" >> /root/pttools_credentials.txt
+            echo "   登录地址: http://服务器IP:$QB_PORT" >> /root/pttools_credentials.txt
+            echo "   用户名: $QB_USER" >> /root/pttools_credentials.txt
+            echo "   密码: $QB_PASS" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+        fi
     else
         print_color $RED "qBittorrent 4.3.8 安装失败"
         log "qBittorrent 4.3.8 安装失败"
+        return 1
     fi
 }
 
 # 安装qBittorrent 4.3.9 (杰瑞大佬脚本)
 install_qb_439() {
+    local combo_mode=${1:-"single"}
     print_color $YELLOW "正在安装 qBittorrent 4.3.9 (杰瑞大佬脚本)..."
     
     # 生成随机用户名和密码
@@ -185,15 +197,61 @@ install_qb_439() {
     if [[ $? -eq 0 ]]; then
         print_color $GREEN "qBittorrent 4.3.9 安装完成"
         log "qBittorrent 4.3.9 安装完成 - 用户名: $QB_USER, 密码: $QB_PASS"
-        echo "qBittorrent 4.3.9 - 用户名: $QB_USER 密码: $QB_PASS 缓存: ${QB_CACHE}MB" >> /root/pttools_credentials.txt
+        
+        # 根据安装模式记录信息
+        if [[ $combo_mode == "single" ]]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "🚀 qBittorrent 4.3.9 (杰瑞大佬脚本)" >> /root/pttools_credentials.txt
+            echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
+            echo "   用户名: $QB_USER" >> /root/pttools_credentials.txt
+            echo "   密码: $QB_PASS" >> /root/pttools_credentials.txt
+            echo "   缓存大小: ${QB_CACHE}MB" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+        fi
     else
         print_color $RED "qBittorrent 4.3.9 安装失败"
         log "qBittorrent 4.3.9 安装失败"
+        return 1
     fi
+}
+
+# 记录组合安装信息
+record_combo_install() {
+    local qb_version="$1"
+    local qb_user="$QB_USER"
+    local qb_pass="$QB_PASS"
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+    if [[ $qb_version == "4.3.8" ]]; then
+        echo "🔥 组合安装: qBittorrent 4.3.8 + Vertex" >> /root/pttools_credentials.txt
+        echo "" >> /root/pttools_credentials.txt
+        echo "📥 qBittorrent 4.3.8 (PT脚本版本):" >> /root/pttools_credentials.txt
+        echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
+        echo "   用户名: $qb_user" >> /root/pttools_credentials.txt
+        echo "   密码: $qb_pass" >> /root/pttools_credentials.txt
+        echo "" >> /root/pttools_credentials.txt
+        echo "🔧 Vertex 媒体管理工具:" >> /root/pttools_credentials.txt
+        echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
+        echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
+    else
+        echo "🔥 组合安装: qBittorrent 4.3.9 + Vertex" >> /root/pttools_credentials.txt
+        echo "" >> /root/pttools_credentials.txt
+        echo "📥 qBittorrent 4.3.9 (杰瑞大佬脚本):" >> /root/pttools_credentials.txt
+        echo "   登录地址: http://服务器IP:8080" >> /root/pttools_credentials.txt
+        echo "   用户名: $qb_user" >> /root/pttools_credentials.txt
+        echo "   密码: $qb_pass" >> /root/pttools_credentials.txt
+        echo "   缓存大小: ${QB_CACHE}MB" >> /root/pttools_credentials.txt
+        echo "" >> /root/pttools_credentials.txt
+        echo "🔧 Vertex 媒体管理工具:" >> /root/pttools_credentials.txt
+        echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
+        echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
+    fi
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
 }
 
 # 安装Vertex
 install_vertex() {
+    local combo_mode=${1:-"single"}
     print_color $YELLOW "正在安装 Vertex..."
     
     # 创建vertex目录
@@ -222,10 +280,19 @@ EOF
         print_color $GREEN "Vertex 安装完成"
         print_color $WHITE "访问地址: http://你的IP:3334"
         log "Vertex 安装完成"
-        echo "Vertex - 访问地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
+        
+        # 根据安装模式记录信息
+        if [[ $combo_mode == "single" ]]; then
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+            echo "🔧 Vertex 媒体管理工具" >> /root/pttools_credentials.txt
+            echo "   登录地址: http://服务器IP:3334" >> /root/pttools_credentials.txt
+            echo "   说明: 初次访问需要设置管理员账号密码" >> /root/pttools_credentials.txt
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> /root/pttools_credentials.txt
+        fi
     else
         print_color $RED "Vertex 安装失败"
         log "Vertex 安装失败"
+        return 1
     fi
 }
 
@@ -328,24 +395,26 @@ main() {
             1)
                 install_docker
                 create_directories
-                install_qb_438
+                install_qb_438 "single"
                 ;;
             2)
                 install_docker
                 create_directories
-                install_qb_439
+                install_qb_439 "single"
                 ;;
             3)
                 install_docker
                 create_directories
-                install_qb_438
-                install_vertex
+                if install_qb_438 "combo" && install_vertex "combo"; then
+                    record_combo_install "4.3.8"
+                fi
                 ;;
             4)
                 install_docker
                 create_directories
-                install_qb_439
-                install_vertex
+                if install_qb_439 "combo" && install_vertex "combo"; then
+                    record_combo_install "4.3.9"
+                fi
                 ;;
             8)
                 show_info
