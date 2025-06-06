@@ -105,6 +105,13 @@ else
     exit 1
 fi
 
+# 在下载前，确保文件未被占用
+echo "尝试停止所有 qBittorrent-nox 进程并清除旧文件..."
+# 使用 || true 确保即使 killall 失败也不会导致脚本退出
+sudo killall -9 qbittorrent-nox 2>/dev/null || true
+# 强制删除可能被占用的文件
+sudo rm -f /usr/bin/qbittorrent-nox
+
 wget -O /usr/bin/qbittorrent-nox "$DOWNLOAD_URL"
 if [ $? -ne 0 ]; then
     echo "错误：下载 qBittorrent-nox 失败。请检查下载链接或网络。"
@@ -228,31 +235,61 @@ if [ $? -ne 0 ]; then
 fi
 echo ">> BBR 配置完成。"
 
-# 清空并重新写入 BBRx.sh，确保只包含我们需要的启动命令
-echo "准备 /root/BBRx.sh 脚本，用于系统重启和 qBittorrent 启动..."
-echo "#!/bin/bash" > /root/BBRx.sh # 使用 > 清空并写入 shebang
-echo "systemctl enable qbittorrent-nox@$QB_USER" >> /root/BBRx.sh
-echo "systemctl start qbittorrent-nox@$QB_USER" >> /root/BBRx.sh
-echo "shutdown -r +1" >> /root/BBRx.sh
-chmod +x /root/BBRx.sh # 确保脚本可执行
+# 清空并重新写入 BBRx.sh，使其在运行一次后移除自身的重启命令
+echo "准备 /root/BBRx.sh 脚本，用于系统启动和 qBittorrent 启动..."
+BBRX_SCRIPT_PATH="/root/BBRx.sh" # 定义变量方便管理
+
+cat <<EOF > "$BBRX_SCRIPT_PATH"
+#!/bin/bash
+
+# 确保 qBittorrent 服务已启用并启动
+echo "BBRx.sh: 启用并启动 qBittorrent 服务..."
+systemctl enable qbittorrent-nox@$QB_USER
+systemctl start qbittorrent-nox@$QB_USER
+
+# 检查是否需要再次重启（即是否是初始安装后的第二次重启）
+# 如果此脚本在系统启动时被执行，并且 /root/BBRx.sh 中还包含 shutdown -r +1，
+# 那么会在第二次重启后继续触发重启。
+# 为了避免无限重启，应该在第一次成功执行后移除 shutdown 命令。
+
+# 使用 grep 判断，如果包含 'shutdown -r +1'，则说明是首次执行此逻辑
+if grep -q "shutdown -r +1" "$BBRX_SCRIPT_PATH"; then
+    echo "BBRx.sh: 触发第二次重启并清理重启命令..."
+    # 移除自身的重启命令，防止无限循环
+    # 使用临时文件进行 sed 操作以提高兼容性
+    sed -i.bak "/shutdown -r +1/d" "$BBRX_SCRIPT_PATH" && rm -f "${BBRX_SCRIPT_PATH}.bak"
+    # 如果 sed 操作失败，就手动覆盖文件内容，确保移除重启命令
+    if [ $? -ne 0 ]; then
+        echo "BBRx.sh: sed 命令移除重启行失败，尝试手动覆盖文件..."
+        # 重新生成 BBRx.sh，但排除 shutdown 行
+        awk '!(/shutdown -r +1/)' "$BBRX_SCRIPT_PATH" > "${BBRX_SCRIPT_PATH}.tmp" && mv "${BBRX_SCRIPT_PATH}.tmp" "$BBRX_SCRIPT_PATH"
+    fi
+    shutdown -r +1
+else
+    echo "BBRx.sh: 第二次重启已完成或命令已清理，只确保 qBittorrent 运行。"
+fi
+
+exit 0 # 确保脚本正常退出
+EOF
+chmod +x "$BBRX_SCRIPT_PATH"
 echo ">> /root/BBRx.sh 脚本准备完成。"
 
 # 确保 BBRx.sh 在系统启动时被执行 (通过 /etc/rc.local 或其他方式)
-# 这是确保第二次重启和 qBittorrent 自启的关键
+# 这部分逻辑保持不变
 if [ -f "/etc/rc.local" ]; then
-    if ! grep -q "/root/BBRx.sh" /etc/rc.local; then
-        echo "将 /root/BBRx.sh 添加到 /etc/rc.local..."
-        echo "/root/BBRx.sh" >> /etc/rc.local
+    if ! grep -q "$BBRX_SCRIPT_PATH" /etc/rc.local; then
+        echo "将 $BBRX_SCRIPT_PATH 添加到 /etc/rc.local..."
+        echo "$BBRX_SCRIPT_PATH" >> /etc/rc.local
         chmod +x /etc/rc.local
         if [ $? -ne 0 ]; then
             echo "警告：修改 /etc/rc.local 失败。"
         fi
     else
-        echo "/root/BBRx.sh 已在 /etc/rc.local 中。"
+        echo "$BBRX_SCRIPT_PATH 已在 /etc/rc.local 中。"
     fi
 else
-    echo "警告：/etc/rc.local 未找到。请手动确保 /root/BBRx.sh 在系统启动时执行。"
-    echo "  如果您的系统不使用 /etc/rc.local，您可能需要手动配置一个 systemd 服务来执行 /root/BBRx.sh。"
+    echo "警告：/etc/rc.local 未找到。请手动确保 $BBRX_SCRIPT_PATH 在系统启动时执行。"
+    echo "  如果您的系统不使用 /etc/rc.local，您可能需要手动配置一个 systemd 服务来执行 $BBRX_SCRIPT_PATH。"
 fi
 
 
