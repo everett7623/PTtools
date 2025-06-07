@@ -43,6 +43,7 @@ bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/ptto
 ```
 PTtools/
 ├── pttools.sh                    # 主脚本
+├── fix.sh                        # 快速修复脚本
 ├── scripts/
 │   └── install/
 │       ├── qb438.sh             # qBittorrent 4.3.8 安装脚本
@@ -51,7 +52,7 @@ PTtools/
 │           └── vertex.sh        # Vertex 安装脚本
 └── configs/
     └── docker-compose/
-        └── vertex.yml           # Vertex Docker Compose 配置
+        └── vertex.yml           # Vertex Docker Compose 配置（已集成到脚本中）
 ```
 
 ## 当前支持的应用
@@ -232,9 +233,16 @@ wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh
 ### 开发新的安装脚本
 
 1. 在 `scripts/install/` 目录下创建脚本
-2. 在 `configs/docker-compose/` 目录下创建配置文件（如果需要）
+2. 配置文件可以直接集成到脚本中（推荐）或放在 `configs/` 目录
 3. 更新主脚本 `pttools.sh` 添加新选项
 4. 测试并提交 PR
+
+### 脚本规范
+
+- 使用统一的颜色定义和消息函数
+- 提供详细的安装进度提示
+- 包含错误处理和回滚机制
+- 优化安装速度（优先使用预编译版本）
 
 ## 许可证
 
@@ -245,6 +253,17 @@ wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh
 - 本脚本仅供学习和研究使用
 - 使用本脚本造成的任何后果由使用者自行承担
 - 请遵守当地法律法规和 PT 站点规则
+
+## 更新日志
+
+### v1.0.0 (2024-12)
+- 初始版本发布
+- 支持 qBittorrent 4.3.8/4.3.9 安装
+- 支持 Vertex 安装
+- 优化安装速度（使用预编译版本）
+- 添加服务诊断功能
+- 添加快速修复工具
+- 修复配置文件路径问题
 
 ## 致谢
 
