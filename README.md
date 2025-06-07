@@ -18,16 +18,27 @@ PTtools 是一个为 PT (Private Tracker) 用户设计的一键安装脚本，�
 
 ## 快速开始
 
-### 一键安装
+### 一键安装（主脚本）
 
 ```bash
 wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh && chmod +x pttools.sh && ./pttools.sh
 ```
 
-或者：
+### 其他安装方式
 
+#### 静态版本安装（最快）
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
+wget -O install-qb-static.sh https://raw.githubusercontent.com/everett7623/PTtools/main/install-qb-static.sh && chmod +x install-qb-static.sh && ./install-qb-static.sh
+```
+
+#### 编译安装（最稳定）
+```bash
+wget -O compile-qb.sh https://raw.githubusercontent.com/everett7623/PTtools/main/compile-qb.sh && chmod +x compile-qb.sh && ./compile-qb.sh
+```
+
+#### 快速修复
+```bash
+wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh && chmod +x fix.sh && ./fix.sh
 ```
 
 ### 系统要求
@@ -44,6 +55,8 @@ bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/ptto
 PTtools/
 ├── pttools.sh                    # 主脚本
 ├── fix.sh                        # 快速修复脚本
+├── compile-qb.sh                 # 编译安装脚本
+├── install-qb-static.sh          # 静态版本安装脚本
 ├── scripts/
 │   └── install/
 │       ├── qb438.sh             # qBittorrent 4.3.8 安装脚本
@@ -54,6 +67,20 @@ PTtools/
     └── docker-compose/
         └── vertex.yml           # Vertex Docker Compose 配置（已集成到脚本中）
 ```
+
+## 安装方式对比
+
+| 安装方式 | 速度 | 稳定性 | 适用场景 |
+|---------|------|--------|---------|
+| 主脚本（预编译优先） | 快 | 中 | 一般用户 |
+| 静态版本 | 最快 | 高 | 快速部署 |
+| 编译安装 | 慢 | 最高 | 追求稳定 |
+
+### 推荐安装流程
+
+1. **首选**：使用主脚本 `pttools.sh`
+2. **如果失败**：使用静态版本 `install-qb-static.sh`
+3. **终极方案**：编译安装 `compile-qb.sh`
 
 ## 当前支持的应用
 
@@ -187,9 +214,33 @@ docker logs -f vertex          # 查看日志
 wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh && chmod +x fix.sh && ./fix.sh
 ```
 
+### 编译安装（推荐）
+
+如果预编译版本出现兼容性问题，建议使用编译安装：
+
+```bash
+wget -O compile-qb.sh https://raw.githubusercontent.com/everett7623/PTtools/main/compile-qb.sh && chmod +x compile-qb.sh && ./compile-qb.sh
+```
+
+编译安装选项：
+- 默认安装 qBittorrent 4.3.9 + libtorrent 1.2.20
+- 自定义版本：`./compile-qb.sh -q 4.3.8 -l 1.2.20`
+- 查看帮助：`./compile-qb.sh -h`
+
 ### 常见问题
 
-#### 1. 502 Bad Gateway 错误
+#### 1. Exec format error
+- **原因**：预编译二进制文件架构不匹配
+- **快速解决**：
+  ```bash
+  # 使用静态版本
+  ./install-qb-static.sh
+  
+  # 或编译安装
+  ./compile-qb.sh
+  ```
+
+#### 2. 502 Bad Gateway 错误
 - **原因**：qBittorrent 服务未正常启动
 - **解决方案**：
   ```bash
@@ -255,6 +306,14 @@ wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh
 - 请遵守当地法律法规和 PT 站点规则
 
 ## 更新日志
+
+### v1.0.1 (2024-12)
+- 修复 qBittorrent "Exec format error" 问题
+- 添加文件验证机制
+- 新增静态版本安装脚本
+- 新增独立编译安装脚本
+- 改进错误处理和日志输出
+- 优化安装流程
 
 ### v1.0.0 (2024-12)
 - 初始版本发布
