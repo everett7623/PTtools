@@ -158,9 +158,11 @@ main() {
     echo "2. 修复 Vertex"
     echo "3. 检查端口占用"
     echo "4. 修复所有服务"
+    echo "5. 重新安装 qBittorrent（静态版本）"
+    echo "6. 重新安装 qBittorrent（编译版本）"
     echo "0. 退出"
     echo
-    echo -n "请选择 [0-4]: "
+    echo -n "请选择 [0-6]: "
     read -r choice
     
     case $choice in
@@ -179,6 +181,18 @@ main() {
             fix_vertex
             echo
             check_ports
+            ;;
+        5)
+            print_message $BLUE "下载静态版本安装脚本..."
+            wget -O /tmp/install-qb-static.sh https://raw.githubusercontent.com/everett7623/PTtools/main/install-qb-static.sh
+            chmod +x /tmp/install-qb-static.sh
+            /tmp/install-qb-static.sh
+            ;;
+        6)
+            print_message $BLUE "下载编译安装脚本..."
+            wget -O /tmp/compile-qb.sh https://raw.githubusercontent.com/everett7623/PTtools/main/compile-qb.sh
+            chmod +x /tmp/compile-qb.sh
+            /tmp/compile-qb.sh
             ;;
         0)
             exit 0
