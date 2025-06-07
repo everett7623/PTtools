@@ -108,6 +108,7 @@ systemctl start qbittorrent    # 启动
 systemctl stop qbittorrent     # 停止
 systemctl restart qbittorrent  # 重启
 systemctl status qbittorrent   # 查看状态
+journalctl -u qbittorrent -f   # 查看实时日志
 ```
 
 #### Vertex
@@ -118,6 +119,14 @@ docker-compose down            # 停止
 docker-compose restart         # 重启
 docker logs -f vertex          # 查看日志
 ```
+
+### 服务诊断
+
+脚本内置了服务诊断功能，可以快速检查服务状态：
+
+1. 运行主脚本：`./pttools.sh`
+2. 选择 "7. 服务诊断"
+3. 查看各项服务状态和系统信息
 
 ## VPS 优化说明
 
@@ -167,23 +176,54 @@ docker logs -f vertex          # 查看日志
 2. 选择 "6. 卸载管理"
 3. 选择要卸载的应用或全部卸载
 
-## 常见问题
+## 故障排除
 
-### 1. 提示权限不足？
-确保使用 root 用户或使用 sudo 运行脚本。
+### 快速修复
 
-### 2. Docker 安装失败？
+如果遇到服务无法启动的问题，可以使用快速修复脚本：
+
+```bash
+wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh && chmod +x fix.sh && ./fix.sh
+```
+
+### 常见问题
+
+#### 1. 502 Bad Gateway 错误
+- **原因**：qBittorrent 服务未正常启动
+- **解决方案**：
+  ```bash
+  # 检查服务状态
+  systemctl status qbittorrent
+  
+  # 查看错误日志
+  journalctl -u qbittorrent -f
+  
+  # 重启服务
+  systemctl restart qbittorrent
+  ```
+
+#### 2. Vertex 安装失败（404错误）
+- **原因**：配置文件路径错误
+- **解决方案**：使用最新版本的脚本（已修复）
+
+#### 3. 提示权限不足
+- 确保使用 root 用户或使用 sudo 运行脚本
+
+#### 4. Docker 安装失败
 - 检查网络连接
 - 尝试使用阿里云镜像安装
 
-### 3. 无法访问 Web UI？
+#### 5. 无法访问 Web UI
 - 检查防火墙设置
-- 确认服务是否正常运行
-- 检查端口是否被占用
+- 确认服务是否正常运行：`./pttools.sh` 选择 "7. 服务诊断"
+- 检查端口是否被占用：`netstat -tuln | grep 8080`
 
-### 4. qBittorrent 编译失败？
-- 确保系统有足够的内存（至少 1GB）
+#### 6. qBittorrent 编译失败
+- 确保系统有足够的内存（至少 2GB）
 - 检查是否安装了所有依赖
+- 尝试使用预编译版本（新版脚本默认使用）
+
+### 服务管理命令
 
 ## 贡献指南
 
