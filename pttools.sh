@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 # 基础配置
 DOCKER_DIR="/opt/docker"
+DOWNLOAD_DIR="/opt/downloads"
 GITHUB_RAW_URL="https://raw.githubusercontent.com/everett7623/PTtools/main"
 SCRIPT_VERSION="1.0.0"
 
