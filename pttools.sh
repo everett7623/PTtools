@@ -58,7 +58,8 @@ check_system() {
     
     source /etc/os-release
     OS=$NAME
-    print_message $GREEN "检测到系统：$OS"
+    VER=$VERSION_ID
+    print_message $GREEN "检测到系统：$OS $VER"
 }
 
 # 检查Docker是否安装
@@ -196,6 +197,96 @@ install_qb439_vertex() {
     print_message $GREEN "qBittorrent 4.3.9 + Vertex 安装完成！"
 }
 
+# 服务诊断
+diagnose_services() {
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                         服务诊断                              ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo
+    
+    # 获取系统信息
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        local OS=$NAME
+    fi
+    
+    # 确保netstat可用
+    if ! command -v netstat &> /dev/null; then
+        print_message $YELLOW "安装网络工具..."
+        if [[ "$OS" == "Ubuntu" ]] || [[ "$OS" == "Debian"* ]]; then
+            apt-get install -y net-tools >/dev/null 2>&1
+        elif [[ "$OS" == "CentOS"* ]] || [[ "$OS" == "Red Hat"* ]]; then
+            yum install -y net-tools >/dev/null 2>&1
+        fi
+    fi
+    
+    # 检查qBittorrent
+    print_message $BLUE "检查 qBittorrent 状态..."
+    if systemctl is-active --quiet qbittorrent 2>/dev/null; then
+        print_message $GREEN "✓ qBittorrent 服务运行中"
+        # 检查端口
+        if netstat -tuln 2>/dev/null | grep -q ":8080 " || ss -tuln | grep -q ":8080 "; then
+            print_message $GREEN "✓ Web UI 端口 8080 正常监听"
+        else
+            print_message $RED "✗ Web UI 端口 8080 未监听"
+        fi
+    else
+        print_message $RED "✗ qBittorrent 服务未运行"
+        echo -n "查看最近日志？[Y/n]: "
+        read -r view_log
+        if [[ $view_log != "n" && $view_log != "N" ]]; then
+            journalctl -u qbittorrent -n 20 --no-pager
+        fi
+    fi
+    echo
+    
+    # 检查Vertex
+    print_message $BLUE "检查 Vertex 状态..."
+    if docker ps 2>/dev/null | grep -q vertex; then
+        print_message $GREEN "✓ Vertex 容器运行中"
+        # 检查端口
+        if netstat -tuln 2>/dev/null | grep -q ":3334 " || ss -tuln | grep -q ":3334 "; then
+            print_message $GREEN "✓ Vertex 端口 3334 正常监听"
+        else
+            print_message $RED "✗ Vertex 端口 3334 未监听"
+        fi
+    else
+        print_message $YELLOW "- Vertex 未安装或未运行"
+    fi
+    echo
+    
+    # 检查目录权限
+    print_message $BLUE "检查目录权限..."
+    if [[ -d $DOWNLOAD_DIR ]]; then
+        print_message $GREEN "✓ 下载目录存在：$DOWNLOAD_DIR"
+        ls -ld $DOWNLOAD_DIR
+    else
+        print_message $RED "✗ 下载目录不存在：$DOWNLOAD_DIR"
+    fi
+    echo
+    
+    # 系统信息
+    print_message $BLUE "系统信息..."
+    print_message $CYAN "内存使用："
+    free -h | grep -E "^Mem|^Swap"
+    echo
+    print_message $CYAN "磁盘使用："
+    df -h | grep -E "^/dev|^Filesystem"
+    echo
+    
+    # 网络连接
+    print_message $BLUE "检查网络连接..."
+    if ping -c 1 -W 2 google.com >/dev/null 2>&1 || ping -c 1 -W 2 baidu.com >/dev/null 2>&1; then
+        print_message $GREEN "✓ 网络连接正常"
+    else
+        print_message $RED "✗ 网络连接异常"
+    fi
+    
+    echo
+    echo -n "按任意键继续..."
+    read -n 1
+}
+
 # 卸载功能
 uninstall_app() {
     echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -318,6 +409,10 @@ show_main_menu() {
                 ;;
             6)
                 uninstall_app
+                continue
+                ;;
+            7)
+                diagnose_services
                 continue
                 ;;
             0)
