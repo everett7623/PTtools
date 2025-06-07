@@ -83,10 +83,11 @@ PTtools/
 
 - Docker 安装路径：`/opt/docker`
 - qBittorrent 配置路径：`/root/.config/qBittorrent`
-- 下载目录：`/root/downloads`
+- 下载目录：`/opt/downloads`
 - qBittorrent Web UI 端口：8080
 - qBittorrent BT 端口：25000
 - Vertex 端口：3334
+- 默认缓存大小：3072 MB
 
 ### 默认登录信息
 
@@ -143,9 +144,22 @@ docker logs -f vertex          # 查看日志
 - **qBittorrent**: 4.3.8 / 4.3.9
 - **编译优化**: 启用加密，禁用调试
 
+### 安装方式
+本脚本采用了优化的安装方式：
+1. **优先使用预编译版本**：大幅减少安装时间
+2. **自动降级到编译安装**：当预编译版本不可用时
+3. **优化的编译参数**：`-O3 -march=native` 提升性能
+
 ### 编译参数
 - libtorrent: `--disable-debug --enable-encryption`
 - qBittorrent: `--disable-gui --disable-debug`
+- 编译优化: `CXXFLAGS="-O3 -march=native -pipe"`
+
+### 性能优化
+- **缓存优化**：默认 3GB 缓存，可根据内存调整
+- **连接优化**：异步 IO 线程数设为 8
+- **文件池**：500 个文件句柄
+- **BBR 拥塞控制**：自动启用
 
 ## 卸载应用
 
@@ -194,7 +208,8 @@ docker logs -f vertex          # 查看日志
 
 ## 致谢
 
-感谢所有贡献者和使用者的支持！
+- 感谢 [jerry048](https://github.com/jerry048/Dedicated-Seedbox) 的优秀脚本提供参考
+- 感谢所有贡献者和使用者的支持！
 
 ---
 
