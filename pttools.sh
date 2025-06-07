@@ -15,6 +15,7 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
+GRAY='\033[0;37m'
 NC='\033[0m' # No Color
 
 # 全局变量
@@ -24,6 +25,10 @@ DOWNLOAD_PATH="/opt/downloads"
 CONFIG_PATH="/etc/pttools"
 LOG_PATH="/var/log/pttools"
 LOG_FILE="${LOG_PATH}/install.log"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/everett7623/PTtools/main"
+
+# 获取服务器IP
+SERVER_IP=""
 
 # 检查是否为root用户
 check_root() {
@@ -34,18 +39,29 @@ check_root() {
     fi
 }
 
-# 创建目录结构
+# 获取服务器IP
+get_server_ip() {
+    # 尝试多种方式获取公网IP
+    SERVER_IP=$(curl -s --connect-timeout 5 ifconfig.me) || \
+    SERVER_IP=$(curl -s --connect-timeout 5 ipinfo.io/ip) || \
+    SERVER_IP=$(curl -s --connect-timeout 5 icanhazip.com) || \
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    
+    if [[ -z "$SERVER_IP" ]]; then
+        SERVER_IP="your-server-ip"
+    fi
+}
+
+# 创建基础目录结构
 create_directories() {
-    log_info "创建必要的目录结构..."
+    log_info "创建基础目录结构..."
     
     # 创建主要目录
     mkdir -p "${INSTALL_PATH}"
-    mkdir -p "${DOWNLOAD_PATH}"/{completed,incomplete,torrents}
+    mkdir -p "${DOWNLOAD_PATH}"
     mkdir -p "${CONFIG_PATH}"
     mkdir -p "${LOG_PATH}"
-    
-    # 创建应用数据目录
-    mkdir -p "${INSTALL_PATH}"/{qbittorrent,transmission,emby,iyuuplus,moviepilot,vertex}
+    mkdir -p "${INSTALL_PATH}/vertex"
     
     # 设置权限
     chmod -R 755 "${INSTALL_PATH}"
@@ -60,6 +76,7 @@ create_directories() {
 log_info() {
     local message="$1"
     echo -e "${GREEN}[INFO]${NC} $message"
+    mkdir -p "$(dirname "$LOG_FILE")"
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] $message" >> "$LOG_FILE"
 }
 
@@ -89,33 +106,96 @@ detect_system() {
     log_info "检测到系统：$OS $OS_VERSION"
 }
 
+# 检查系统兼容性
+check_system_compatibility() {
+    log_info "检查系统兼容性..."
+    
+    # 检查系统类型
+    if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
+        log_info "系统兼容性检查通过"
+    else
+        log_warn "当前系统可能不完全兼容，建议使用 Ubuntu 18.04+ 或 Debian 10+"
+        read -p "是否继续安装？[y/N]: " continue_install
+        if [[ "${continue_install,,}" != "y" ]]; then
+            echo "安装已取消"
+            exit 0
+        fi
+    fi
+    
+    # 检查内存
+    local total_mem=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+    if [[ $total_mem -lt 1024 ]]; then
+        log_warn "系统内存少于1GB，可能影响性能"
+    fi
+    
+    # 检查磁盘空间
+    local free_space=$(df / | awk 'NR==2 {print $4}')
+    if [[ $free_space -lt 10485760 ]]; then  # 10GB in KB
+        log_warn "系统可用空间少于10GB，可能影响安装"
+    fi
+}
+
+# 下载脚本文件
+download_script() {
+    local script_name="$1"
+    local local_path="$2"
+    
+    log_info "下载脚本: $script_name"
+    
+    if curl -fsSL "${GITHUB_RAW_URL}/${script_name}" -o "$local_path"; then
+        chmod +x "$local_path"
+        log_info "脚本下载成功: $script_name"
+        return 0
+    else
+        log_error "脚本下载失败: $script_name"
+        return 1
+    fi
+}
+
 # 安装Docker
 install_docker() {
     log_info "开始安装Docker..."
     
     if command -v docker &> /dev/null; then
-        log_info "Docker已安装，跳过安装步骤"
+        log_info "Docker已安装，版本：$(docker --version)"
+        
+        # 检查Docker服务状态
+        if systemctl is-active --quiet docker; then
+            log_info "Docker服务运行正常"
+        else
+            log_info "启动Docker服务..."
+            systemctl start docker
+        fi
+        
         return 0
     fi
     
+    # 更新系统包
+    log_info "更新系统包列表..."
+    apt-get update -y
+    
+    # 安装必要的包
+    apt-get install -y curl wget apt-transport-https ca-certificates gnupg lsb-release
+    
     # 询问是否使用国内镜像
-    echo -e "${CYAN}是否使用阿里云镜像安装Docker？${NC}"
-    echo "1) 是 (国内用户推荐)"
-    echo "2) 否 (使用官方镜像)"
-    read -p "请选择 [1-2]: " docker_mirror_choice
+    echo -e "${CYAN}选择Docker安装源：${NC}"
+    echo "1) 官方源 (国外服务器推荐)"
+    echo "2) 阿里云镜像 (国内服务器推荐)"
+    read -p "请选择 [1-2，默认2]: " docker_mirror_choice
+    docker_mirror_choice=${docker_mirror_choice:-2}
     
     case $docker_mirror_choice in
         1)
+            log_info "使用官方源安装Docker..."
+            curl -fsSL https://get.docker.com | bash -s docker
+            ;;
+        2)
             log_info "使用阿里云镜像安装Docker..."
             curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
             ;;
-        2)
-            log_info "使用官方镜像安装Docker..."
-            curl -fsSL https://get.docker.com | bash -s docker
-            ;;
         *)
-            log_warn "无效选择，使用官方镜像安装..."
-            curl -fsSL https://get.docker.com | bash -s docker
+            log_info "使用阿里云镜像安装Docker..."
+            curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
             ;;
     esac
     
@@ -123,124 +203,86 @@ install_docker() {
     systemctl enable docker
     systemctl start docker
     
+    # 验证Docker安装
+    if docker --version &> /dev/null; then
+        log_info "Docker安装成功：$(docker --version)"
+    else
+        log_error "Docker安装失败"
+        exit 1
+    fi
+    
     # 安装docker-compose
     if ! command -v docker-compose &> /dev/null; then
         log_info "安装docker-compose..."
         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
+        
+        # 验证docker-compose安装
+        if docker-compose --version &> /dev/null; then
+            log_info "docker-compose安装成功：$(docker-compose --version)"
+        else
+            log_error "docker-compose安装失败"
+            exit 1
+        fi
     fi
     
-    log_info "Docker安装完成"
+    log_info "Docker环境准备完成"
 }
 
-# 获取用户输入
-get_user_credentials() {
-    echo -e "${CYAN}请设置qBittorrent Web UI登录信息：${NC}"
-    read -p "用户名 [默认: admin]: " QB_USERNAME
-    QB_USERNAME=${QB_USERNAME:-admin}
-    
-    while true; do
-        read -s -p "密码 [至少8位]: " QB_PASSWORD
-        echo
-        if [[ ${#QB_PASSWORD} -ge 8 ]]; then
-            break
-        else
-            echo -e "${RED}密码至少需要8位，请重新输入${NC}"
-        fi
-    done
-    
-    echo -e "${CYAN}请设置端口信息：${NC}"
-    read -p "Web UI端口 [默认: 8080]: " QB_WEBUI_PORT
-    QB_WEBUI_PORT=${QB_WEBUI_PORT:-8080}
-    
-    read -p "守护进程端口 [默认: 23333]: " QB_DAEMON_PORT
-    QB_DAEMON_PORT=${QB_DAEMON_PORT:-23333}
-    
-    # 保存配置
-    save_config
-}
-
-# 保存配置到文件
-save_config() {
-    cat > "${CONFIG_PATH}/config.conf" << EOF
-# PTtools 配置文件
-PTTOOLS_VERSION="${SCRIPT_VERSION}"
-INSTALL_PATH="${INSTALL_PATH}"
-DOWNLOAD_PATH="${DOWNLOAD_PATH}"
-LOG_PATH="${LOG_PATH}"
-
-# qBittorrent 配置
-QB_USERNAME="${QB_USERNAME}"
-QB_PASSWORD="${QB_PASSWORD}"
-QB_WEBUI_PORT="${QB_WEBUI_PORT}"
-QB_DAEMON_PORT="${QB_DAEMON_PORT}"
-
-# 安装时间
-INSTALL_DATE="$(date +'%Y-%m-%d %H:%M:%S')"
-EOF
-    
-    log_info "配置已保存到 ${CONFIG_PATH}/config.conf"
-}
-
-# 安装qBittorrent 4.3.8 (使用iniwex5脚本)
+# 安装qBittorrent 4.3.8 (使用项目中的qb438.sh)
 install_qb_438() {
     log_info "开始安装qBittorrent 4.3.8..."
     
-    get_user_credentials
-    
-    log_info "下载并执行qBittorrent 4.3.8安装脚本..."
-    bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "${QB_USERNAME}" "${QB_PASSWORD}" "${QB_WEBUI_PORT}" "${QB_DAEMON_PORT}"
-    
-    if [[ $? -eq 0 ]]; then
-        log_info "qBittorrent 4.3.8安装完成"
-        echo -e "${GREEN}qBittorrent 4.3.8安装成功！${NC}"
-        echo -e "${CYAN}访问地址：http://$(curl -s ifconfig.me):${QB_WEBUI_PORT}${NC}"
-        echo -e "${CYAN}用户名：${QB_USERNAME}${NC}"
-        echo -e "${CYAN}密码：${QB_PASSWORD}${NC}"
+    # 下载qb438.sh脚本
+    local script_path="/tmp/qb438.sh"
+    if download_script "qb438.sh" "$script_path"; then
+        log_info "执行qBittorrent 4.3.8安装脚本..."
+        
+        # 执行脚本
+        if bash "$script_path"; then
+            log_info "qBittorrent 4.3.8安装完成"
+            save_install_info "qbittorrent-4.3.8"
+            show_success_info "qBittorrent 4.3.8"
+            
+            # 清理临时文件
+            rm -f "$script_path"
+            return 0
+        else
+            log_error "qBittorrent 4.3.8安装失败"
+            rm -f "$script_path"
+            return 1
+        fi
     else
-        log_error "qBittorrent 4.3.8安装失败"
+        log_error "无法下载qBittorrent 4.3.8安装脚本"
         return 1
     fi
 }
 
-# 安装qBittorrent 4.3.9 (使用jerry048脚本)
+# 安装qBittorrent 4.3.9 (使用项目中的qb439.sh)
 install_qb_439() {
     log_info "开始安装qBittorrent 4.3.9..."
     
-    get_user_credentials
-    
-    # 询问缓存大小
-    read -p "请输入qBittorrent缓存大小(MB) [默认: 3072]: " QB_CACHE_SIZE
-    QB_CACHE_SIZE=${QB_CACHE_SIZE:-3072}
-    
-    # 询问是否启用额外功能
-    echo -e "${CYAN}是否启用以下功能？${NC}"
-    read -p "启用autobrr? [y/N]: " ENABLE_AUTOBRR
-    read -p "启用autoremove-torrents? [y/N]: " ENABLE_AUTOREMOVE
-    read -p "启用BBRx加速? [y/N]: " ENABLE_BBRX
-    
-    # 构建安装命令
-    local install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u ${QB_USERNAME} -p ${QB_PASSWORD} -c ${QB_CACHE_SIZE} -q 4.3.9 -l v1.2.20"
-    
-    [[ "${ENABLE_AUTOBRR,,}" == "y" ]] && install_cmd+=" -b"
-    [[ "${ENABLE_AUTOREMOVE,,}" == "y" ]] && install_cmd+=" -r"
-    [[ "${ENABLE_BBRX,,}" == "y" ]] && install_cmd+=" -x"
-    
-    if [[ "${QB_WEBUI_PORT}" != "8080" ]] || [[ "${QB_DAEMON_PORT}" != "23333" ]]; then
-        install_cmd+=" -o"
-    fi
-    
-    log_info "执行安装命令：$install_cmd"
-    eval "$install_cmd"
-    
-    if [[ $? -eq 0 ]]; then
-        log_info "qBittorrent 4.3.9安装完成"
-        echo -e "${GREEN}qBittorrent 4.3.9安装成功！${NC}"
-        echo -e "${CYAN}访问地址：http://$(curl -s ifconfig.me):${QB_WEBUI_PORT}${NC}"
-        echo -e "${CYAN}用户名：${QB_USERNAME}${NC}"
-        echo -e "${CYAN}密码：${QB_PASSWORD}${NC}"
+    # 下载qb439.sh脚本
+    local script_path="/tmp/qb439.sh"
+    if download_script "qb439.sh" "$script_path"; then
+        log_info "执行qBittorrent 4.3.9安装脚本..."
+        
+        # 执行脚本
+        if bash "$script_path"; then
+            log_info "qBittorrent 4.3.9安装完成"
+            save_install_info "qbittorrent-4.3.9"
+            show_success_info "qBittorrent 4.3.9"
+            
+            # 清理临时文件
+            rm -f "$script_path"
+            return 0
+        else
+            log_error "qBittorrent 4.3.9安装失败"
+            rm -f "$script_path"
+            return 1
+        fi
     else
-        log_error "qBittorrent 4.3.9安装失败"
+        log_error "无法下载qBittorrent 4.3.9安装脚本"
         return 1
     fi
 }
@@ -251,6 +293,14 @@ install_vertex() {
     
     # 创建Vertex目录
     mkdir -p "${INSTALL_PATH}/vertex"
+    
+    # 检查端口3334是否被占用
+    if ss -tulnp | grep ":3334 " > /dev/null; then
+        log_warn "端口3334已被占用，将使用3335端口"
+        VERTEX_PORT=3335
+    else
+        VERTEX_PORT=3334
+    fi
     
     # 创建docker-compose配置
     cat > "${INSTALL_PATH}/vertex/docker-compose.yml" << EOF
@@ -265,34 +315,104 @@ services:
     volumes:
       - ${INSTALL_PATH}/vertex:/vertex
     ports:
-      - "3334:3000"
+      - "${VERTEX_PORT}:3000"
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 EOF
     
     # 启动Vertex
     cd "${INSTALL_PATH}/vertex"
-    docker-compose up -d
     
-    if [[ $? -eq 0 ]]; then
-        log_info "Vertex安装完成"
-        echo -e "${GREEN}Vertex安装成功！${NC}"
-        echo -e "${CYAN}访问地址：http://$(curl -s ifconfig.me):3334${NC}"
+    if docker-compose up -d; then
+        # 等待容器启动
+        sleep 10
+        
+        # 检查容器状态
+        if docker ps | grep vertex > /dev/null; then
+            log_info "Vertex安装完成"
+            save_install_info "vertex"
+            echo -e "${GREEN}Vertex安装成功！${NC}"
+            echo -e "${CYAN}访问地址：http://${SERVER_IP}:${VERTEX_PORT}${NC}"
+            return 0
+        else
+            log_error "Vertex容器启动失败"
+            docker logs vertex 2>/dev/null || true
+            return 1
+        fi
     else
         log_error "Vertex安装失败"
         return 1
     fi
 }
 
+# 保存安装信息
+save_install_info() {
+    local app_name="$1"
+    local config_file="${CONFIG_PATH}/installed_apps.conf"
+    
+    # 创建或更新已安装应用列表
+    if [[ ! -f "$config_file" ]]; then
+        echo "# PTtools 已安装应用列表" > "$config_file"
+        echo "# 安装时间: $(date +'%Y-%m-%d %H:%M:%S')" >> "$config_file"
+    fi
+    
+    # 检查是否已记录
+    if ! grep -q "^$app_name=" "$config_file" 2>/dev/null; then
+        echo "$app_name=$(date +'%Y-%m-%d %H:%M:%S')" >> "$config_file"
+    fi
+}
+
+# 显示安装成功信息
+show_success_info() {
+    local app_name="$1"
+    echo
+    echo -e "${GREEN}🎉 ${app_name} 安装成功！${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${WHITE}服务器信息：${NC}"
+    echo -e "${CYAN}  服务器IP：${SERVER_IP}${NC}"
+    
+    # 显示可能的访问端口
+    if systemctl is-active --quiet qbittorrent 2>/dev/null; then
+        local qb_port=$(ss -tulnp | grep qbittorrent | grep -o ':\d\+' | head -1 | tr -d ':')
+        if [[ -n "$qb_port" ]]; then
+            echo -e "${CYAN}  qBittorrent：http://${SERVER_IP}:${qb_port}${NC}"
+        fi
+    fi
+    
+    if docker ps | grep vertex > /dev/null; then
+        local vertex_port=$(docker port vertex 2>/dev/null | grep 3000 | cut -d':' -f2)
+        if [[ -n "$vertex_port" ]]; then
+            echo -e "${CYAN}  Vertex：http://${SERVER_IP}:${vertex_port}${NC}"
+        fi
+    fi
+    
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+}
+
 # 安装qBittorrent 4.3.8 + Vertex
 install_qb_438_vertex() {
     log_info "开始安装qBittorrent 4.3.8 + Vertex组合..."
     
-    install_qb_438
-    if [[ $? -eq 0 ]]; then
-        install_vertex
-        if [[ $? -eq 0 ]]; then
-            echo -e "${GREEN}qBittorrent 4.3.8 + Vertex组合安装完成！${NC}"
+    if install_qb_438; then
+        echo -e "${CYAN}qBittorrent 4.3.8 安装完成，继续安装 Vertex...${NC}"
+        sleep 3
+        if install_vertex; then
+            echo
+            echo -e "${GREEN}🎉 qBittorrent 4.3.8 + Vertex 组合安装完成！${NC}"
+            show_combined_info
+            return 0
+        else
+            log_error "Vertex安装失败，但qBittorrent 4.3.8安装成功"
+            return 1
         fi
+    else
+        log_error "qBittorrent 4.3.8安装失败，停止安装"
+        return 1
     fi
 }
 
@@ -300,65 +420,46 @@ install_qb_438_vertex() {
 install_qb_439_vertex() {
     log_info "开始安装qBittorrent 4.3.9 + Vertex组合..."
     
-    install_qb_439
-    if [[ $? -eq 0 ]]; then
-        install_vertex
-        if [[ $? -eq 0 ]]; then
-            echo -e "${GREEN}qBittorrent 4.3.9 + Vertex组合安装完成！${NC}"
+    if install_qb_439; then
+        echo -e "${CYAN}qBittorrent 4.3.9 安装完成，继续安装 Vertex...${NC}"
+        sleep 3
+        if install_vertex; then
+            echo
+            echo -e "${GREEN}🎉 qBittorrent 4.3.9 + Vertex 组合安装完成！${NC}"
+            show_combined_info
+            return 0
+        else
+            log_error "Vertex安装失败，但qBittorrent 4.3.9安装成功"
+            return 1
         fi
+    else
+        log_error "qBittorrent 4.3.9安装失败，停止安装"
+        return 1
     fi
 }
 
-# VPS优化
-optimize_vps() {
-    log_info "开始VPS优化..."
+# 显示组合安装信息
+show_combined_info() {
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${WHITE}组合服务访问信息：${NC}"
     
-    # 网络优化
-    cat >> /etc/sysctl.conf << EOF
-
-# PTtools VPS优化配置
-# 网络优化
-net.core.rmem_max = 67108864
-net.core.wmem_max = 67108864
-net.core.netdev_max_backlog = 250000
-net.core.somaxconn = 4096
-net.ipv4.tcp_syncookies = 1
-net.ipv4.tcp_tw_reuse = 1
-net.ipv4.tcp_fin_timeout = 30
-net.ipv4.tcp_keepalive_time = 1200
-net.ipv4.ip_local_port_range = 10000 65000
-net.ipv4.tcp_max_syn_backlog = 8192
-net.ipv4.tcp_max_tw_buckets = 5000
-net.ipv4.tcp_rmem = 4096 87380 67108864
-net.ipv4.tcp_wmem = 4096 65536 67108864
-net.ipv4.tcp_congestion_control = bbr
-
-# 文件描述符限制
-fs.file-max = 2097152
-EOF
-    
-    # 应用网络优化
-    sysctl -p
-    
-    # 设置文件描述符限制
-    cat >> /etc/security/limits.conf << EOF
-
-# PTtools 文件描述符限制
-* soft nofile 65536
-* hard nofile 65536
-root soft nofile 65536
-root hard nofile 65536
-EOF
-    
-    # 启用BBR
-    if ! lsmod | grep -q bbr; then
-        echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
-        echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
-        sysctl -p
-        log_info "BBR拥塞控制已启用"
+    # qBittorrent信息
+    if systemctl is-active --quiet qbittorrent 2>/dev/null; then
+        local qb_port=$(ss -tulnp | grep qbittorrent | grep -o ':\d\+' | head -1 | tr -d ':')
+        if [[ -n "$qb_port" ]]; then
+            echo -e "${CYAN}  qBittorrent：http://${SERVER_IP}:${qb_port}${NC}"
+        fi
     fi
     
-    log_info "VPS优化完成"
+    # Vertex信息
+    if docker ps | grep vertex > /dev/null; then
+        local vertex_port=$(docker port vertex 2>/dev/null | grep 3000 | cut -d':' -f2)
+        if [[ -n "$vertex_port" ]]; then
+            echo -e "${CYAN}  Vertex：http://${SERVER_IP}:${vertex_port}${NC}"
+        fi
+    fi
+    
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
 # 显示主菜单
@@ -366,55 +467,97 @@ show_main_menu() {
     clear
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                        PTtools v${SCRIPT_VERSION}                        ║"
+    echo "║                       PTtools v${SCRIPT_VERSION}                        ║"
     echo "║                   PT工具一键安装脚本                           ║"
-    echo "║                 作者：everett7623                              ║"
+    echo "║                  调用现有脚本 稳定可靠                          ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     
-    echo -e "${CYAN}核心项目安装选项：${NC}"
-    echo -e "${WHITE}1)${NC} 安装 qBittorrent 4.3.8"
-    echo -e "${WHITE}2)${NC} 安装 qBittorrent 4.3.9"
+    echo -e "${CYAN}核心安装选项：${NC}"
+    echo -e "${WHITE}1)${NC} 安装 qBittorrent 4.3.8  ${GRAY}(调用 qb438.sh)${NC}"
+    echo -e "${WHITE}2)${NC} 安装 qBittorrent 4.3.9  ${GRAY}(调用 qb439.sh)${NC}"
     echo -e "${WHITE}3)${NC} 安装 qBittorrent 4.3.8 + Vertex"
     echo -e "${WHITE}4)${NC} 安装 qBittorrent 4.3.9 + Vertex"
     echo
-    echo -e "${CYAN}系统功能：${NC}"
-    echo -e "${WHITE}5)${NC} 选择安装应用 (开发中...)"
-    echo -e "${WHITE}6)${NC} VPS优化"
-    echo -e "${WHITE}7)${NC} 卸载选项 (开发中...)"
-    echo -e "${WHITE}8)${NC} 查看系统状态"
-    echo -e "${WHITE}9)${NC} 退出"
+    echo -e "${CYAN}其他选项：${NC}"
+    echo -e "${WHITE}5)${NC} 查看安装状态"
+    echo -e "${WHITE}6)${NC} 退出脚本"
+    echo
+    echo -e "${YELLOW}提示：选项1和2将调用项目中现有的qb438.sh和qb439.sh脚本${NC}"
     echo
 }
 
-# 显示系统状态
-show_system_status() {
+# 查看安装状态
+show_install_status() {
     clear
-    echo -e "${BLUE}系统状态信息${NC}"
+    echo -e "${BLUE}系统安装状态${NC}"
     echo "=================================="
     
-    # 系统信息
-    echo -e "${CYAN}系统信息：${NC}"
-    echo "操作系统：$(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
-    echo "内核版本：$(uname -r)"
-    echo "CPU架构：$(uname -m)"
-    
-    # 内存信息
-    echo -e "\n${CYAN}内存信息：${NC}"
-    free -h
-    
-    # 磁盘信息
-    echo -e "\n${CYAN}磁盘使用情况：${NC}"
-    df -h /
-    
-    # Docker状态
-    echo -e "\n${CYAN}Docker状态：${NC}"
-    if command -v docker &> /dev/null; then
-        echo "Docker版本：$(docker --version)"
-        echo "运行中的容器："
-        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    # 检查已安装应用
+    local config_file="${CONFIG_PATH}/installed_apps.conf"
+    if [[ -f "$config_file" ]]; then
+        echo -e "${GREEN}✓${NC} 已安装应用："
+        grep -v "^#" "$config_file" 2>/dev/null | while IFS='=' read -r app time; do
+            if [[ -n "$app" ]]; then
+                echo -e "  - $app (安装时间: $time)"
+            fi
+        done
     else
-        echo "Docker未安装"
+        echo -e "${RED}✗${NC} 暂无已安装应用记录"
+    fi
+    
+    echo
+    
+    # 检查Docker
+    if command -v docker &> /dev/null; then
+        echo -e "${GREEN}✓${NC} Docker已安装：$(docker --version | cut -d' ' -f3 | tr -d ',')"
+        if systemctl is-active --quiet docker; then
+            echo -e "${GREEN}✓${NC} Docker服务运行中"
+        else
+            echo -e "${RED}✗${NC} Docker服务未运行"
+        fi
+    else
+        echo -e "${RED}✗${NC} Docker未安装"
+    fi
+    
+    # 检查qBittorrent
+    if command -v qbittorrent-nox &> /dev/null; then
+        echo -e "${GREEN}✓${NC} qBittorrent已安装"
+        if systemctl is-active --quiet qbittorrent 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} qBittorrent服务运行中"
+            local qb_port=$(ss -tulnp | grep qbittorrent | grep -o ':\d\+' | head -1 | tr -d ':')
+            if [[ -n "$qb_port" ]]; then
+                echo -e "  访问地址：http://${SERVER_IP}:${qb_port}"
+            fi
+        else
+            echo -e "${YELLOW}!${NC} qBittorrent服务状态未知"
+        fi
+    else
+        echo -e "${RED}✗${NC} qBittorrent未安装"
+    fi
+    
+    # 检查Vertex
+    if docker ps | grep vertex > /dev/null; then
+        echo -e "${GREEN}✓${NC} Vertex容器运行中"
+        local vertex_port=$(docker port vertex 2>/dev/null | grep 3000 | cut -d':' -f2)
+        if [[ -n "$vertex_port" ]]; then
+            echo -e "  访问地址：http://${SERVER_IP}:${vertex_port}"
+        fi
+    elif docker ps -a | grep vertex > /dev/null; then
+        echo -e "${YELLOW}!${NC} Vertex容器已创建但未运行"
+    else
+        echo -e "${RED}✗${NC} Vertex未安装"
+    fi
+    
+    # 显示日志信息
+    echo
+    echo -e "${CYAN}日志文件：${NC}"
+    if [[ -f "$LOG_FILE" ]]; then
+        echo -e "  安装日志：$LOG_FILE"
+        local log_size=$(du -h "$LOG_FILE" 2>/dev/null | cut -f1)
+        echo -e "  日志大小：${log_size:-未知}"
+    else
+        echo -e "  暂无日志文件"
     fi
     
     echo
@@ -425,13 +568,18 @@ show_system_status() {
 init() {
     check_root
     detect_system
+    get_server_ip
+    check_system_compatibility
     create_directories
     
     # 创建日志文件
+    mkdir -p "$(dirname "$LOG_FILE")"
     touch "$LOG_FILE"
     
     log_info "PTtools v${SCRIPT_VERSION} 启动"
     log_info "系统：$OS $OS_VERSION"
+    log_info "服务器IP：$SERVER_IP"
+    log_info "项目地址：https://github.com/everett7623/PTtools"
 }
 
 # 主函数
@@ -440,52 +588,47 @@ main() {
     
     while true; do
         show_main_menu
-        read -p "请选择操作 [1-9]: " choice
+        read -p "请选择操作 [1-6]: " choice
         
         case $choice in
             1)
                 install_docker
-                install_qb_438
+                if [[ $? -eq 0 ]]; then
+                    install_qb_438
+                fi
                 read -p "按任意键继续..." -n 1
                 ;;
             2)
                 install_docker
-                install_qb_439
+                if [[ $? -eq 0 ]]; then
+                    install_qb_439
+                fi
                 read -p "按任意键继续..." -n 1
                 ;;
             3)
                 install_docker
-                install_qb_438_vertex
+                if [[ $? -eq 0 ]]; then
+                    install_qb_438_vertex
+                fi
                 read -p "按任意键继续..." -n 1
                 ;;
             4)
                 install_docker
-                install_qb_439_vertex
+                if [[ $? -eq 0 ]]; then
+                    install_qb_439_vertex
+                fi
                 read -p "按任意键继续..." -n 1
                 ;;
             5)
-                echo -e "${YELLOW}选择安装应用功能正在开发中...${NC}"
-                read -p "按任意键继续..." -n 1
+                show_install_status
                 ;;
             6)
-                optimize_vps
-                echo -e "${GREEN}VPS优化完成！${NC}"
-                read -p "按任意键继续..." -n 1
-                ;;
-            7)
-                echo -e "${YELLOW}卸载功能正在开发中...${NC}"
-                read -p "按任意键继续..." -n 1
-                ;;
-            8)
-                show_system_status
-                ;;
-            9)
                 echo -e "${GREEN}感谢使用PTtools！${NC}"
-                log_info "PTtools退出"
+                log_info "PTtools正常退出"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}无效选择，请重新输入${NC}"
+                echo -e "${RED}无效选择，请输入1-6${NC}"
                 sleep 2
                 ;;
         esac
