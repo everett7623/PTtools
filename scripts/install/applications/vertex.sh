@@ -46,11 +46,38 @@ create_directories() {
 
 # 下载配置文件
 download_config() {
-    print_message $BLUE "下载 Vertex 配置文件..."
-    wget -O $VERTEX_DIR/docker-compose.yml "${GITHUB_RAW_URL}/configs/docker-compose/vertex.yml"
+    print_message $BLUE "创建 Vertex 配置文件..."
+    
+    # 直接创建docker-compose.yml文件
+    cat > $VERTEX_DIR/docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    environment:
+      - TZ=Asia/Shanghai
+      - VERTEX_HOST=0.0.0.0
+      - VERTEX_PORT=3000
+      - VERTEX_DATA_DIR=/vertex
+    volumes:
+      - /opt/docker/vertex:/vertex
+      - /opt/downloads:/downloads
+    ports:
+      - 3334:3000
+    restart: unless-stopped
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
+    name: pt-network
+EOF
     
     if [[ ! -f $VERTEX_DIR/docker-compose.yml ]]; then
-        print_message $RED "错误：配置文件下载失败！"
+        print_message $RED "错误：配置文件创建失败！"
         exit 1
     fi
 }
