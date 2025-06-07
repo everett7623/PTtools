@@ -90,6 +90,22 @@ install_dependencies() {
     done_progress
 }
 
+# 检查libtorrent安装
+check_libtorrent() {
+    show_progress "检查 libtorrent"
+    
+    if ldconfig -p | grep -q libtorrent-rasterbar; then
+        done_progress
+        local version=$(ldconfig -p | grep libtorrent-rasterbar | head -1 | awk '{print $1}')
+        print_message $GREEN "已安装：$version"
+        return 0
+    else
+        done_progress
+        print_message $YELLOW "libtorrent 未安装"
+        return 1
+    fi
+}
+
 # 下载预编译的libtorrent
 install_libtorrent_prebuilt() {
     show_progress "安装 libtorrent $LIBTORRENT_VERSION (预编译版)"
@@ -493,8 +509,10 @@ main() {
     # 安装依赖
     install_dependencies
     
-    # 安装libtorrent
-    install_libtorrent_prebuilt
+    # 检查并安装libtorrent
+    if ! check_libtorrent; then
+        install_libtorrent_prebuilt
+    fi
     
     # 安装qBittorrent
     install_qbittorrent
