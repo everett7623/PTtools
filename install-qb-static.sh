@@ -52,19 +52,29 @@ download_static_build() {
     
     cd /tmp
     
-    # 使用多个源尝试下载
-    URLS=(
-        "https://github.com/c0re100/qBittorrent-Enhanced-Edition/releases/download/release-${QB_VERSION}.0/qbittorrent-enhanced-nox_x86_64-linux-musl_static.zip"
-        "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/x86_64-qbittorrent-nox"
-    )
+    # 根据版本选择下载源
+    if [[ "$QB_VERSION" == "4.3.8" ]] || [[ "$QB_VERSION" == "4.3.9" ]]; then
+        # 4.3.x 版本使用特定的下载链接
+        URLS=(
+            "https://github.com/c0re100/qBittorrent-Enhanced-Edition/releases/download/release-${QB_VERSION}.0/qbittorrent-enhanced-nox_x86_64-linux-musl_static.zip"
+            "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v1.2.15/x86_64-qbittorrent-nox"
+            "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v1.2.19/x86_64-qbittorrent-nox"
+        )
+    else
+        # 其他版本或最新版本
+        print_message $YELLOW "警告：版本 ${QB_VERSION} 可能不受支持，尝试下载..."
+        URLS=(
+            "https://github.com/userdocs/qbittorrent-nox-static/releases/latest/download/x86_64-qbittorrent-nox"
+        )
+    fi
     
     for url in "${URLS[@]}"; do
         print_message $YELLOW "尝试下载：$url"
-        if wget -q --show-progress "$url" -O qbittorrent-download; then
+        if wget -q --show-progress "$url" -O qbittorrent-download 2>/dev/null; then
             # 检查文件类型
             if file qbittorrent-download | grep -q "Zip archive"; then
                 # 解压zip文件
-                unzip -o qbittorrent-download
+                unzip -o qbittorrent-download >/dev/null 2>&1
                 mv qbittorrent-enhanced-nox_x86_64-linux-musl_static qbittorrent-nox 2>/dev/null || \
                 mv qbittorrent-nox_x86_64-linux-musl_static qbittorrent-nox 2>/dev/null
             else
@@ -73,11 +83,20 @@ download_static_build() {
             
             if [[ -f qbittorrent-nox ]]; then
                 chmod +x qbittorrent-nox
-                # 测试执行
-                if ./qbittorrent-nox --version &>/dev/null; then
-                    print_message $GREEN "下载成功！"
-                    return 0
+                # 测试执行并验证版本
+                local installed_version=$(./qbittorrent-nox --version 2>/dev/null | grep -oP 'qBittorrent v\K[\d.]+' | head -1)
+                print_message $GREEN "下载成功！版本：$installed_version"
+                
+                # 版本警告
+                if [[ "$installed_version" != "$QB_VERSION"* ]]; then
+                    print_message $YELLOW "警告：安装的版本 ($installed_version) 与请求的版本 ($QB_VERSION) 不匹配"
+                    echo -n "是否继续？[y/N]: "
+                    read -r confirm
+                    if [[ $confirm != "y" && $confirm != "Y" ]]; then
+                        return 1
+                    fi
                 fi
+                return 0
             fi
         fi
     done
