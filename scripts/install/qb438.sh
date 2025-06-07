@@ -515,7 +515,19 @@ main() {
     configure_firewall
     
     # 等待服务启动
-    sleep 2
+    print_message $YELLOW "等待 qBittorrent 启动..."
+    sleep 5
+    
+    # 检查服务状态
+    if systemctl is-active --quiet qbittorrent; then
+        print_message $GREEN "qBittorrent 服务运行正常"
+    else
+        print_message $RED "qBittorrent 服务启动失败，尝试查看日志..."
+        journalctl -u qbittorrent -n 20 --no-pager
+        print_message $YELLOW "尝试重新启动服务..."
+        systemctl restart qbittorrent
+        sleep 3
+    fi
     
     # 显示安装信息
     show_install_info
