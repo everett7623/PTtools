@@ -2,8 +2,8 @@
 
 # 确保脚本以 root 权限运行
 if [[ $EUID -ne 0 ]]; then
-   echo "错误：此脚本必须以 root 权限运行。"
-   exit 1
+    echo "错误：此脚本必须以 root 权限运行。"
+    exit 1
 fi
 
 # 检查参数数量
@@ -314,7 +314,7 @@ echo "  第二次重启将由 /root/BBRx.sh 在第一次重启后触发。"
 echo "  整个流程预计 5-10 分钟..."
 echo "========================================="
 
-# 触发第一次重启
-shutdown -r +1
+# 移除此处导致无限重启的 shutdown 命令，由主脚本 pttools.sh 或 BBRx.sh 统一控制重启
+# shutdown -r +1 
 
 echo "脚本执行完毕。"
