@@ -58,8 +58,8 @@ PTtools/
 
 ### 核心项目（已完成）
 
-1. **qBittorrent 4.3.8** - 经典稳定版本
-2. **qBittorrent 4.3.9** - 最新稳定版本
+1. **qBittorrent 4.3.8** - 经典稳定版本（配合 libtorrent 1.2.20）
+2. **qBittorrent 4.3.9** - 最新稳定版本（配合 libtorrent 1.2.20）
 3. **qBittorrent 4.3.8 + Vertex** - 组合安装
 4. **qBittorrent 4.3.9 + Vertex** - 组合安装
 
@@ -135,6 +135,17 @@ docker logs -f vertex          # 查看日志
 3. **网络优化**
    - 自动配置防火墙规则
    - 优化连接数限制
+
+## 技术细节
+
+### 版本信息
+- **libtorrent-rasterbar**: 1.2.20
+- **qBittorrent**: 4.3.8 / 4.3.9
+- **编译优化**: 启用加密，禁用调试
+
+### 编译参数
+- libtorrent: `--disable-debug --enable-encryption`
+- qBittorrent: `--disable-gui --disable-debug`
 
 ## 卸载应用
 
