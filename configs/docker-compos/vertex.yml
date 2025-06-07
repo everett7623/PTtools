@@ -1,0 +1,40 @@
+services:
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    hostname: vertex
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/vertex:/vertex
+      - /opt/downloads:/downloads
+    ports:
+      - "3334:3000"
+    restart: unless-stopped
+    networks:
+      - pttools
+    labels:
+      - "pttools.app=vertex"
+      - "pttools.category=tools"
+      - "pttools.description=PT专用辅助工具"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  pttools:
+    external: false
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
