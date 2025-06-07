@@ -224,16 +224,72 @@ install_with_compose() {
     fi
 }
 
-# 安装qBittorrent 4.3.8
+# 安装qBittorrent 4.3.8 (调用现有脚本)
 install_qb_438() {
     log_info "开始安装qBittorrent 4.3.8..."
-    run_local_script "scripts/install/qb_438.sh"
+    
+    # 尝试调用 scripts/install/ 目录的qb438.sh
+    local qb438_script=""
+    
+    if [[ -f "${SCRIPT_DIR}/scripts/install/qb438.sh" ]]; then
+        qb438_script="${SCRIPT_DIR}/scripts/install/qb438.sh"
+        log_info "使用本地脚本: scripts/install/qb438.sh"
+    else
+        # 下载到临时目录
+        qb438_script="/tmp/pttools/qb438.sh"
+        mkdir -p "$(dirname "$qb438_script")"
+        
+        if curl -fsSL "${GITHUB_RAW_URL}/scripts/install/qb438.sh" -o "$qb438_script"; then
+            chmod +x "$qb438_script"
+            log_info "下载脚本成功: qb438.sh"
+        else
+            log_error "无法下载 qb438.sh"
+            return 1
+        fi
+    fi
+    
+    # 执行脚本
+    if bash "$qb438_script"; then
+        log_info "qBittorrent 4.3.8 安装完成"
+        return 0
+    else
+        log_error "qBittorrent 4.3.8 安装失败"
+        return 1
+    fi
 }
 
-# 安装qBittorrent 4.3.9
+# 安装qBittorrent 4.3.9 (调用现有脚本)
 install_qb_439() {
     log_info "开始安装qBittorrent 4.3.9..."
-    run_local_script "scripts/install/qb_439.sh"
+    
+    # 尝试调用 scripts/install/ 目录的qb439.sh
+    local qb439_script=""
+    
+    if [[ -f "${SCRIPT_DIR}/scripts/install/qb439.sh" ]]; then
+        qb439_script="${SCRIPT_DIR}/scripts/install/qb439.sh"
+        log_info "使用本地脚本: scripts/install/qb439.sh"
+    else
+        # 下载到临时目录
+        qb439_script="/tmp/pttools/qb439.sh"
+        mkdir -p "$(dirname "$qb439_script")"
+        
+        if curl -fsSL "${GITHUB_RAW_URL}/scripts/install/qb439.sh" -o "$qb439_script"; then
+            chmod +x "$qb439_script"
+            log_info "下载脚本成功: qb439.sh"
+        else
+            log_error "无法下载 qb439.sh"
+            return 1
+        fi
+    fi
+    
+    # 执行脚本
+    if bash "$qb439_script"; then
+        log_info "qBittorrent 4.3.9 安装完成"
+        return 0
+    else
+        log_error "qBittorrent 4.3.9 安装失败"
+        return 1
+    fi
 }
 
 # 安装Vertex
