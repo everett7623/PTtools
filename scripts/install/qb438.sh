@@ -172,16 +172,38 @@ install_qbittorrent() {
     mkdir -p $TEMP_DIR
     cd $TEMP_DIR
     
+    # 检查是否已安装
+    if [[ -f /usr/local/bin/qbittorrent-nox ]]; then
+        print_message $YELLOW "检测到已安装的 qBittorrent，正在清理..."
+        rm -f /usr/local/bin/qbittorrent-nox
+    fi
+    
     # 尝试下载预编译版本
     QB_URL="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LIBTORRENT_VERSION}/x86_64-qbittorrent-nox"
     
+    print_message $YELLOW "\n尝试下载预编译版本..."
     if wget -q --show-progress "${GITHUB_PROXY}${QB_URL}" -O qbittorrent-nox 2>/dev/null; then
-        # 使用预编译版本
-        chmod +x qbittorrent-nox
-        mv qbittorrent-nox /usr/local/bin/
+        # 验证文件
+        if [[ -f qbittorrent-nox ]] && [[ -s qbittorrent-nox ]]; then
+            # 检查文件类型
+            file_type=$(file qbittorrent-nox | grep -o "ELF 64-bit")
+            if [[ "$file_type" == "ELF 64-bit" ]]; then
+                chmod +x qbittorrent-nox
+                mv qbittorrent-nox /usr/local/bin/
+                print_message $GREEN "预编译版本安装成功"
+            else
+                print_message $RED "下载的文件格式不正确"
+                print_message $YELLOW "切换到编译安装..."
+                compile_qbittorrent
+            fi
+        else
+            print_message $RED "下载的文件无效"
+            print_message $YELLOW "切换到编译安装..."
+            compile_qbittorrent
+        fi
     else
-        # 编译安装
-        print_message $YELLOW "\n预编译版本不可用，开始编译安装..."
+        # 直接编译安装
+        print_message $YELLOW "预编译版本不可用，开始编译安装..."
         compile_qbittorrent
     fi
     
@@ -197,22 +219,45 @@ compile_qbittorrent() {
     print_message $BLUE "编译 qBittorrent ${QB_VERSION}..."
     
     cd /tmp
-    wget "${GITHUB_PROXY}https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz"
+    
+    # 清理旧文件
+    rm -rf qBittorrent-release-${QB_VERSION}*
+    
+    # 下载源码
+    if ! wget "${GITHUB_PROXY}https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz"; then
+        print_message $RED "源码下载失败！"
+        return 1
+    fi
+    
     tar -xf release-${QB_VERSION}.tar.gz
     cd qBittorrent-release-${QB_VERSION}
     
-    # 优化编译配置
-    ./configure \
-        --disable-gui \
-        --disable-debug \
+    # 配置编译选项
+    print_message $YELLOW "配置编译选项..."
+    if ! ./configure --disable-gui --disable-debug \
         CXXFLAGS="-O3 -march=native -pipe" \
-        LDFLAGS="-Wl,-O1 -Wl,--as-needed"
+        LDFLAGS="-Wl,-O1 -Wl,--as-needed"; then
+        print_message $RED "配置失败！"
+        return 1
+    fi
     
-    make -j$(nproc)
-    make install
+    # 编译
+    print_message $YELLOW "开始编译（可能需要较长时间）..."
+    if ! make -j$(nproc); then
+        print_message $RED "编译失败！"
+        return 1
+    fi
+    
+    # 安装
+    if ! make install; then
+        print_message $RED "安装失败！"
+        return 1
+    fi
     
     cd /
     rm -rf /tmp/release-${QB_VERSION}.tar.gz /tmp/qBittorrent-release-${QB_VERSION}
+    
+    print_message $GREEN "编译安装完成！"
 }
 
 # 创建优化的qBittorrent配置
