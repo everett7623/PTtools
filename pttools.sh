@@ -1,258 +1,520 @@
 #!/bin/bash
+
 # PT 工具安装脚本
 # 作者: everett7623
 # 版本: 1.0.0
+# 描述: PT 工具一键安装脚本
 
+# 严格模式：遇到未定义变量、命令失败时立即退出
 set -e
+set -u
 
+# 脚本配置
 SCRIPT_VERSION="1.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename "$0")"
 GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 
+# 默认配置
 DEFAULT_DOCKER_PATH="/opt/docker"
 DEFAULT_DOWNLOAD_PATH="/opt/downloads"
 INSTALLATION_LOG="/var/log/pttools-install.log"
 CONFIG_FILE="/etc/pttools/config.conf"
 
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # 无颜色
 
-mkdir -p "$(dirname "$INSTALLATION_LOG")"
+# 回滚操作栈 (用于错误处理)
+ROLLBACK_STACK=()
 
+# 已安装应用注册表
+declare -A INSTALLED_APPS
+
+# ===============================================
+# 基本函数
+# ===============================================
+
+# 记录信息日志
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+    echo -e "${GREEN}[信息]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
 }
 
+# 记录警告日志
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+    echo -e "${YELLOW}[警告]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
 }
 
+# 记录错误日志
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
+    echo -e "${RED}[错误]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
 }
 
+# 打印分隔线
+print_separator() {
+    echo "========================================"
+}
+
+# 注册回滚操作
+rb() {
+    ROLLBACK_STACK+=("$*")
+}
+
+# 执行回滚操作栈中的命令
+execute_rollback() {
+    if [[ ${#ROLLBACK_STACK[@]} -gt 0 ]]; then
+        log_info "正在执行回滚操作..."
+        # 从后往前执行回滚命令
+        for (( i=${#ROLLBACK_STACK[@]}-1; i>=0; i-- )); do
+            log_info "回滚: ${ROLLBACK_STACK[i]}"
+            eval "${ROLLBACK_STACK[i]}" || true # 即使回滚命令失败也继续执行
+        done
+    fi
+}
+
+# ===============================================
+# 系统检查和验证
+# ===============================================
+
+# 检查是否以 root 权限运行
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "此脚本必须以 root 权限运行"
+        log_error "此脚本必须以 root 权限运行。"
         exit 1
     fi
 }
 
+# 检查操作系统类型和版本
 check_os() {
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
         OS=$ID
         VER=${VERSION_ID:-}
-        log_info "检测到操作系统: $OS $VER"
     else
-        log_error "无法确定操作系统版本"
+        log_error "无法确定操作系统版本。"
         exit 1
     fi
+    
+    case "$OS" in
+        ubuntu|debian)
+            log_info "检测到操作系统: $OS $VER"
+            ;;
+        centos|rhel|fedora)
+            log_info "检测到操作系统: $OS $VER"
+            ;;
+        *)
+            log_error "不支持的操作系统: $OS"
+            exit 1
+            ;;
+    esac
 }
 
-install_dependencies() {
-    log_info "检查基础依赖..."
+# 检查并安装基本依赖
+check_dependencies() {
+    local deps=("wget" "curl" "ss") # ss 命令用于端口检查
+    local missing=()
     
-    if command -v apt-get >/dev/null 2>&1; then
-        apt-get update
-        apt-get install -y wget curl iproute2
-    elif command -v yum >/dev/null 2>&1; then
-        yum install -y wget curl iproute
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing+=("$dep")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_warn "缺少以下依赖: ${missing[*]}"
+        install_apt_dependencies "${missing[@]}" # 只安装基础依赖
+    fi
+
+    # 单独检查并安装 Docker 和 Docker Compose
+    if ! command -v docker &> /dev/null; then
+        log_info "检测到 Docker 未安装，正在安装 Docker..."
+        curl -fsSL https://get.docker.com | bash
+        systemctl enable docker || log_warn "未能启用 Docker 服务。"
+        systemctl start docker || log_warn "未能启动 Docker 服务。"
+        rb "systemctl stop docker && systemctl disable docker && apt-get remove -y docker-ce docker-ce-cli containerd.io || true"
     else
-        log_warn "未知的包管理器，请手动安装 wget curl"
-    fi
-}
-
-install_docker() {
-    if command -v docker >/dev/null 2>&1; then
-        log_info "Docker已安装"
-        systemctl start docker || true
-        return 0
+        log_info "Docker 已安装。"
     fi
     
-    log_info "正在安装Docker..."
-    curl -fsSL https://get.docker.com | bash
-    systemctl enable docker
-    systemctl start docker
-    
-    if ! command -v docker-compose >/dev/null 2>&1; then
+    if ! command -v docker-compose &> /dev/null; then
+        log_info "检测到 Docker Compose 未安装，正在安装 Docker Compose..."
+        # 针对不同架构下载最新版 Docker Compose
         local ARCH=$(uname -m)
         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-${ARCH}" -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
+        rb "rm -f /usr/local/bin/docker-compose"
+    else
+        log_info "Docker Compose 已安装。"
     fi
-    
-    log_info "Docker安装完成"
 }
 
+# 安装 apt 软件包（仅限 Ubuntu/Debian）
+install_apt_dependencies() {
+    log_info "正在安装 APT 依赖包: $*"
+    case "$OS" in
+        ubuntu|debian)
+            apt-get update
+            apt-get install -y "$@"
+            ;;
+        *)
+            log_warn "当前操作系统不支持 APT 包管理器，跳过特定依赖安装。"
+            ;;
+    esac
+}
+
+# ===============================================
+# 配置管理
+# ===============================================
+
+# 加载配置
 load_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
-        log_info "加载配置文件: $CONFIG_FILE"
+        log_info "正在加载配置文件: $CONFIG_FILE"
         source "$CONFIG_FILE"
     else
-        log_info "创建默认配置"
+        log_info "配置文件 $CONFIG_FILE 不存在，正在创建默认配置。"
         create_default_config
     fi
 }
 
+# 创建默认配置
 create_default_config() {
     mkdir -p "$(dirname "$CONFIG_FILE")"
-    cat > "$CONFIG_FILE" << 'EOF'
-DOCKER_PATH="/opt/docker"
-DOWNLOAD_PATH="/opt/downloads"
+    cat > "$CONFIG_FILE" << EOF
+# PTtools 配置文件
+DOCKER_PATH="${DEFAULT_DOCKER_PATH}"
+DOWNLOAD_PATH="${DEFAULT_DOWNLOAD_PATH}"
 SEEDBOX_USER="admin"
-SEEDBOX_PASSWORD="adminadmin"
-WEBUI_PORT=8080
-DAEMON_PORT=23333
-PASSKEY=""
+SEEDBOX_PASSWORD="adminadmin" # qBittorrent WebUI 密码
+WEBUI_PORT=8080 # qBittorrent WebUI 端口
+DAEMON_PORT=23333 # qBittorrent BT 端口
+PASSKEY="" # 留空或填写您的 Tracker Passkey
 EOF
-    log_info "默认配置已创建: $CONFIG_FILE"
+    log_info "已在 $CONFIG_FILE 创建默认配置文件。"
 }
 
+# 保存配置
+save_config() {
+    cat > "$CONFIG_FILE" << EOF
+# PTtools 配置文件
+DOCKER_PATH="${DOCKER_PATH}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH}"
+SEEDBOX_USER="${SEEDBOX_USER}"
+SEEDBOX_PASSWORD="${SEEDBOX_PASSWORD}"
+WEBUI_PORT=${WEBUI_PORT}
+DAEMON_PORT=${DAEMON_PORT}
+PASSKEY="${PASSKEY}"
+EOF
+    log_info "配置已保存到 $CONFIG_FILE"
+}
+
+# ===============================================
+# 用户输入函数
+# ===============================================
+
+# 提示用户输入，可带默认值
 prompt_user() {
     local prompt="$1"
     local default="${2:-}"
     local response
     
     if [[ -n "$default" ]]; then
-        read -p "$prompt [$default]: " response
+        read -p "$(echo -e "${BLUE}$prompt${NC} [${YELLOW}$default${NC}]: ")" response
         echo "${response:-$default}"
     else
-        read -p "$prompt: " response
+        read -p "$(echo -e "${BLUE}$prompt${NC}: ")" response
         echo "$response"
     fi
 }
 
+# 提示用户输入密码（隐藏输入）
 prompt_password() {
     local prompt="$1"
     local password
-    read -s -p "$prompt: " password
-    echo
+    
+    read -s -p "$(echo -e "${BLUE}$prompt${NC}: ")" password
+    echo # 换行
     echo "$password"
 }
 
+# 验证端口号是否有效且未被占用
 validate_port() {
     local port="$1"
-    if [[ "$port" =~ ^[0-9]+$ ]] && [[ $port -ge 1024 ]] && [[ $port -le 65535 ]]; then
-        return 0
-    else
+    local port_name="$2" # 端口名称，用于更好的提示
+
+    if ! [[ "$port" =~ ^[0-9]+$ ]] || (( port < 1024 || port > 65535 )); then # 避免常见系统端口
+        log_error "无效的 ${port_name} 端口号: $port。端口必须是 1024 到 65535 之间的数字。"
         return 1
     fi
+    
+    if ss -tulwn | grep -q ":$port "; then
+        log_warn "警告: ${port_name} 端口 $port 已经被占用。"
+        read -p "您确定要使用此端口吗？(y/n): " confirm_port
+        if [[ "$confirm_port" != "y" ]]; then
+            return 1
+        fi
+    fi
+    
+    return 0
 }
 
+# ===============================================
+# Docker 环境管理函数
+# ===============================================
+
+# 设置 Docker 环境目录
 setup_docker_environment() {
-    log_info "设置Docker环境..."
-    mkdir -p "$DOCKER_PATH"
-    mkdir -p "$DOWNLOAD_PATH"
-    chmod 755 "$DOCKER_PATH" "$DOWNLOAD_PATH"
+    log_info "正在设置 Docker 环境目录..."
     
-    local apps=("qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot" "vertex")
+    # 创建主 Docker 目录
+    mkdir -p "$DOCKER_PATH"
+    chmod -R 777 "$DOCKER_PATH" # 赋予写入权限，方便容器内读写
+
+    # 创建下载目录
+    mkdir -p "$DOWNLOAD_PATH"
+    chmod -R 777 "$DOWNLOAD_PATH"
+    
+    # 为每个应用创建子目录 (如果需要)
+    local apps=("qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot" "vertex" "nas-tools" "filebrowser" "metatube" "byte-muse")
     for app in "${apps[@]}"; do
         mkdir -p "$DOCKER_PATH/$app"
+        log_info "已创建 Docker 应用目录: $DOCKER_PATH/$app"
     done
     
-    log_info "Docker环境设置完成"
+    log_info "Docker 环境设置完成。"
 }
 
+# ===============================================
+# 主菜单函数
+# ===============================================
+
+# 显示脚本 Banner
 show_banner() {
     clear
-    echo "=============================="
-    echo "    PTtools v${SCRIPT_VERSION}"
-    echo "    PT工具一键安装脚本"
-    echo "    作者: everett7623"
-    echo "=============================="
+    cat << 'EOF'
+ ____  _____   _____         _    
+|  _ \|_  __| |_  __|___  ___ | |___ 
+| |_) | | |     | | / _ \/ _ \| / __|
+|  __/  | |     | || (_) | (_) | \__ \
+|_|     |_|     |_| \___/ \___/|_|___/
+                                     
+EOF
+    echo -e "${BLUE}版本: ${NC}${SCRIPT_VERSION}"
+    echo -e "${BLUE}作者: ${NC}everett7623"
+    print_separator
 }
 
+# 显示主菜单
 show_main_menu() {
     show_banner
-    echo
     echo "主菜单:"
     echo "1. 安装 qBittorrent 4.3.8"
     echo "2. 安装 qBittorrent 4.3.9"
     echo "3. 安装 qBittorrent 4.3.8 + Vertex"
     echo "4. 安装 qBittorrent 4.3.9 + Vertex"
-    echo "5. 安装应用程序 (Docker)"
-    echo "6. VPS 优化"
-    echo "7. 系统状态"
+    echo "5. 安装选定应用程序 (Docker Compose)"
+    echo "6. VPS 优化 (针对 PT 流量)"
+    echo "7. 卸载选项"
     echo "8. 退出"
-    echo
+    print_separator
     
-    read -p "请选择 [1-8]: " choice
+    local choice
+    read -p "请输入您的选择 [1-8]: " choice
     
     case "$choice" in
         1) install_qb_438 ;;
         2) install_qb_439 ;;
-        3) install_qb_438_vertex ;;
-        4) install_qb_439_vertex ;;
-        5) install_docker_apps ;;
+        3) install_qb_438_vertex_combo ;; # 调用组合安装函数
+        4) install_qb_439_vertex_combo ;; # 调用组合安装函数
+        5) show_app_selection_menu ;;
         6) optimize_vps ;;
-        7) show_status ;;
+        7) show_uninstall_menu ;;
         8) exit_script ;;
         *) 
-            log_error "无效选择"
+            log_error "无效的选择，请重新输入。"
             sleep 2
             show_main_menu
             ;;
     esac
 }
 
+# ===============================================
+# qBittorrent 安装函数
+# ===============================================
+
+# 安装 qBittorrent 4.3.8
 install_qb_438() {
-    log_info "安装 qBittorrent 4.3.8..."
+    log_info "正在安装 qBittorrent 4.3.8..."
     
-    local username=$(prompt_user "qBittorrent用户名" "${SEEDBOX_USER:-admin}")
-    local password=$(prompt_password "qBittorrent密码")
-    while [[ -z "$password" ]]; do
-        log_warn "密码不能为空"
-        password=$(prompt_password "qBittorrent密码")
+    # 获取用户输入
+    SEEDBOX_USER=$(prompt_user "请输入 qBittorrent WebUI 用户名" "${SEEDBOX_USER}")
+    # 密码单独处理，因为 qb438.sh 的第二个参数应该是密码，不是 passkey
+    SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
+    echo # 添加一个换行
+    # 验证密码是否为空
+    while [ -z "$SEEDBOX_PASSWORD" ]; do
+        log_warn "密码不能为空，请重新输入。"
+        SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
     done
     
-    local webui_port=$(prompt_user "WebUI端口" "${WEBUI_PORT:-8080}")
-    while ! validate_port "$webui_port"; do
-        webui_port=$(prompt_user "请输入有效端口(1024-65535)" "8080")
+    WEBUI_PORT=$(prompt_user "请输入 qBittorrent WebUI 端口" "${WEBUI_PORT}")
+    while ! validate_port "$WEBUI_PORT" "WebUI"; do
+        WEBUI_PORT=$(prompt_user "请重新输入 qBittorrent WebUI 端口" "${WEBUI_PORT}")
+    done
+
+    DAEMON_PORT=$(prompt_user "请输入 qBittorrent BT 监听端口" "${DAEMON_PORT}")
+    while ! validate_port "$DAEMON_PORT" "BT 监听"; do
+        DAEMON_PORT=$(prompt_user "请重新输入 qBittorrent BT 监听端口" "${DAEMON_PORT}")
     done
     
-    local daemon_port=$(prompt_user "BT监听端口" "${DAEMON_PORT:-23333}")
-    while ! validate_port "$daemon_port"; do
-        daemon_port=$(prompt_user "请输入有效端口(1024-65535)" "23333")
-    done
+    # 保存配置
+    save_config
     
-    log_info "开始安装qBittorrent 4.3.8..."
-    
+    log_info "正在下载并运行 qBittorrent 4.3.8 安装脚本..."
+    # 调用脚本，并传递参数 - 修正路径为 scripts/install/
     if [[ -f "${SCRIPT_DIR}/scripts/install/qb438.sh" ]]; then
-        log_info "使用本地脚本"
-        bash "${SCRIPT_DIR}/scripts/install/qb438.sh" "$username" "$password" "$webui_port" "$daemon_port"
+        log_info "使用本地脚本..."
+        bash "${SCRIPT_DIR}/scripts/install/qb438.sh" "$SEEDBOX_USER" "$SEEDBOX_PASSWORD" "$WEBUI_PORT" "$DAEMON_PORT"
     else
-        log_info "下载远程脚本"
-        bash <(wget -qO- "$GITHUB_RAW/scripts/install/qb438.sh") "$username" "$password" "$webui_port" "$daemon_port"
+        log_info "下载远程脚本..."
+        bash <(wget -qO- "$GITHUB_RAW/scripts/install/qb438.sh") "$SEEDBOX_USER" "$SEEDBOX_PASSWORD" "$WEBUI_PORT" "$DAEMON_PORT"
     fi
     
-    log_info "qBittorrent 4.3.8 安装完成"
-    read -p "按Enter继续..."
+    register_installation "qbittorrent" "4.3.8"
+    log_info "qBittorrent 4.3.8 安装完成。"
+    
+    read -p "安装完成。按 Enter 返回主菜单..."
     show_main_menu
 }
 
+# 安装 qBittorrent 4.3.9 (Jerry's Script)
 install_qb_439() {
-    log_info "安装 qBittorrent 4.3.9..."
+    log_info "正在使用 Jerry's Script 安装 qBittorrent 4.3.9..."
     
-    local username=$(prompt_user "qBittorrent用户名" "${SEEDBOX_USER:-admin}")
-    local password=$(prompt_password "qBittorrent密码")
-    while [[ -z "$password" ]]; do
-        log_warn "密码不能为空"
-        password=$(prompt_password "qBittorrent密码")
+    local username=$(prompt_user "请输入 qBittorrent 用户名" "${SEEDBOX_USER}")
+    local password=$(prompt_password "请输入 qBittorrent 密码")
+    while [ -z "$password" ]; do
+        log_warn "密码不能为空，请重新输入。"
+        password=$(prompt_password "请输入 qBittorrent 密码")
     done
-    
-    local cache_size=$(prompt_user "缓存大小(MiB)" "2048")
-    local custom_port=$(prompt_user "自定义端口(可选)" "")
-    
-    log_info "开始安装qBittorrent 4.3.9..."
-    
+
+    local cache_size=$(prompt_user "请输入缓存大小 (MiB)" "2048")
+    local custom_port=$(prompt_user "请输入自定义 WebUI 端口 (留空使用默认)" "${WEBUI_PORT}")
+
+    # 检查是否有本地脚本
     if [[ -f "${SCRIPT_DIR}/scripts/install/qb439.sh" ]]; then
-        log_info "使用本地脚本"
+        log_info "使用本地脚本..."
         bash "${SCRIPT_DIR}/scripts/install/qb439.sh" "$username" "$password" "$cache_size" "$custom_port"
     else
-        log_info "使用Jerry's Script"
+        # 构建 Jerry's Script 命令
+        local cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
+        cmd+=" -u $username -p $password -c $cache_size -q 4.3.9 -l v1.2.20"
+        
+        if [[ -n "$custom_port" ]]; then
+            cmd+=" -o $custom_port"
+        fi
+        
+        log_info "正在运行 Jerry's qBittorrent 4.3.9 安装脚本..."
+        eval "$cmd" # 使用 eval 来执行动态构建的命令
+    fi
+    
+    register_installation "qbittorrent" "4.3.9"
+    log_info "qBittorrent 4.3.9 安装完成。"
+    
+    read -p "安装完成。按 Enter 返回主菜单..."
+    show_main_menu
+}
+
+# 组合安装：qBittorrent 4.3.8 + Vertex
+install_qb_438_vertex_combo() {
+    log_info "正在安装 qBittorrent 4.3.8 + Vertex 组合..."
+    
+    # 1. 获取 qBittorrent 参数
+    SEEDBOX_USER=$(prompt_user "请输入 qBittorrent WebUI 用户名" "${SEEDBOX_USER}")
+    SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
+    while [ -z "$SEEDBOX_PASSWORD" ]; do
+        log_warn "密码不能为空，请重新输入。"
+        SEEDBOX_PASSWORD=$(prompt_password "请输入 qBittorrent WebUI 密码")
+    done
+    WEBUI_PORT=$(prompt_user "请输入 qBittorrent WebUI 端口" "${WEBUI_PORT}")
+    while ! validate_port "$WEBUI_PORT" "WebUI"; do
+        WEBUI_PORT=$(prompt_user "请重新输入 qBittorrent WebUI 端口" "${WEBUI_PORT}")
+    done
+    DAEMON_PORT=$(prompt_user "请输入 qBittorrent BT 监听端口" "${DAEMON_PORT}")
+    while ! validate_port "$DAEMON_PORT" "BT 监听"; do
+        DAEMON_PORT=$(prompt_user "请重新输入 qBittorrent BT 监听端口" "${DAEMON_PORT}")
+    done
+    
+    # 保存配置
+    save_config
+
+    # 2. 首先安装 Docker 环境 (如果尚未安装)
+    setup_docker_environment
+
+    # 3. 安装 Vertex (Docker 版) - 修正路径为 scripts/install/
+    log_info "正在安装 Vertex (Docker 版)..."
+    if [[ -f "${SCRIPT_DIR}/scripts/install/vertex.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/vertex.sh" "latest" "$DOCKER_PATH"
+    else
+        # 如果没有vertex.sh脚本，使用内置的vertex安装
+        install_vertex_builtin
+    fi
+    register_installation "vertex" "latest"
+
+    # 4. 接着安装 qBittorrent 4.3.8
+    log_info "正在安装 qBittorrent 4.3.8 (独立安装逻辑)..."
+    if [[ -f "${SCRIPT_DIR}/scripts/install/qb438.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/qb438.sh" "$SEEDBOX_USER" "$SEEDBOX_PASSWORD" "$WEBUI_PORT" "$DAEMON_PORT"
+    else
+        bash <(wget -qO- "$GITHUB_RAW/scripts/install/qb438.sh") "$SEEDBOX_USER" "$SEEDBOX_PASSWORD" "$WEBUI_PORT" "$DAEMON_PORT"
+    fi
+    register_installation "qbittorrent" "4.3.8"
+    
+    log_info "qBittorrent 4.3.8 + Vertex 组合安装完成。"
+    read -p "安装完成。按 Enter 返回主菜单..."
+    show_main_menu
+}
+
+# 组合安装：qBittorrent 4.3.9 (Jerry's) + Vertex
+install_qb_439_vertex_combo() {
+    log_info "正在安装 qBittorrent 4.3.9 (Jerry's) + Vertex 组合..."
+    
+    # 1. 获取 qBittorrent 参数 (与 install_qb_439 保持一致)
+    local username=$(prompt_user "请输入 qBittorrent 用户名" "${SEEDBOX_USER}")
+    local password=$(prompt_password "请输入 qBittorrent 密码")
+    while [ -z "$password" ]; do
+        log_warn "密码不能为空，请重新输入。"
+        password=$(prompt_password "请输入 qBittorrent 密码")
+    done
+    local cache_size=$(prompt_user "请输入缓存大小 (MiB)" "2048")
+    local custom_port=$(prompt_user "请输入自定义 WebUI 端口 (留空使用默认)" "${WEBUI_PORT}")
+
+    # 保存配置 (如果需要将 Jerry's 脚本的参数保存到主配置)
+    SEEDBOX_USER="$username"
+    SEEDBOX_PASSWORD="$password"
+    if [[ -n "$custom_port" ]]; then WEBUI_PORT="$custom_port"; fi
+    save_config
+
+    # 2. 首先安装 Docker 环境 (如果尚未安装)
+    setup_docker_environment
+
+    # 3. 安装 Vertex (Docker 版) - 修正路径为 scripts/install/
+    log_info "正在安装 Vertex (Docker 版)..."
+    if [[ -f "${SCRIPT_DIR}/scripts/install/vertex.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/vertex.sh" "latest" "$DOCKER_PATH"
+    else
+        install_vertex_builtin
+    fi
+    register_installation "vertex" "latest"
+
+    # 4. 接着安装 qBittorrent 4.3.9 (Jerry's Script)
+    log_info "正在运行 Jerry's qBittorrent 4.3.9 安装脚本..."
+    if [[ -f "${SCRIPT_DIR}/scripts/install/qb439.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/qb439.sh" "$username" "$password" "$cache_size" "$custom_port"
+    else
         local cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
         cmd+=" -u $username -p $password -c $cache_size -q 4.3.9 -l v1.2.20"
         if [[ -n "$custom_port" ]]; then
@@ -260,24 +522,27 @@ install_qb_439() {
         fi
         eval "$cmd"
     fi
-    
-    log_info "qBittorrent 4.3.9 安装完成"
-    read -p "按Enter继续..."
+    register_installation "qbittorrent" "4.3.9"
+
+    log_info "qBittorrent 4.3.9 + Vertex 组合安装完成。"
+    read -p "安装完成。按 Enter 返回主菜单..."
     show_main_menu
 }
 
-install_vertex() {
-    log_info "安装Vertex..."
-    setup_docker_environment
-    
+# 内置Vertex安装函数
+install_vertex_builtin() {
+    log_info "使用内置方法安装 Vertex..."
     mkdir -p "${DOCKER_PATH}/vertex"
     
-    local vertex_port=3334
-    if ss -tulnp | grep ":3334 " >/dev/null 2>&1; then
-        vertex_port=3335
-        log_warn "端口3334被占用，使用3335"
+    # 检查端口3334是否被占用
+    if ss -tulnp | grep ":3334 " > /dev/null 2>&1; then
+        VERTEX_PORT=3335
+        log_warn "端口3334被占用，使用3335端口"
+    else
+        VERTEX_PORT=3334
     fi
     
+    # 创建docker-compose文件
     cat > "${DOCKER_PATH}/vertex/docker-compose.yml" << EOF
 version: '3.8'
 services:
@@ -289,112 +554,423 @@ services:
     volumes:
       - ${DOCKER_PATH}/vertex:/vertex
     ports:
-      - "${vertex_port}:3000"
+      - "${VERTEX_PORT}:3000"
     restart: unless-stopped
 EOF
     
+    # 启动Vertex
     cd "${DOCKER_PATH}/vertex"
-    docker-compose up -d
-    
-    if docker ps | grep vertex >/dev/null; then
-        log_info "Vertex安装成功，端口: $vertex_port"
+    if docker-compose up -d; then
+        sleep 5
+        if docker ps | grep vertex > /dev/null; then
+            log_info "Vertex安装成功，访问地址: http://your-server-ip:${VERTEX_PORT}"
+        else
+            log_error "Vertex容器启动失败"
+        fi
     else
         log_error "Vertex安装失败"
     fi
 }
 
-install_qb_438_vertex() {
-    install_qb_438
-    install_vertex
-}
+# 仅安装 Vertex (Docker) - 新增选项 
+install_vertex_only() {
+    log_info "正在独立安装 Vertex (Docker 版)..."
 
-install_qb_439_vertex() {
-    install_qb_439
-    install_vertex
-}
+    # 1. 确保 Docker 环境已设置
+    setup_docker_environment
 
-install_docker_apps() {
-    log_info "Docker应用安装功能开发中..."
-    read -p "按Enter继续..."
+    # 2. 调用 Vertex 安装模块 - 修正路径为 scripts/install/
+    if [[ -f "${SCRIPT_DIR}/scripts/install/vertex.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/vertex.sh" "latest" "$DOCKER_PATH"
+    else
+        install_vertex_builtin
+    fi
+    register_installation "vertex" "latest"
+
+    log_info "Vertex (Docker) 独立安装完成。"
+    read -p "安装完成。按 Enter 返回主菜单..."
     show_main_menu
 }
 
-optimize_vps() {
-    log_info "开始VPS优化..."
+# ===============================================
+# 应用程序选择菜单
+# ===============================================
+
+# 显示应用选择菜单
+show_app_selection_menu() {
+    show_banner
+    echo "选择要安装的应用程序 (Docker Compose):"
+    echo
+    echo "下载管理:"
+    echo "  1. qBittorrent (Docker)" # 注意：这里与单独安装 4.3.8/4.3.9 不同，这是基于 Docker Compose
+    echo "  2. Transmission (Docker)"
+    echo
+    echo "自动化工具:"
+    echo "  3. IYUUPlus (Docker)"
+    echo "  4. MoviePilot (Docker)"
+    echo "  5. Vertex (Docker)" # 如果用户选择此项，将使用 Docker Compose 生成方式
+    echo "  6. NAS-Tools (Docker)"
+    echo
+    echo "媒体服务器:"
+    echo "  7. Emby (Docker)"
+    echo
+    echo "文件管理:"
+    echo "  8. FileBrowser (Docker)"
+    echo
+    echo "特殊工具:"
+    echo "  9. MetaTube (Docker)"
+    echo "  10. Byte-Muse (Docker)"
+    echo
+    echo "0. 返回主菜单"
+    print_separator
     
-    if ! lsmod | grep -q bbr; then
-        echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
-        echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
-        sysctl -p
+    echo "请输入用空格分隔的数字 (例如: 1 3 5): "
+    read -a selections # 读取到数组
+    
+    if [[ "${selections[0]}" == "0" ]]; then
+        show_main_menu
+        return
     fi
     
-    cat >> /etc/sysctl.conf << 'EOF'
+    local selected_apps=()
+    for sel in "${selections[@]}"; do
+        case "$sel" in
+            1) selected_apps+=("qbittorrent") ;;
+            2) selected_apps+=("transmission") ;;
+            3) selected_apps+=("iyuuplus") ;;
+            4) selected_apps+=("moviepilot") ;;
+            5) selected_apps+=("vertex") ;;
+            6) selected_apps+=("nas-tools") ;;
+            7) selected_apps+=("emby") ;;
+            8) selected_apps+=("filebrowser") ;;
+            9) selected_apps+=("metatube") ;;
+            10) selected_apps+=("byte-muse") ;;
+            *) log_warn "无效的选择: $sel，已忽略。" ;;
+        esac
+    done
+    
+    if [[ ${#selected_apps[@]} -gt 0 ]]; then
+        install_docker_apps "${selected_apps[@]}"
+    else
+        log_error "没有进行有效的应用程序选择。"
+    fi
+    
+    read -p "按 Enter 键继续..."
+    show_main_menu
+}
 
+# 安装选定的 Docker 应用程序
+install_docker_apps() {
+    local apps=("$@") # 获取所有传入的应用程序名称
+    
+    log_info "正在安装选定的 Docker 应用程序: ${apps[*]}"
+    
+    # 设置 Docker 环境
+    setup_docker_environment
+    
+    # 生成 docker-compose.yml 文件
+    log_info "正在生成 docker-compose.yml 文件..."
+    # 修正路径为 scripts/install/
+    if [[ -f "${SCRIPT_DIR}/scripts/install/generate_compose.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/install/generate_compose.sh" "$DOCKER_PATH" "${apps[@]}"
+    else
+        log_warn "未找到compose生成脚本，将创建基础配置"
+        create_basic_compose "${apps[@]}"
+    fi
+    
+    # 启动 Docker 容器
+    log_info "正在启动 Docker 容器..."
+    cd "$DOCKER_PATH" || log_error "无法进入 Docker 目录 $DOCKER_PATH"
+    docker-compose up -d
+    
+    # 注册安装信息
+    for app in "${apps[@]}"; do
+        register_installation "$app" "latest" # 默认版本为 latest
+    done
+    
+    log_info "Docker 应用程序安装完成。"
+}
+
+# 创建基础docker-compose配置
+create_basic_compose() {
+    local apps=("$@")
+    
+    cat > "$DOCKER_PATH/docker-compose.yml" << 'EOF'
+version: '3.8'
+services:
+EOF
+    
+    for app in "${apps[@]}"; do
+        case "$app" in
+            "vertex")
+                cat >> "$DOCKER_PATH/docker-compose.yml" << 'EOF'
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/vertex:/vertex
+    ports:
+      - "3334:3000"
+    restart: unless-stopped
+EOF
+                ;;
+            # 可以添加其他应用配置
+        esac
+    done
+}
+
+# ===============================================
+# VPS 优化
+# ===============================================
+
+# 优化 VPS (针对 PT 流量)
+optimize_vps() {
+    log_info "正在开始 VPS 优化 (针对 PT 流量)..."
+    
+    # 检查是否有本地优化脚本
+    if [[ -f "${SCRIPT_DIR}/scripts/optimize/vps_optimize.sh" ]]; then
+        log_info "使用本地VPS优化脚本..."
+        bash "${SCRIPT_DIR}/scripts/optimize/vps_optimize.sh"
+    else
+        log_info "使用内置VPS优化..."
+        
+        # 启用BBR
+        if ! lsmod | grep -q bbr; then
+            echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
+            echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
+            sysctl -p
+        fi
+        
+        # 网络优化参数
+        cat >> /etc/sysctl.conf << 'EOF'
+
+# PTtools VPS优化配置
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
+net.core.netdev_max_backlog = 250000
+net.core.somaxconn = 4096
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_keepalive_time = 1200
+net.ipv4.ip_local_port_range = 10000 65000
+net.ipv4.tcp_max_syn_backlog = 8192
+net.ipv4.tcp_max_tw_buckets = 5000
 net.ipv4.tcp_rmem = 4096 87380 67108864
 net.ipv4.tcp_wmem = 4096 65536 67108864
 fs.file-max = 2097152
 EOF
-    
-    sysctl -p
-    
-    cat >> /etc/security/limits.conf << 'EOF'
+        
+        sysctl -p
+        
+        # 设置文件描述符限制
+        cat >> /etc/security/limits.conf << 'EOF'
 
+# PTtools 文件描述符限制
 * soft nofile 65536
 * hard nofile 65536
+root soft nofile 65536
+root hard nofile 65536
 EOF
+    fi
     
-    log_info "VPS优化完成"
-    read -p "按Enter继续..."
+    log_info "VPS 优化完成。"
+    read -p "按 Enter 键继续..."
     show_main_menu
 }
 
-show_status() {
-    clear
-    echo "系统状态："
-    echo "===================="
+# ===============================================
+# 卸载函数
+# ===============================================
+
+# 显示卸载菜单
+show_uninstall_menu() {
+    show_banner
+    echo "卸载选项:"
+    echo "1. 移除特定应用程序"
+    echo "2. 移除所有 PT 工具"
+    echo "3. 移除所有 Docker 容器"
+    echo "4. 完整系统清理 (慎用！)"
+    echo "5. 返回主菜单"
+    print_separator
     
-    if command -v docker >/dev/null 2>&1; then
-        echo "✓ Docker已安装"
-        if systemctl is-active --quiet docker; then
-            echo "✓ Docker服务运行中"
+    local choice
+    read -p "请输入您的选择 [1-5]: " choice
+    
+    case "$choice" in
+        1) selective_uninstall ;;
+        2) remove_all_pt_tools ;;
+        3) remove_docker_environment ;;
+        4) complete_system_cleanup ;;
+        5) show_main_menu ;;
+        *) 
+            log_error "无效的选择，请重新输入。"
+            sleep 2
+            show_uninstall_menu
+            ;;
+    esac
+}
+
+# 选择性卸载
+selective_uninstall() {
+    log_info "正在加载卸载模块..."
+    # 修正路径为 scripts/uninstall/
+    if [[ -f "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" ]]; then
+        bash "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" "selective"
+    else
+        log_warn "未找到卸载脚本，使用简单卸载方式"
+        simple_uninstall
+    fi
+    read -p "按 Enter 键继续..."
+    show_uninstall_menu
+}
+
+# 简单卸载函数
+simple_uninstall() {
+    list_installed_tools
+    read -p "请输入要卸载的应用名称: " app_name
+    if [[ -n "$app_name" ]]; then
+        docker stop "$app_name" 2>/dev/null || true
+        docker rm "$app_name" 2>/dev/null || true
+        rm -rf "${DOCKER_PATH}/$app_name" 2>/dev/null || true
+        log_info "$app_name 卸载完成"
+    fi
+}
+
+# 移除所有 PT 工具
+remove_all_pt_tools() {
+    log_warn "此操作将移除所有 PT 工具，包括 qBittorrent、Vertex 等。"
+    read -p "您确定要继续吗？(yes/no): " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        # 修正路径为 scripts/uninstall/
+        if [[ -f "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" ]]; then
+            bash "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" "all"
         else
-            echo "✗ Docker服务未运行"
+            log_info "使用内置清理方式..."
+            docker stop $(docker ps -q) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            rm -rf "$DOCKER_PATH" 2>/dev/null || true
+            log_info "PT工具清理完成"
         fi
     else
-        echo "✗ Docker未安装"
+        log_info "已取消移除所有 PT 工具。"
     fi
     
-    if command -v qbittorrent-nox >/dev/null 2>&1; then
-        echo "✓ qBittorrent已安装"
-    else
-        echo "✗ qBittorrent未安装"
-    fi
-    
-    if command -v docker >/dev/null 2>&1; then
-        echo
-        echo "运行中的容器："
-        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "无运行容器"
-    fi
-    
-    echo
-    read -p "按Enter返回主菜单..."
-    show_main_menu
+    read -p "按 Enter 键继续..."
+    show_uninstall_menu
 }
 
+# 移除所有 Docker 环境
+remove_docker_environment() {
+    log_warn "此操作将移除所有 Docker 容器、镜像和网络。谨慎操作！"
+    read -p "您确定要继续吗？(yes/no): " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        # 修正路径为 scripts/uninstall/
+        if [[ -f "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" ]]; then
+            bash "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" "docker"
+        else
+            log_info "使用内置Docker清理..."
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            docker rmi $(docker images -aq) 2>/dev/null || true
+            docker network prune -f 2>/dev/null || true
+            docker volume prune -f 2>/dev/null || true
+            log_info "Docker环境清理完成"
+        fi
+    else
+        log_info "已取消移除 Docker 环境。"
+    fi
+    
+    read -p "按 Enter 键继续..."
+    show_uninstall_menu
+}
+
+# 完整系统清理
+complete_system_cleanup() {
+    log_warn "此操作将移除所有工具、Docker 环境，并尝试还原系统更改。这是最终清理选项，请务必谨慎！"
+    read -p "您确定要继续吗？请输入 'yes' 以确认: " confirm
+    
+    if [[ "$confirm" == "yes" ]]; then
+        # 修正路径为 scripts/uninstall/
+        if [[ -f "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" ]]; then
+            bash "${SCRIPT_DIR}/scripts/uninstall/uninstall.sh" "complete"
+        else
+            log_info "执行完整清理..."
+            remove_all_pt_tools
+            remove_docker_environment
+            rm -rf /etc/pttools 2>/dev/null || true
+            rm -f /var/log/pttools-install.log 2>/dev/null || true
+            log_info "完整清理完成"
+        fi
+    else
+        log_info "已取消完整系统清理。"
+    fi
+    
+    read -p "按 Enter 键继续..."
+    show_uninstall_menu
+}
+
+# ===============================================
+# 工具函数
+# ===============================================
+
+# 注册安装信息
+register_installation() {
+    local app_name="$1"
+    local version="$2"
+    local install_path="${3:-$DOCKER_PATH/$app_name}"
+    
+    # 创建安装记录目录
+    mkdir -p /etc/pttools
+    
+    # 将安装信息保存到安装记录文件
+    echo "$app_name|$version|$install_path|$(date '+%Y-%m-%d %H:%M:%S')" >> /etc/pttools/installed.list
+    log_info "已注册安装: $app_name (版本: $version, 路径: $install_path)"
+}
+
+# 列出已安装工具
+list_installed_tools() {
+    if [[ -f /etc/pttools/installed.list ]]; then
+        log_info "已安装工具列表:"
+        cat /etc/pttools/installed.list
+    else
+        log_info "没有找到已安装工具的记录。"
+    fi
+}
+
+# 退出脚本
 exit_script() {
-    log_info "退出PTtools"
+    log_info "正在退出 PT Tools 安装器..."
     exit 0
 }
 
+# ===============================================
+# 主执行流程
+# ===============================================
+
 main() {
-    check_root
-    check_os
-    install_dependencies
+    # 初步检查
+    check_root # 检查是否是 root 用户
+    check_os   # 检查操作系统
+    
+    # 创建日志目录
+    mkdir -p "$(dirname "$INSTALLATION_LOG")"
+    
+    log_info "正在启动 PT Tools 安装脚本 v$SCRIPT_VERSION"
+    
+    # 加载配置
     load_config
-    install_docker
+    
+    # 检查并安装依赖 (包括 Docker)
+    check_dependencies
+    
+    # 显示主菜单并处理用户选择
     show_main_menu
 }
 
-main "$@"
+# 运行主函数
+main "$@" # 将所有命令行参数传递给 main 函数
