@@ -59,12 +59,12 @@ install_dependencies() {
 
 # 编译安装libtorrent
 install_libtorrent() {
-    print_message $BLUE "编译安装 libtorrent-rasterbar 1.2.15..."
+    print_message $BLUE "编译安装 libtorrent-rasterbar 1.2.20..."
     
     cd /tmp
-    wget https://github.com/arvidn/libtorrent/releases/download/v1.2.15/libtorrent-rasterbar-1.2.15.tar.gz
-    tar -xf libtorrent-rasterbar-1.2.15.tar.gz
-    cd libtorrent-rasterbar-1.2.15
+    wget https://github.com/arvidn/libtorrent/releases/download/v1.2.20/libtorrent-rasterbar-1.2.20.tar.gz
+    tar -xf libtorrent-rasterbar-1.2.20.tar.gz
+    cd libtorrent-rasterbar-1.2.20
     
     ./configure --disable-debug --enable-encryption --with-boost-libdir=/usr/lib/x86_64-linux-gnu
     make -j$(nproc)
@@ -72,7 +72,7 @@ install_libtorrent() {
     ldconfig
     
     cd /
-    rm -rf /tmp/libtorrent-rasterbar-1.2.15*
+    rm -rf /tmp/libtorrent-rasterbar-1.2.20*
 }
 
 # 编译安装qBittorrent
