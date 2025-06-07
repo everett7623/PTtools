@@ -108,10 +108,13 @@ install_docker() {
 
 # 创建Docker工作目录
 create_docker_dir() {
-    print_message $BLUE "创建 Docker 工作目录..."
+    print_message $BLUE "创建工作目录..."
     mkdir -p $DOCKER_DIR
     chmod -R 777 $DOCKER_DIR
-    print_message $GREEN "Docker 工作目录创建完成：$DOCKER_DIR"
+    mkdir -p $DOWNLOAD_DIR
+    chmod -R 755 $DOWNLOAD_DIR
+    print_message $GREEN "Docker 工作目录：$DOCKER_DIR"
+    print_message $GREEN "下载目录：$DOWNLOAD_DIR"
 }
 
 # 安装qBittorrent 4.3.8
@@ -143,8 +146,33 @@ install_vertex() {
     # 创建Vertex目录
     mkdir -p $DOCKER_DIR/vertex
     
-    # 下载docker-compose配置
-    wget -O $DOCKER_DIR/vertex/docker-compose.yml "${GITHUB_RAW_URL}/configs/docker-compose/vertex.yml"
+    # 创建docker-compose配置
+    cat > $DOCKER_DIR/vertex/docker-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    environment:
+      - TZ=Asia/Shanghai
+      - VERTEX_HOST=0.0.0.0
+      - VERTEX_PORT=3000
+      - VERTEX_DATA_DIR=/vertex
+    volumes:
+      - /opt/docker/vertex:/vertex
+      - /opt/downloads:/downloads
+    ports:
+      - 3334:3000
+    restart: unless-stopped
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
+    name: pt-network
+EOF
     
     # 启动Vertex
     cd $DOCKER_DIR/vertex
@@ -189,6 +217,7 @@ uninstall_app() {
             systemctl disable qbittorrent
             rm -rf /usr/local/qbittorrent
             rm -f /etc/systemd/system/qbittorrent.service
+            rm -f /usr/local/bin/qbittorrent-nox
             systemctl daemon-reload
             print_message $GREEN "qBittorrent 卸载完成！"
             ;;
@@ -208,6 +237,7 @@ uninstall_app() {
                 systemctl disable qbittorrent 2>/dev/null
                 rm -rf /usr/local/qbittorrent
                 rm -f /etc/systemd/system/qbittorrent.service
+                rm -f /usr/local/bin/qbittorrent-nox
                 
                 # 卸载所有Docker容器
                 cd $DOCKER_DIR
@@ -216,6 +246,14 @@ uninstall_app() {
                         cd "$DOCKER_DIR/$dir" && docker-compose down
                     fi
                 done
+                
+                # 询问是否清理下载目录
+                echo -n "是否同时清理下载目录 ($DOWNLOAD_DIR)？[y/N]: "
+                read -r clean_downloads
+                if [[ $clean_downloads == "y" || $clean_downloads == "Y" ]]; then
+                    rm -rf $DOWNLOAD_DIR/*
+                    print_message $GREEN "下载目录已清理"
+                fi
                 
                 # 清理目录
                 rm -rf $DOCKER_DIR/*
