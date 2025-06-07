@@ -1,34 +1,27 @@
 #!/bin/bash
-
 # PT 工具安装脚本
 # 作者: everett7623
 # 版本: 1.0.0
 
-# 基本设置
 set -e
 
-# 脚本配置
 SCRIPT_VERSION="1.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 
-# 默认配置
 DEFAULT_DOCKER_PATH="/opt/docker"
 DEFAULT_DOWNLOAD_PATH="/opt/downloads"
 INSTALLATION_LOG="/var/log/pttools-install.log"
 CONFIG_FILE="/etc/pttools/config.conf"
 
-# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 创建日志目录
 mkdir -p "$(dirname "$INSTALLATION_LOG")"
 
-# 基本日志函数
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
 }
@@ -41,7 +34,6 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$INSTALLATION_LOG"
 }
 
-# 检查root权限
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "此脚本必须以 root 权限运行"
@@ -49,7 +41,6 @@ check_root() {
     fi
 }
 
-# 检查操作系统
 check_os() {
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
@@ -62,11 +53,9 @@ check_os() {
     fi
 }
 
-# 安装基础依赖
 install_dependencies() {
     log_info "检查基础依赖..."
     
-    # 更新包列表
     if command -v apt-get >/dev/null 2>&1; then
         apt-get update
         apt-get install -y wget curl iproute2
@@ -77,7 +66,6 @@ install_dependencies() {
     fi
 }
 
-# 安装Docker
 install_docker() {
     if command -v docker >/dev/null 2>&1; then
         log_info "Docker已安装"
@@ -90,7 +78,6 @@ install_docker() {
     systemctl enable docker
     systemctl start docker
     
-    # 安装docker-compose
     if ! command -v docker-compose >/dev/null 2>&1; then
         local ARCH=$(uname -m)
         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-${ARCH}" -o /usr/local/bin/docker-compose
@@ -100,7 +87,6 @@ install_docker() {
     log_info "Docker安装完成"
 }
 
-# 加载配置
 load_config() {
     if [[ -f "$CONFIG_FILE" ]]; then
         log_info "加载配置文件: $CONFIG_FILE"
@@ -111,11 +97,9 @@ load_config() {
     fi
 }
 
-# 创建默认配置
 create_default_config() {
     mkdir -p "$(dirname "$CONFIG_FILE")"
     cat > "$CONFIG_FILE" << 'EOF'
-# PTtools 配置文件
 DOCKER_PATH="/opt/docker"
 DOWNLOAD_PATH="/opt/downloads"
 SEEDBOX_USER="admin"
@@ -127,7 +111,6 @@ EOF
     log_info "默认配置已创建: $CONFIG_FILE"
 }
 
-# 用户输入函数
 prompt_user() {
     local prompt="$1"
     local default="${2:-}"
@@ -142,7 +125,6 @@ prompt_user() {
     fi
 }
 
-# 密码输入
 prompt_password() {
     local prompt="$1"
     local password
@@ -151,7 +133,6 @@ prompt_password() {
     echo "$password"
 }
 
-# 验证端口
 validate_port() {
     local port="$1"
     if [[ "$port" =~ ^[0-9]+$ ]] && [[ $port -ge 1024 ]] && [[ $port -le 65535 ]]; then
@@ -161,7 +142,6 @@ validate_port() {
     fi
 }
 
-# 设置Docker环境
 setup_docker_environment() {
     log_info "设置Docker环境..."
     mkdir -p "$DOCKER_PATH"
@@ -176,7 +156,6 @@ setup_docker_environment() {
     log_info "Docker环境设置完成"
 }
 
-# 显示Banner
 show_banner() {
     clear
     echo "=============================="
@@ -186,7 +165,6 @@ show_banner() {
     echo "=============================="
 }
 
-# 显示主菜单
 show_main_menu() {
     show_banner
     echo
@@ -220,11 +198,9 @@ show_main_menu() {
     esac
 }
 
-# 安装qBittorrent 4.3.8
 install_qb_438() {
     log_info "安装 qBittorrent 4.3.8..."
     
-    # 获取用户输入
     local username=$(prompt_user "qBittorrent用户名" "${SEEDBOX_USER:-admin}")
     local password=$(prompt_password "qBittorrent密码")
     while [[ -z "$password" ]]; do
@@ -242,10 +218,8 @@ install_qb_438() {
         daemon_port=$(prompt_user "请输入有效端口(1024-65535)" "23333")
     done
     
-    # 执行安装
     log_info "开始安装qBittorrent 4.3.8..."
     
-    # 检查本地脚本
     if [[ -f "${SCRIPT_DIR}/scripts/install/qb438.sh" ]]; then
         log_info "使用本地脚本"
         bash "${SCRIPT_DIR}/scripts/install/qb438.sh" "$username" "$password" "$webui_port" "$daemon_port"
@@ -259,7 +233,6 @@ install_qb_438() {
     show_main_menu
 }
 
-# 安装qBittorrent 4.3.9
 install_qb_439() {
     log_info "安装 qBittorrent 4.3.9..."
     
@@ -273,7 +246,6 @@ install_qb_439() {
     local cache_size=$(prompt_user "缓存大小(MiB)" "2048")
     local custom_port=$(prompt_user "自定义端口(可选)" "")
     
-    # 执行安装
     log_info "开始安装qBittorrent 4.3.9..."
     
     if [[ -f "${SCRIPT_DIR}/scripts/install/qb439.sh" ]]; then
@@ -294,21 +266,18 @@ install_qb_439() {
     show_main_menu
 }
 
-# 安装Vertex
 install_vertex() {
     log_info "安装Vertex..."
     setup_docker_environment
     
     mkdir -p "${DOCKER_PATH}/vertex"
     
-    # 检查端口
     local vertex_port=3334
     if ss -tulnp | grep ":3334 " >/dev/null 2>&1; then
         vertex_port=3335
         log_warn "端口3334被占用，使用3335"
     fi
     
-    # 创建compose文件
     cat > "${DOCKER_PATH}/vertex/docker-compose.yml" << EOF
 version: '3.8'
 services:
@@ -324,7 +293,6 @@ services:
     restart: unless-stopped
 EOF
     
-    # 启动
     cd "${DOCKER_PATH}/vertex"
     docker-compose up -d
     
@@ -335,7 +303,6 @@ EOF
     fi
 }
 
-# 组合安装
 install_qb_438_vertex() {
     install_qb_438
     install_vertex
@@ -346,28 +313,23 @@ install_qb_439_vertex() {
     install_vertex
 }
 
-# 安装Docker应用
 install_docker_apps() {
     log_info "Docker应用安装功能开发中..."
     read -p "按Enter继续..."
     show_main_menu
 }
 
-# VPS优化
 optimize_vps() {
     log_info "开始VPS优化..."
     
-    # 启用BBR
     if ! lsmod | grep -q bbr; then
         echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
         echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
         sysctl -p
     fi
     
-    # 网络优化
     cat >> /etc/sysctl.conf << 'EOF'
 
-# PTtools网络优化
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.ipv4.tcp_rmem = 4096 87380 67108864
@@ -377,10 +339,8 @@ EOF
     
     sysctl -p
     
-    # 文件描述符限制
     cat >> /etc/security/limits.conf << 'EOF'
 
-# PTtools文件描述符限制
 * soft nofile 65536
 * hard nofile 65536
 EOF
@@ -390,13 +350,11 @@ EOF
     show_main_menu
 }
 
-# 显示状态
 show_status() {
     clear
     echo "系统状态："
     echo "===================="
     
-    # Docker状态
     if command -v docker >/dev/null 2>&1; then
         echo "✓ Docker已安装"
         if systemctl is-active --quiet docker; then
@@ -408,14 +366,12 @@ show_status() {
         echo "✗ Docker未安装"
     fi
     
-    # qBittorrent状态
     if command -v qbittorrent-nox >/dev/null 2>&1; then
         echo "✓ qBittorrent已安装"
     else
         echo "✗ qBittorrent未安装"
     fi
     
-    # 容器状态
     if command -v docker >/dev/null 2>&1; then
         echo
         echo "运行中的容器："
@@ -427,13 +383,11 @@ show_status() {
     show_main_menu
 }
 
-# 退出脚本
 exit_script() {
     log_info "退出PTtools"
     exit 0
 }
 
-# 主函数
 main() {
     check_root
     check_os
@@ -443,5 +397,4 @@ main() {
     show_main_menu
 }
 
-# 运行主函数
 main "$@"
