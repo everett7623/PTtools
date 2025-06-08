@@ -376,9 +376,6 @@ install_vertex() {
 # qBittorrent 4.3.8 + Vertex
 install_qb438_with_vertex() {
     log_info "安装qBittorrent 4.3.8 + Vertex刷流工具..."
-    
-    install_qb438
-    sleep 2
     # 安装Docker环境（如果还没有）
     install_docker
     install_docker_compose
@@ -386,16 +383,14 @@ install_qb438_with_vertex() {
     download_configs
     # 安装Vertex刷流工具
     install_vertex
-    
+    sleep 2
+    install_qb438
     log_info "qBittorrent 4.3.8 + Vertex 安装完成"
 }
 
 # qBittorrent 4.3.9 + Vertex  
 install_qb439_with_vertex() {
     log_info "安装qBittorrent 4.3.9 + Vertex刷流工具..."
-    
-    install_qb439
-    sleep 2
     # 安装Docker环境（如果还没有）
     install_docker
     install_docker_compose
@@ -403,7 +398,8 @@ install_qb439_with_vertex() {
     download_configs
     # 安装Vertex刷流工具
     install_vertex
-    
+    sleep 2
+    install_qb439
     log_info "qBittorrent 4.3.9 + Vertex 安装完成"
 }
 
