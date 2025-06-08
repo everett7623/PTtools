@@ -253,7 +253,12 @@ compile_qbittorrent() {
 setup_user_and_directories() {
     log_info "设置用户和目录..."
     
-    # 创建系统用户
+    # 删除可能存在的旧用户和目录
+    userdel -r qbittorrent 2>/dev/null || true
+    rm -rf /home/qbittorrent 2>/dev/null || true
+    rm -rf /var/lib/qbittorrent 2>/dev/null || true
+    
+    # 创建系统用户，明确指定home目录为/home/qbittorrent
     if ! id "$SERVICE_USER" &>/dev/null; then
         useradd --system --shell /usr/sbin/nologin --home-dir "$INSTALL_DIR" --create-home "$SERVICE_USER"
         log_info "创建用户: $SERVICE_USER"
@@ -262,15 +267,11 @@ setup_user_and_directories() {
     fi
     
     # 创建必要目录
-    mkdir -p "$INSTALL_DIR"/{Downloads,watch,torrents}
     mkdir -p "$INSTALL_DIR"/.config/qBittorrent
     mkdir -p "$INSTALL_DIR"/.local/share/data/qBittorrent
     
     # 创建统一下载目录
-    mkdir -p /opt/downloads/{complete,incomplete,watch}
-    
-    # 创建下载子目录
-    mkdir -p /opt/downloads/complete/{Movies,TV,Music,Software,Books}
+    mkdir -p /opt/downloads
     
     # 设置权限
     chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
@@ -371,12 +372,18 @@ Type=exec
 User=$SERVICE_USER
 Group=$SERVICE_USER
 UMask=0002
-ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080 --profile=$INSTALL_DIR
 ExecStop=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
 KillMode=mixed
+
+# 环境变量
+Environment=HOME=$INSTALL_DIR
+Environment=XDG_CONFIG_HOME=$INSTALL_DIR/.config
+Environment=XDG_DATA_HOME=$INSTALL_DIR/.local/share
 
 # 安全设置
 NoNewPrivileges=true
@@ -384,6 +391,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=false
 ReadWritePaths=$INSTALL_DIR
+ReadWritePaths=/opt/downloads
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -557,6 +565,12 @@ main() {
     show_installation_result
     
     log_info "安装完成！"
+    log_info ""
+    log_info "================================================================"
+    log_info "✅ qBittorrent 4.3.9 安装成功"
+    log_info "🔧 默认保存路径已设置为: /opt/downloads"
+    log_info "📁 已禁用临时下载文件夹，所有文件直接下载到主目录"
+    log_info "================================================================"
 }
 
 # 脚本入口点
