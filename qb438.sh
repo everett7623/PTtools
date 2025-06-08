@@ -169,7 +169,7 @@ create_user() {
     mkdir -p /home/qbittorrent/.local/share/data/qBittorrent
     
     # 创建统一下载目录
-    mkdir -p /opt/downloads/{complete,incomplete,watch}
+    mkdir -p /opt/downloads
     
     # 设置目录权限
     chown -R qbittorrent:qbittorrent /home/qbittorrent
@@ -191,19 +191,17 @@ configure_qbittorrent() {
     # 删除可能存在的旧配置
     rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
-    # 创建最简单但有效的配置文件
+    # 创建配置文件 - 不使用临时下载文件夹
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [BitTorrent]
 Session\DefaultSavePath=/opt/downloads
-Session\TempPath=/opt/downloads/incomplete
-Session\TempPathEnabled=true
+Session\TempPathEnabled=false
 Session\Port=8999
 
 [Preferences]
 Downloads\SavePath=/opt/downloads
-Downloads\TempPath=/opt/downloads/incomplete
-Downloads\TempPathEnabled=true
-Downloads\UseIncompleteExtension=true
+Downloads\TempPathEnabled=false
+Downloads\UseIncompleteExtension=false
 WebUI\Username=admin
 WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
 WebUI\LocalHostAuth=false
@@ -296,9 +294,9 @@ force_set_download_path() {
     if [ $? -eq 0 ]; then
         log_info "成功登录WebUI，正在设置下载路径..."
         
-        # 设置首选项
+        # 设置首选项 - 不使用临时文件夹
         curl -s -b /tmp/qb_cookies.txt \
-            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":true,\"temp_path\":\"/opt/downloads/incomplete\"}" \
+            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":false}" \
             "http://localhost:8080/api/v2/app/setPreferences" 2>/dev/null
         
         # 清理cookies文件
@@ -388,9 +386,6 @@ show_installation_result() {
     echo
     echo -e "${CYAN}📁 目录信息:${NC}"
     echo -e "   下载目录:        ${WHITE}/opt/downloads${NC}"
-    echo -e "   完成目录:        ${WHITE}/opt/downloads/complete${NC}"
-    echo -e "   未完成目录:      ${WHITE}/opt/downloads/incomplete${NC}"
-    echo -e "   监控目录:        ${WHITE}/opt/downloads/watch${NC}"
     echo -e "   配置目录:        ${WHITE}/home/qbittorrent/.config/qBittorrent${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
@@ -403,14 +398,15 @@ show_installation_result() {
     echo -e "${YELLOW}⚠️  重要提醒:${NC}"
     echo -e "   1. 首次登录后请及时修改默认密码"
     echo -e "   2. 如果下载路径显示不正确，请在WebUI设置中手动修改为: ${WHITE}/opt/downloads${NC}"
-    echo -e "   3. 防火墙已自动配置，如有问题请检查防火墙设置"
-    echo -e "   4. 建议重启系统以确保所有优化生效"
+    echo -e "   3. 已禁用临时下载文件夹，所有文件直接下载到主目录"
+    echo -e "   4. 防火墙已自动配置，如有问题请检查防火墙设置"
+    echo -e "   5. 建议重启系统以确保所有优化生效"
     echo
     echo -e "${CYAN}📖 路径修改方法:${NC}"
     echo -e "   1. 登录WebUI: http://$SERVER_IP:8080"
     echo -e "   2. 进入 工具 -> 选项 -> 下载"
     echo -e "   3. 将 '默认保存路径' 修改为: ${WHITE}/opt/downloads${NC}"
-    echo -e "   4. 将 '保存未完成的torrent到' 修改为: ${WHITE}/opt/downloads/incomplete${NC}"
+    echo -e "   4. 确保 '保存未完成的torrent到' 选项未勾选"
     echo -e "   5. 点击 '应用' 保存设置"
     echo
 }
@@ -453,7 +449,8 @@ main() {
     log_info "2. 用户名: admin，密码: adminadmin"
     log_info "3. 进入: 工具 → 选项 → 下载"
     log_info "4. 检查 '默认保存路径' 是否为: /opt/downloads"
-    log_info "5. 如果不是，请手动修改为: /opt/downloads"
+    log_info "5. 确保 '保存未完成的torrent到' 选项未勾选（已禁用临时文件夹）"
+    log_info "6. 如果不是，请手动修改为: /opt/downloads"
     log_info "================================================================"
 }
 
