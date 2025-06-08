@@ -156,11 +156,15 @@ install_qbittorrent() {
 create_user() {
     log_info "创建qbittorrent用户..."
     
-    # 创建系统用户
-    useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/qbittorrent --create-home qbittorrent
+    # 删除可能存在的旧用户和目录
+    userdel -r qbittorrent 2>/dev/null || true
+    rm -rf /home/qbittorrent 2>/dev/null || true
+    rm -rf /var/lib/qbittorrent 2>/dev/null || true
+    
+    # 创建系统用户，明确指定home目录为/home/qbittorrent
+    useradd --system --shell /usr/sbin/nologin --home-dir /home/qbittorrent --create-home qbittorrent
     
     # 创建必要目录
-    mkdir -p /home/qbittorrent/{Downloads,torrents,watch}
     mkdir -p /home/qbittorrent/.config/qBittorrent
     mkdir -p /home/qbittorrent/.local/share/data/qBittorrent
     
@@ -169,8 +173,10 @@ create_user() {
     
     # 设置目录权限
     chown -R qbittorrent:qbittorrent /home/qbittorrent
-    chown -R qbittorrent:qbittorrent /var/lib/qbittorrent
     chown -R qbittorrent:qbittorrent /opt/downloads
+    
+    # 确保qbittorrent用户对/opt/downloads有完全控制权
+    chmod -R 755 /opt/downloads
     
     log_info "用户创建完成"
 }
@@ -179,73 +185,40 @@ create_user() {
 configure_qbittorrent() {
     log_info "配置qBittorrent..."
     
+    # 确保配置目录存在
+    mkdir -p /home/qbittorrent/.config/qBittorrent
+    
     # 删除可能存在的旧配置
     rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
-    # 创建配置文件 - 确保使用正确的格式和完整配置
+    # 创建最简单但有效的配置文件
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
-[Application]
-FileLogger\Enabled=true
-FileLogger\Age=1
-FileLogger\MaxSizeBytes=66560
-FileLogger\Path=/home/qbittorrent/.local/share/data/qBittorrent
-
 [BitTorrent]
 Session\DefaultSavePath=/opt/downloads
-Session\Port=8999
 Session\TempPath=/opt/downloads/incomplete
 Session\TempPathEnabled=true
-Session\AddExtensionToIncompleteFiles=true
-Session\Preallocation=true
-Session\UseAlternativeGlobalSpeedLimit=false
-Session\GlobalMaxRatio=0
-Session\GlobalMaxSeedingMinutes=-1
+Session\Port=8999
 
 [Preferences]
-WebUI\Port=8080
-WebUI\Username=admin
-WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
-WebUI\LocalHostAuth=false
 Downloads\SavePath=/opt/downloads
 Downloads\TempPath=/opt/downloads/incomplete
 Downloads\TempPathEnabled=true
 Downloads\UseIncompleteExtension=true
-Downloads\ScanDirs\1\enabled=true
-Downloads\ScanDirs\1\path=/opt/downloads/watch
-Downloads\ScanDirs\size=1
-Downloads\PreallocateAll=true
+WebUI\Username=admin
+WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
+WebUI\LocalHostAuth=false
+WebUI\Port=8080
 Connection\PortRangeMin=8999
 Connection\PortRangeMax=8999
-General\DefaultSavePath=/opt/downloads
-General\TempPath=/opt/downloads/incomplete
-General\TempPathEnabled=true
-Bittorrent\DHT=true
-Bittorrent\PeX=true
-Bittorrent\LSD=true
-Bittorrent\Encryption=1
+
+[Application]
+FileLogger\Enabled=false
 
 [Core]
 AutoDeleteAddedTorrentFile=Never
 
 [Meta]
 MigrationVersion=4
-
-[Network]
-Cookies=@Invalid()
-Proxy\OnlyForTorrents=false
-
-[RSS]
-AutoDownloader\DownloadRepacks=true
-
-[MailNotification]
-enabled=false
-
-[AutoRun]
-OnTorrentAdded\Enabled=false
-OnTorrentFinished\Enabled=false
-
-[LegalNotice]
-Accepted=true
 EOF
 
     # 设置配置文件权限
@@ -266,12 +239,19 @@ Description=qBittorrent Command Line Client
 After=network.target
 
 [Service]
-Type=forking
+Type=exec
 User=qbittorrent
 Group=qbittorrent
 UMask=007
-ExecStart=/usr/local/bin/qbittorrent-nox -d --webui-port=8080
+WorkingDirectory=/home/qbittorrent
+ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080 --profile=/home/qbittorrent
 Restart=on-failure
+TimeoutStopSec=1800
+
+# 环境变量
+Environment=HOME=/home/qbittorrent
+Environment=XDG_CONFIG_HOME=/home/qbittorrent/.config
+Environment=XDG_DATA_HOME=/home/qbittorrent/.local/share
 
 [Install]
 WantedBy=multi-user.target
@@ -284,34 +264,51 @@ EOF
     log_info "systemd服务创建完成"
 }
 
-# 通过WebUI API设置下载路径
-configure_via_api() {
-    log_info "通过WebUI API设置默认下载路径..."
+# 通过WebUI API强制设置下载路径
+force_set_download_path() {
+    log_info "通过WebUI API强制设置下载路径..."
     
     # 等待WebUI完全启动
-    sleep 5
+    local max_attempts=15
+    local attempt=1
     
-    # 获取SID（登录令牌）
-    local sid=$(curl -s -c /tmp/qb_cookies.txt -d "username=admin&password=adminadmin" \
-        "http://localhost:8080/api/v2/auth/login" | grep -o 'SID=[^;]*' | cut -d'=' -f2)
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s -f http://localhost:8080 > /dev/null 2>&1; then
+            log_info "WebUI已启动，正在配置路径..."
+            break
+        fi
+        log_info "等待WebUI启动... ($attempt/$max_attempts)"
+        sleep 3
+        ((attempt++))
+    done
     
-    if [ -n "$sid" ]; then
+    if [ $attempt -gt $max_attempts ]; then
+        log_warn "WebUI启动超时，跳过API配置"
+        return 1
+    fi
+    
+    # 尝试通过API设置路径
+    local login_response
+    login_response=$(curl -s -c /tmp/qb_cookies.txt \
+        -d "username=admin&password=adminadmin" \
+        "http://localhost:8080/api/v2/auth/login" 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
         log_info "成功登录WebUI，正在设置下载路径..."
         
-        # 设置默认保存路径
-        curl -s -b /tmp/qb_cookies.txt -d "save_path=/opt/downloads" \
-            "http://localhost:8080/api/v2/app/setPreferences" || true
-            
-        # 设置临时路径
-        curl -s -b /tmp/qb_cookies.txt -d "temp_path_enabled=true&temp_path=/opt/downloads/incomplete" \
-            "http://localhost:8080/api/v2/app/setPreferences" || true
+        # 设置首选项
+        curl -s -b /tmp/qb_cookies.txt \
+            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":true,\"temp_path\":\"/opt/downloads/incomplete\"}" \
+            "http://localhost:8080/api/v2/app/setPreferences" 2>/dev/null
         
         # 清理cookies文件
         rm -f /tmp/qb_cookies.txt
         
-        log_info "WebUI API配置完成"
+        log_info "API配置完成"
+        return 0
     else
-        log_warn "无法通过API登录，可能需要在WebUI中手动设置路径"
+        log_warn "API登录失败"
+        return 1
     fi
 }
 
@@ -319,55 +316,28 @@ configure_via_api() {
 start_service() {
     log_info "启动qBittorrent服务..."
     
-    # 第一次启动服务，让它生成默认配置
-    systemctl start qbittorrent
-    sleep 5
+    # 确保配置文件存在
+    configure_qbittorrent
     
-    # 检查服务是否启动成功
+    # 启动服务
+    systemctl start qbittorrent
+    
+    # 检查服务状态
+    sleep 3
     if ! systemctl is-active --quiet qbittorrent; then
         log_error "qBittorrent服务启动失败"
         systemctl status qbittorrent --no-pager
+        journalctl -u qbittorrent --no-pager -n 20
         exit 1
     fi
     
-    log_info "qBittorrent服务已启动，正在应用正确的下载路径配置..."
+    log_info "qBittorrent服务启动成功"
     
-    # 停止服务以修改配置
-    systemctl stop qbittorrent
-    sleep 2
-    
-    # 重新应用正确的配置
-    configure_qbittorrent
-    
-    # 再次启动服务
-    log_info "重新启动qBittorrent服务..."
-    systemctl start qbittorrent
-    sleep 3
-    
-    # 最终检查
-    if systemctl is-active --quiet qbittorrent; then
-        log_info "qBittorrent服务启动成功"
-        
-        # 验证WebUI是否可访问
-        log_info "等待WebUI启动..."
-        for i in {1..10}; do
-            if curl -s -f http://localhost:8080 > /dev/null 2>&1; then
-                log_info "qBittorrent WebUI已就绪"
-                break
-            fi
-            sleep 2
-        done
-        
-        # 通过API设置正确的下载路径
-        configure_via_api
-        
+    # 通过API强制设置路径
+    if force_set_download_path; then
+        log_info "已通过API设置下载路径"
     else
-        log_error "qBittorrent服务启动失败"
-        log_error "检查服务状态："
-        systemctl status qbittorrent --no-pager
-        log_error "检查日志："
-        journalctl -u qbittorrent --no-pager -n 20
-        exit 1
+        log_warn "API设置失败，需要手动配置"
     fi
 }
 
@@ -477,8 +447,13 @@ main() {
     log_info "安装完成！"
     log_info ""
     log_info "================================================================"
-    log_info "如果WebUI中下载路径仍显示为 /var/lib/qbittorrent/Downloads"
-    log_info "请按照上方说明手动修改为: /opt/downloads"
+    log_info "🔧 下载路径设置验证"
+    log_info "================================================================"
+    log_info "1. 打开 WebUI: http://$(curl -s ip.sb 2>/dev/null || echo 'your-ip'):8080"
+    log_info "2. 用户名: admin，密码: adminadmin"
+    log_info "3. 进入: 工具 → 选项 → 下载"
+    log_info "4. 检查 '默认保存路径' 是否为: /opt/downloads"
+    log_info "5. 如果不是，请手动修改为: /opt/downloads"
     log_info "================================================================"
 }
 
