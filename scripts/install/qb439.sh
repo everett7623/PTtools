@@ -266,12 +266,17 @@ setup_user_and_directories() {
     mkdir -p "$INSTALL_DIR"/.config/qBittorrent
     mkdir -p "$INSTALL_DIR"/.local/share/data/qBittorrent
     
+    # 创建统一下载目录
+    mkdir -p /opt/downloads/{complete,incomplete,watch}
+    
     # 创建下载子目录
-    mkdir -p "$INSTALL_DIR"/Downloads/{Movies,TV,Music,Software,Books,complete,incomplete}
+    mkdir -p /opt/downloads/complete/{Movies,TV,Music,Software,Books}
     
     # 设置权限
     chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
+    chown -R "$SERVICE_USER":"$SERVICE_USER" /opt/downloads
     chmod -R 755 "$INSTALL_DIR"
+    chmod -R 755 /opt/downloads
     
     log_info "目录结构创建完成"
 }
@@ -294,9 +299,9 @@ FileLogger\\MaxSizeBytes=66560
 FileLogger\\Path=$INSTALL_DIR/.local/share/data/qBittorrent
 
 [BitTorrent]
-Session\\DefaultSavePath=$INSTALL_DIR/Downloads
+Session\\DefaultSavePath=/opt/downloads
 Session\\Port=$RANDOM_PORT
-Session\\TempPath=$INSTALL_DIR/Downloads/incomplete
+Session\\TempPath=/opt/downloads/incomplete
 Session\\TempPathEnabled=true
 Session\\AddExtensionToIncompleteFiles=true
 Session\\Preallocation=true
@@ -318,10 +323,10 @@ WebUI\\LocalHostAuth=false
 WebUI\\AuthSubnetWhitelistEnabled=false
 WebUI\\CSRFProtection=false
 WebUI\\ClickjackingProtection=false
-Downloads\\SavePath=$INSTALL_DIR/Downloads
-Downloads\\TempPath=$INSTALL_DIR/Downloads/incomplete
+Downloads\\SavePath=/opt/downloads
+Downloads\\TempPath=/opt/downloads/incomplete
 Downloads\\ScanDirs\\1\\enabled=true
-Downloads\\ScanDirs\\1\\path=$INSTALL_DIR/watch
+Downloads\\ScanDirs\\1\\path=/opt/downloads/watch
 Downloads\\ScanDirs\\size=1
 Downloads\\PreallocateAll=true
 Downloads\\UseIncompleteExtension=true
