@@ -325,11 +325,12 @@ WebUI\\CSRFProtection=false
 WebUI\\ClickjackingProtection=false
 Downloads\\SavePath=/opt/downloads
 Downloads\\TempPath=/opt/downloads/incomplete
+Downloads\\TempPathEnabled=true
+Downloads\\UseIncompleteExtension=true
 Downloads\\ScanDirs\\1\\enabled=true
 Downloads\\ScanDirs\\1\\path=/opt/downloads/watch
 Downloads\\ScanDirs\\size=1
 Downloads\\PreallocateAll=true
-Downloads\\UseIncompleteExtension=true
 Connection\\PortRangeMin=$RANDOM_PORT
 Connection\\PortRangeMax=$RANDOM_PORT
 Connection\\UPnP=false
@@ -342,6 +343,9 @@ Bittorrent\\Encryption=1
 Queueing\\MaxActiveDownloads=5
 Queueing\\MaxActiveTorrents=10
 Queueing\\MaxActiveUploads=5
+General\\DefaultSavePath=/opt/downloads
+General\\TempPath=/opt/downloads/incomplete
+General\\TempPathEnabled=true
 EOF
 
     # 设置配置文件权限
