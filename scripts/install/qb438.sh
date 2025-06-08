@@ -179,7 +179,10 @@ create_user() {
 configure_qbittorrent() {
     log_info "配置qBittorrent..."
     
-    # 创建配置文件 - 使用更完整的配置
+    # 删除可能存在的旧配置
+    rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
+    
+    # 创建配置文件 - 确保使用正确的格式和完整配置
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [Application]
 FileLogger\Enabled=true
@@ -194,6 +197,9 @@ Session\TempPath=/opt/downloads/incomplete
 Session\TempPathEnabled=true
 Session\AddExtensionToIncompleteFiles=true
 Session\Preallocation=true
+Session\UseAlternativeGlobalSpeedLimit=false
+Session\GlobalMaxRatio=0
+Session\GlobalMaxSeedingMinutes=-1
 
 [Preferences]
 WebUI\Port=8080
@@ -213,6 +219,10 @@ Connection\PortRangeMax=8999
 General\DefaultSavePath=/opt/downloads
 General\TempPath=/opt/downloads/incomplete
 General\TempPathEnabled=true
+Bittorrent\DHT=true
+Bittorrent\PeX=true
+Bittorrent\LSD=true
+Bittorrent\Encryption=1
 
 [Core]
 AutoDeleteAddedTorrentFile=Never
@@ -226,7 +236,6 @@ Proxy\OnlyForTorrents=false
 
 [RSS]
 AutoDownloader\DownloadRepacks=true
-AutoDownloader\SmartEpisodeFilter=s(\\d+)e(\\d+), (\\d+)x(\\d+), "(\\d{4}[.\\-]\\d{1,2}[.\\-]\\d{1,2})", "(\\d{1,2}[.\\-]\\d{1,2}[.\\-]\\d{4})"
 
 [MailNotification]
 enabled=false
@@ -234,10 +243,13 @@ enabled=false
 [AutoRun]
 OnTorrentAdded\Enabled=false
 OnTorrentFinished\Enabled=false
+
+[LegalNotice]
+Accepted=true
 EOF
 
     # 设置配置文件权限
-    chown -R qbittorrent:qbittorrent /home/qbittorrent/.config
+    chown qbittorrent:qbittorrent /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     chmod 600 /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
     log_info "配置文件创建完成"
@@ -272,40 +284,83 @@ EOF
     log_info "systemd服务创建完成"
 }
 
-# 启动qBittorrent服务
+# 通过WebUI API设置下载路径
+configure_via_api() {
+    log_info "通过WebUI API设置默认下载路径..."
+    
+    # 等待WebUI完全启动
+    sleep 5
+    
+    # 获取SID（登录令牌）
+    local sid=$(curl -s -c /tmp/qb_cookies.txt -d "username=admin&password=adminadmin" \
+        "http://localhost:8080/api/v2/auth/login" | grep -o 'SID=[^;]*' | cut -d'=' -f2)
+    
+    if [ -n "$sid" ]; then
+        log_info "成功登录WebUI，正在设置下载路径..."
+        
+        # 设置默认保存路径
+        curl -s -b /tmp/qb_cookies.txt -d "save_path=/opt/downloads" \
+            "http://localhost:8080/api/v2/app/setPreferences" || true
+            
+        # 设置临时路径
+        curl -s -b /tmp/qb_cookies.txt -d "temp_path_enabled=true&temp_path=/opt/downloads/incomplete" \
+            "http://localhost:8080/api/v2/app/setPreferences" || true
+        
+        # 清理cookies文件
+        rm -f /tmp/qb_cookies.txt
+        
+        log_info "WebUI API配置完成"
+    else
+        log_warn "无法通过API登录，可能需要在WebUI中手动设置路径"
+    fi
+}
+
+# 启动qBittorrent服务并确保配置正确
 start_service() {
     log_info "启动qBittorrent服务..."
     
-    # 确保配置文件存在且路径正确
-    if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
-        log_info "验证配置文件中的下载路径..."
-        if grep -q "/opt/downloads" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf"; then
-            log_info "下载路径配置正确: /opt/downloads"
-        else
-            log_warn "配置文件中未找到正确的下载路径，重新配置..."
-            configure_qbittorrent
-        fi
-    else
-        log_error "配置文件不存在，重新创建..."
-        configure_qbittorrent
+    # 第一次启动服务，让它生成默认配置
+    systemctl start qbittorrent
+    sleep 5
+    
+    # 检查服务是否启动成功
+    if ! systemctl is-active --quiet qbittorrent; then
+        log_error "qBittorrent服务启动失败"
+        systemctl status qbittorrent --no-pager
+        exit 1
     fi
     
-    systemctl start qbittorrent
+    log_info "qBittorrent服务已启动，正在应用正确的下载路径配置..."
     
-    # 等待服务启动
+    # 停止服务以修改配置
+    systemctl stop qbittorrent
+    sleep 2
+    
+    # 重新应用正确的配置
+    configure_qbittorrent
+    
+    # 再次启动服务
+    log_info "重新启动qBittorrent服务..."
+    systemctl start qbittorrent
     sleep 3
     
-    # 检查服务状态
+    # 最终检查
     if systemctl is-active --quiet qbittorrent; then
         log_info "qBittorrent服务启动成功"
         
-        # 额外验证：检查WebUI是否可访问
-        sleep 2
-        if curl -s -f http://localhost:8080 > /dev/null; then
-            log_info "qBittorrent WebUI已就绪"
-        else
-            log_warn "WebUI可能需要几秒钟才能完全启动"
-        fi
+        # 验证WebUI是否可访问
+        log_info "等待WebUI启动..."
+        for i in {1..10}; do
+            if curl -s -f http://localhost:8080 > /dev/null 2>&1; then
+                log_info "qBittorrent WebUI已就绪"
+                break
+            fi
+            sleep 2
+        done
+        
+        # 通过API设置正确的下载路径
+        configure_via_api
+        
     else
         log_error "qBittorrent服务启动失败"
         log_error "检查服务状态："
@@ -377,9 +432,16 @@ show_installation_result() {
     echo
     echo -e "${YELLOW}⚠️  重要提醒:${NC}"
     echo -e "   1. 首次登录后请及时修改默认密码"
-    echo -e "   2. 建议在WebUI中进行进一步的个性化配置"
+    echo -e "   2. 如果下载路径显示不正确，请在WebUI设置中手动修改为: ${WHITE}/opt/downloads${NC}"
     echo -e "   3. 防火墙已自动配置，如有问题请检查防火墙设置"
     echo -e "   4. 建议重启系统以确保所有优化生效"
+    echo
+    echo -e "${CYAN}📖 路径修改方法:${NC}"
+    echo -e "   1. 登录WebUI: http://$SERVER_IP:8080"
+    echo -e "   2. 进入 工具 -> 选项 -> 下载"
+    echo -e "   3. 将 '默认保存路径' 修改为: ${WHITE}/opt/downloads${NC}"
+    echo -e "   4. 将 '保存未完成的torrent到' 修改为: ${WHITE}/opt/downloads/incomplete${NC}"
+    echo -e "   5. 点击 '应用' 保存设置"
     echo
 }
 
@@ -393,25 +455,31 @@ main() {
     install_libtorrent
     install_qbittorrent
     create_user
-    configure_qbittorrent
+    # 注意：这里先不调用configure_qbittorrent，在start_service中处理
     create_service
-    start_service
+    start_service  # 这个函数会处理配置和启动
     configure_firewall
     
     # 最终验证下载路径
     log_info "验证默认下载路径设置..."
+    sleep 2
     if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
-        SAVE_PATH=$(grep "Downloads\\\\SavePath=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2)
-        if [ "$SAVE_PATH" = "/opt/downloads" ]; then
+        if grep -q "Downloads.*SavePath=/opt/downloads" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf"; then
             log_info "✓ 默认下载路径已正确设置为: /opt/downloads"
         else
-            log_warn "⚠ 下载路径可能需要在WebUI中手动确认"
+            log_warn "⚠ 下载路径配置需要在WebUI中手动确认"
+            log_info "请在WebUI设置中将下载路径修改为: /opt/downloads"
         fi
     fi
     
     show_installation_result
     
     log_info "安装完成！"
+    log_info ""
+    log_info "================================================================"
+    log_info "如果WebUI中下载路径仍显示为 /var/lib/qbittorrent/Downloads"
+    log_info "请按照上方说明手动修改为: /opt/downloads"
+    log_info "================================================================"
 }
 
 # 执行主函数
