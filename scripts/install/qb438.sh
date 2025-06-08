@@ -162,9 +162,13 @@ create_user() {
     mkdir -p /home/qbittorrent/.config/qBittorrent
     mkdir -p /home/qbittorrent/.local/share/data/qBittorrent
     
+    # 创建统一下载目录
+    mkdir -p /opt/downloads/{complete,incomplete,watch}
+    
     # 设置目录权限
     chown -R qbittorrent:qbittorrent /home/qbittorrent
     chown -R qbittorrent:qbittorrent /var/lib/qbittorrent
+    chown -R qbittorrent:qbittorrent /opt/downloads
     
     log_info "用户创建完成"
 }
@@ -182,19 +186,19 @@ FileLogger\MaxSizeBytes=66560
 FileLogger\Path=/home/qbittorrent/.local/share/data/qBittorrent
 
 [BitTorrent]
-Session\DefaultSavePath=/home/qbittorrent/Downloads
+Session\DefaultSavePath=/opt/downloads
 Session\Port=8999
-Session\TempPath=/home/qbittorrent/Downloads/temp
+Session\TempPath=/opt/downloads/incomplete
 
 [Preferences]
 WebUI\Port=8080
 WebUI\Username=admin
 WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
 WebUI\LocalHostAuth=false
-Downloads\SavePath=/home/qbittorrent/Downloads
-Downloads\TempPath=/home/qbittorrent/Downloads/temp
+Downloads\SavePath=/opt/downloads
+Downloads\TempPath=/opt/downloads/incomplete
 Downloads\ScanDirs\1\enabled=true
-Downloads\ScanDirs\1\path=/home/qbittorrent/watch
+Downloads\ScanDirs\1\path=/opt/downloads/watch
 Downloads\ScanDirs\size=1
 Connection\PortRangeMin=8999
 Connection\PortRangeMax=8999
@@ -278,7 +282,7 @@ show_installation_result() {
     SERVER_IP=$(curl -s ip.sb 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "localhost")
     
     # 获取qBittorrent端口
-    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "随机端口")
+    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "8999")
     
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║              qBittorrent 4.3.8 安装完成                    ║${NC}"
@@ -297,8 +301,10 @@ show_installation_result() {
     echo -e "   BT端口:          ${WHITE}$QB_PORT${NC}"
     echo
     echo -e "${CYAN}📁 目录信息:${NC}"
-    echo -e "   下载目录:        ${WHITE}/home/qbittorrent/Downloads${NC}"
-    echo -e "   监控目录:        ${WHITE}/home/qbittorrent/watch${NC}"
+    echo -e "   下载目录:        ${WHITE}/opt/downloads${NC}"
+    echo -e "   完成目录:        ${WHITE}/opt/downloads/complete${NC}"
+    echo -e "   未完成目录:      ${WHITE}/opt/downloads/incomplete${NC}"
+    echo -e "   监控目录:        ${WHITE}/opt/downloads/watch${NC}"
     echo -e "   配置目录:        ${WHITE}/home/qbittorrent/.config/qBittorrent${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
