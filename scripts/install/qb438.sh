@@ -191,19 +191,17 @@ configure_qbittorrent() {
     # 删除可能存在的旧配置
     rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
-    # 创建最简单但有效的配置文件
+    # 创建配置文件 - 不使用临时下载文件夹
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [BitTorrent]
 Session\DefaultSavePath=/opt/downloads
-Session\TempPath=/opt/downloads/incomplete
-Session\TempPathEnabled=true
+Session\TempPathEnabled=false
 Session\Port=8999
 
 [Preferences]
 Downloads\SavePath=/opt/downloads
-Downloads\TempPath=/opt/downloads/incomplete
-Downloads\TempPathEnabled=true
-Downloads\UseIncompleteExtension=true
+Downloads\TempPathEnabled=false
+Downloads\UseIncompleteExtension=false
 WebUI\Username=admin
 WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
 WebUI\LocalHostAuth=false
@@ -296,9 +294,9 @@ force_set_download_path() {
     if [ $? -eq 0 ]; then
         log_info "成功登录WebUI，正在设置下载路径..."
         
-        # 设置首选项
+        # 设置首选项 - 不使用临时文件夹
         curl -s -b /tmp/qb_cookies.txt \
-            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":true,\"temp_path\":\"/opt/downloads/incomplete\"}" \
+            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":false}" \
             "http://localhost:8080/api/v2/app/setPreferences" 2>/dev/null
         
         # 清理cookies文件
