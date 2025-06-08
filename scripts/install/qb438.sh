@@ -189,6 +189,7 @@ FileLogger\Path=/home/qbittorrent/.local/share/data/qBittorrent
 Session\DefaultSavePath=/opt/downloads
 Session\Port=8999
 Session\TempPath=/opt/downloads/incomplete
+Session\TempPathEnabled=true
 
 [Preferences]
 WebUI\Port=8080
@@ -197,11 +198,16 @@ WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAj
 WebUI\LocalHostAuth=false
 Downloads\SavePath=/opt/downloads
 Downloads\TempPath=/opt/downloads/incomplete
+Downloads\TempPathEnabled=true
+Downloads\UseIncompleteExtension=true
 Downloads\ScanDirs\1\enabled=true
 Downloads\ScanDirs\1\path=/opt/downloads/watch
 Downloads\ScanDirs\size=1
 Connection\PortRangeMin=8999
 Connection\PortRangeMax=8999
+General\DefaultSavePath=/opt/downloads
+General\TempPath=/opt/downloads/incomplete
+General\TempPathEnabled=true
 EOF
 
     # 设置配置文件权限
