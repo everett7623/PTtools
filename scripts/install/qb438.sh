@@ -23,9 +23,6 @@ LT_VERSION="1.2.20" # libtorrent 版本信息仅供参考
 PRECOMPILED_URL_X86_64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox"
 PRECOMPILED_URL_AARCH64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/aarch64-qbittorrent-nox"
 
-# GitHub 资源下载代理列表 (按顺序尝试)
-GH_PROXIES=("https://ghproxy.com/" "https://gh.api.99988866.xyz/")
-
 # --- 脚本核心 ---
 
 # 颜色定义
