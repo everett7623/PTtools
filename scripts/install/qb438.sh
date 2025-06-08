@@ -9,6 +9,8 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 NC='\033[0m'
 
 # 日志函数
@@ -177,7 +179,7 @@ create_user() {
 configure_qbittorrent() {
     log_info "配置qBittorrent..."
     
-    # 创建配置文件
+    # 创建配置文件 - 使用更完整的配置
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [Application]
 FileLogger\Enabled=true
@@ -190,6 +192,8 @@ Session\DefaultSavePath=/opt/downloads
 Session\Port=8999
 Session\TempPath=/opt/downloads/incomplete
 Session\TempPathEnabled=true
+Session\AddExtensionToIncompleteFiles=true
+Session\Preallocation=true
 
 [Preferences]
 WebUI\Port=8080
@@ -203,6 +207,7 @@ Downloads\UseIncompleteExtension=true
 Downloads\ScanDirs\1\enabled=true
 Downloads\ScanDirs\1\path=/opt/downloads/watch
 Downloads\ScanDirs\size=1
+Downloads\PreallocateAll=true
 Connection\PortRangeMin=8999
 Connection\PortRangeMax=8999
 General\DefaultSavePath=/opt/downloads
@@ -217,6 +222,18 @@ MigrationVersion=4
 
 [Network]
 Cookies=@Invalid()
+Proxy\OnlyForTorrents=false
+
+[RSS]
+AutoDownloader\DownloadRepacks=true
+AutoDownloader\SmartEpisodeFilter=s(\\d+)e(\\d+), (\\d+)x(\\d+), "(\\d{4}[.\\-]\\d{1,2}[.\\-]\\d{1,2})", "(\\d{1,2}[.\\-]\\d{1,2}[.\\-]\\d{4})"
+
+[MailNotification]
+enabled=false
+
+[AutoRun]
+OnTorrentAdded\Enabled=false
+OnTorrentFinished\Enabled=false
 EOF
 
     # 设置配置文件权限
@@ -259,14 +276,42 @@ EOF
 start_service() {
     log_info "启动qBittorrent服务..."
     
+    # 确保配置文件存在且路径正确
+    if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
+        log_info "验证配置文件中的下载路径..."
+        if grep -q "/opt/downloads" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf"; then
+            log_info "下载路径配置正确: /opt/downloads"
+        else
+            log_warn "配置文件中未找到正确的下载路径，重新配置..."
+            configure_qbittorrent
+        fi
+    else
+        log_error "配置文件不存在，重新创建..."
+        configure_qbittorrent
+    fi
+    
     systemctl start qbittorrent
+    
+    # 等待服务启动
+    sleep 3
     
     # 检查服务状态
     if systemctl is-active --quiet qbittorrent; then
         log_info "qBittorrent服务启动成功"
+        
+        # 额外验证：检查WebUI是否可访问
+        sleep 2
+        if curl -s -f http://localhost:8080 > /dev/null; then
+            log_info "qBittorrent WebUI已就绪"
+        else
+            log_warn "WebUI可能需要几秒钟才能完全启动"
+        fi
     else
         log_error "qBittorrent服务启动失败"
-        systemctl status qbittorrent
+        log_error "检查服务状态："
+        systemctl status qbittorrent --no-pager
+        log_error "检查日志："
+        journalctl -u qbittorrent --no-pager -n 20
         exit 1
     fi
 }
@@ -352,6 +397,17 @@ main() {
     create_service
     start_service
     configure_firewall
+    
+    # 最终验证下载路径
+    log_info "验证默认下载路径设置..."
+    if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
+        SAVE_PATH=$(grep "Downloads\\\\SavePath=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2)
+        if [ "$SAVE_PATH" = "/opt/downloads" ]; then
+            log_info "✓ 默认下载路径已正确设置为: /opt/downloads"
+        else
+            log_warn "⚠ 下载路径可能需要在WebUI中手动确认"
+        fi
+    fi
     
     show_installation_result
     
