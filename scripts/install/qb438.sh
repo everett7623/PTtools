@@ -4,28 +4,22 @@
 #   qBittorrent 4.3.8 安装脚本
 #   - 修改自: https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh
 #
-# 更新日志 (v2.1):
-#   - 新增: 自动依赖检查 (ldd)。在下载后立即验证二进制文件，解决环境不兼容问题。
-#   - 新增: 备用下载代理。主代理失败时自动切换，提高下载成功率。
-#   - 优化: 错误处理和日志，在安装失败时提供更明确的指引。
-#
 # 特性:
-#   - 提供 "极速安装" (预编译) 和 "编译安装" (源码) 两种模式
-#   - 默认采用极速安装，解决国内服务器编译慢、下载慢的问题
-#   - 脚本结构清晰，日志完备，错误处理友好
+#   - 仅保留极速安装模式，去除编译相关代码，脚本更轻量。
+#   - 默认使用静态编译的 qBittorrent-nox，以减少对系统库的依赖。
+#   - 自动检测系统架构 (x86_64, aarch64)。
+#   - 使用多个下载代理，提高国内服务器的下载成功率。
+#   - 包含自动依赖验证 (ldd)、用户创建、服务配置等最佳实践。
 #
 #======================================================================================
 
 # --- 配置区 ---
-# 默认使用极速安装。如果需要编译安装，请修改为 "compile"
-INSTALL_MODE="fast" # 可选: "fast" (极速安装) 或 "compile" (编译安装)
+# qBittorrent 版本 - 这个版本需要与下面的下载链接匹配
+QB_VERSION="4.6.5"
+LT_VERSION="1.2.20" # libtorrent 版本信息仅供参考
 
-# 版本定义 (编译安装时生效)
-QB_VERSION="4.3.9"
-LT_VERSION="1.2.20"
-
-# 预编译文件的下载地址 (极速安装时生效)
-# 您可以替换为其他可靠的、更新的预编译文件源
+# 预编译文件的下载地址 (静态链接版本，兼容性更好)
+# 来源: https://github.com/userdocs/qbittorrent-nox-static
 PRECOMPILED_URL_X86_64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox"
 PRECOMPILED_URL_AARCH64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/aarch64-qbittorrent-nox"
 
@@ -78,37 +72,21 @@ wget_wrapper() {
     # $1: 下载URL, $2: 保存路径
     log_info "正在下载: $1"
     # 返回 true/false, 以便循环处理
-    wget -q --show-progress --progress=bar:force:noscroll --tries=2 --timeout=45 -O "$2" "$1"
+    wget -q --show-progress --progress=bar:force:noscroll --tries=2 --timeout=60 -O "$2" "$1"
 }
 
-# 安装依赖
+# 安装最基本的依赖
 install_dependencies() {
-    log_cyan "正在安装依赖..."
+    log_cyan "正在安装核心依赖..."
     case "$OS" in
         debian|ubuntu)
             apt-get update -qq
-            if [ "$INSTALL_MODE" = "compile" ]; then
-                log_info "为[编译模式]安装完整依赖..."
-                apt-get install -y build-essential cmake git pkg-config automake libtool \
-                                   libboost-dev libboost-system-dev libboost-chrono-dev \
-                                   libboost-random-dev libssl-dev qtbase5-dev \
-                                   qttools5-dev-tools zlib1g-dev libqt5svg5-dev python3 curl
-            else
-                log_info "为[极速模式]安装核心依赖..."
-                # ldd 用于依赖检查
-                apt-get install -y libc-bin curl
-            fi
+            # ldd 用于依赖检查, curl 用于获取IP
+            apt-get install -y --no-install-recommends libc-bin curl
             ;;
         centos|rhel)
-            # CentOS 的依赖处理较为复杂，这里仅为示例
-            if [ "$INSTALL_MODE" = "compile" ]; then
-                log_warn "CentOS/RHEL 的编译模式依赖较为复杂，请确保已启用EPEL源"
-                yum groupinstall -y "Development Tools"
-                yum install -y cmake git pkgconfig automake libtool boost-devel openssl-devel qt5-qtbase-devel qt5-qttools-devel zlib-devel qt5-qtsvg-devel python3 curl
-            else
-                log_info "为[极速模式]安装核心依赖..."
-                yum install -y glibc-common curl
-            fi
+            # 静态版本几乎无依赖，只需基本工具
+            yum install -y glibc-common curl
             ;;
         *)
             log_error "不支持的操作系统: $OS"
@@ -118,7 +96,7 @@ install_dependencies() {
     log_info "依赖安装完成。"
 }
 
-# [新增] 验证二进制文件依赖
+# 验证二进制文件依赖
 verify_binary_dependencies() {
     log_cyan "正在验证二进制文件依赖..."
     local binary_path="/usr/local/bin/qbittorrent-nox"
@@ -129,18 +107,16 @@ verify_binary_dependencies() {
 
     # 使用ldd和grep查找“not found”的库
     local missing_libs
-    missing_libs=$(ldd "$binary_path" 2>/dev/null | grep 'not found')
+    missing_libs=$(ldd "$binary_path" 2>/dev/null | grep -i 'not found')
 
     if [ -n "$missing_libs" ]; then
         log_error "依赖检查失败！预编译的 qbittorrent-nox 缺少以下库:"
         echo -e "${RED}${missing_libs}${NC}"
-        log_error "这通常意味着您的系统环境与预编译文件不兼容。"
-        log_error "您可以尝试以下操作:"
-        log_error "1. 运行 'apt-get update && apt-get upgrade' (Debian/Ubuntu) 或 'yum update' (CentOS) 更新系统包。"
-        log_error "2. 重新运行此脚本并选择 [编译安装] 模式，为您的系统量身打造可执行文件。"
+        log_error "这通常意味着您的系统环境过于老旧。"
+        log_error "请尝试更新您的系统，或寻找其他兼容的预编译版本。"
         exit 1
     else
-        log_info "依赖检查通过，所有必需的库均已找到。"
+        log_info "依赖检查通过，二进制文件兼容当前系统。"
     fi
 }
 
@@ -156,7 +132,7 @@ fast_install_qbittorrent() {
     elif [[ "$arch" == "aarch64" ]]; then
         primary_url="${PRECOMPILED_URL_AARCH64}"
     else
-        log_error "不支持的架构: $arch"
+        log_error "不支持的CPU架构: $arch"
         exit 1
     fi
 
@@ -180,35 +156,7 @@ fast_install_qbittorrent() {
     chmod +x /usr/local/bin/qbittorrent-nox
     log_info "qBittorrent-nox v${QB_VERSION} 已下载到 /usr/local/bin/"
 
-    # 关键步骤：验证依赖
     verify_binary_dependencies
-}
-
-# 编译安装 libtorrent
-compile_libtorrent() {
-    log_cyan "编译安装 libtorrent v${LT_VERSION} (这可能需要很长时间)..."
-    cd /tmp
-    wget_wrapper "${GH_PROXIES[0]}https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz" "libtorrent-rasterbar-${LT_VERSION}.tar.gz"
-    tar xf libtorrent-rasterbar-${LT_VERSION}.tar.gz
-    cd libtorrent-rasterbar-${LT_VERSION}
-    ./configure --prefix=/usr/local --disable-debug --enable-encryption --with-libiconv CXXFLAGS="-std=c++17"
-    make -j$(nproc)
-    make install
-    ldconfig
-    log_info "libtorrent 安装完成。"
-}
-
-# 编译安装 qBittorrent
-compile_qbittorrent() {
-    log_cyan "编译安装 qBittorrent v${QB_VERSION} (这可能需要很长时间)..."
-    cd /tmp
-    wget_wrapper "${GH_PROXIES[0]}https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-${QB_VERSION}.tar.gz" "qbittorrent-${QB_VERSION}.tar.gz"
-    tar xf qbittorrent-${QB_VERSION}.tar.gz
-    cd qBittorrent-release-${QB_VERSION}
-    ./configure --prefix=/usr/local --disable-gui --enable-systemd CXXFLAGS="-std=c++17"
-    make -j$(nproc)
-    make install
-    log_info "qBittorrent 安装完成。"
 }
 
 # 创建用户和目录
@@ -271,6 +219,7 @@ Group=qbittorrent
 UMask=007
 ExecStart=/usr/local/bin/qbittorrent-nox --daemon --webui-port=8080 --profile=/home/qbittorrent
 Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -285,33 +234,25 @@ EOF
 configure_firewall() {
     log_cyan "配置防火墙..."
     if command -v ufw &> /dev/null; then
-        ufw allow 8080/tcp comment 'qB WebUI'
-        ufw allow 8999/tcp comment 'qB Peer-TCP'
-        ufw allow 8999/udp comment 'qB Peer-UDP'
-        log_info "UFW 防火墙规则已添加。"
+        ufw allow 8080/tcp comment 'qB WebUI' >/dev/null
+        ufw allow 8999/tcp comment 'qB Peer-TCP' >/dev/null
+        ufw allow 8999/udp comment 'qB Peer-UDP' >/dev/null
+        log_info "UFW 防火墙规则已添加 (端口 8080, 8999)。"
     elif command -v firewall-cmd &> /dev/null; then
-        firewall-cmd --permanent --add-port=8080/tcp
-        firewall-cmd --permanent --add-port=8999/tcp
-        firewall-cmd --permanent --add-port=8999/udp
+        firewall-cmd --permanent --add-port=8080/tcp >/dev/null
+        firewall-cmd --permanent --add-port=8999/tcp >/dev/null
+        firewall-cmd --permanent --add-port=8999/udp >/dev/null
         firewall-cmd --reload
-        log_info "Firewalld 防火墙规则已添加。"
+        log_info "Firewalld 防火墙规则已添加 (端口 8080, 8999)。"
     else
         log_warn "未检测到 UFW 或 Firewalld，请手动开放端口 8080 和 8999。"
     fi
 }
 
-# 清理临时文件
-cleanup() {
-    log_cyan "清理临时文件..."
-    rm -rf /tmp/libtorrent-rasterbar-*
-    rm -rf /tmp/qBittorrent-release-*
-    log_info "清理完成。"
-}
-
 # 显示最终结果
 show_result() {
     local server_ip
-    server_ip=$(curl -s --fail --connect-timeout 2 ip.sb || ip -4 addr | grep inet | grep -vE '127.0.0.1|172.' | awk '{print $2}' | cut -d'/' -f1 | head -n1)
+    server_ip=$(curl -s --fail --connect-timeout 3 ip.sb || ip -4 addr | grep inet | grep -vE '127.0.0.1|172.' | awk '{print $2}' | cut -d'/' -f1 | head -n1)
     
     clear
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -339,33 +280,8 @@ show_result() {
 main() {
     check_root
     check_system
-    
-    # 交互式选择安装模式
-    if [[ -t 0 ]]; then # 判断是否在交互式终端中运行
-        read -p "$(echo -e ${BLUE}"请选择安装模式 [1]极速安装 (默认) [2]编译安装: "${NC})" choice
-        case "$choice" in
-            2)
-                INSTALL_MODE="compile"
-                log_info "已选择 [编译安装] 模式。"
-                ;;
-            *)
-                INSTALL_MODE="fast"
-                log_info "已选择 [极速安装] 模式。"
-                ;;
-        esac
-    else
-        log_info "非交互式环境，将使用默认模式: [${INSTALL_MODE}]"
-    fi
-    
     install_dependencies
-    
-    if [ "$INSTALL_MODE" = "compile" ]; then
-        compile_libtorrent
-        compile_qbittorrent
-    else
-        fast_install_qbittorrent
-    fi
-
+    fast_install_qbittorrent
     create_user_and_dirs
     create_config_file
     create_systemd_service
@@ -381,7 +297,6 @@ main() {
         exit 1
     fi
     
-    cleanup
     show_result
 }
 
