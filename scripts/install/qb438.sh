@@ -3,12 +3,17 @@
 #======================================================================================
 #   qBittorrent 4.3.8 安装脚本
 #   - 修改自: https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh
-#   - 适配PTtools项目
+#
+# 更新日志 (v2.1):
+#   - 新增: 自动依赖检查 (ldd)。在下载后立即验证二进制文件，解决环境不兼容问题。
+#   - 新增: 备用下载代理。主代理失败时自动切换，提高下载成功率。
+#   - 优化: 错误处理和日志，在安装失败时提供更明确的指引。
+#
+# 特性:
 #   - 提供 "极速安装" (预编译) 和 "编译安装" (源码) 两种模式
 #   - 默认采用极速安装，解决国内服务器编译慢、下载慢的问题
-#   - 使用 ghproxy.com 代理加速 GitHub 资源下载
 #   - 脚本结构清晰，日志完备，错误处理友好
-#   - 集成用户创建、systemd 服务配置、防火墙设置等最佳实践
+#
 #======================================================================================
 
 # --- 配置区 ---
@@ -24,8 +29,8 @@ LT_VERSION="1.2.20"
 PRECOMPILED_URL_X86_64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox"
 PRECOMPILED_URL_AARCH64="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/aarch64-qbittorrent-nox"
 
-# GitHub 资源下载代理
-GH_PROXY="https://ghproxy.com/"
+# GitHub 资源下载代理列表 (按顺序尝试)
+GH_PROXIES=("https://ghproxy.com/" "https://gh.api.99988866.xyz/")
 
 # --- 脚本核心 ---
 
@@ -70,8 +75,10 @@ check_system() {
 
 # 包装 wget 命令，增加重试和代理功能
 wget_wrapper() {
+    # $1: 下载URL, $2: 保存路径
     log_info "正在下载: $1"
-    wget -q --show-progress --progress=bar:force:noscroll --tries=3 --timeout=60 -O "$2" "$1"
+    # 返回 true/false, 以便循环处理
+    wget -q --show-progress --progress=bar:force:noscroll --tries=2 --timeout=45 -O "$2" "$1"
 }
 
 # 安装依赖
@@ -88,7 +95,8 @@ install_dependencies() {
                                    qttools5-dev-tools zlib1g-dev libqt5svg5-dev python3 curl
             else
                 log_info "为[极速模式]安装核心依赖..."
-                apt-get install -y libboost-system1.74.0 libboost-chrono1.74.0 libssl3 libqt5core5a libqt5dbus5 libqt5network5 libqt5sql5 libqt5svg5 zlib1g curl
+                # ldd 用于依赖检查
+                apt-get install -y libc-bin curl
             fi
             ;;
         centos|rhel)
@@ -99,7 +107,7 @@ install_dependencies() {
                 yum install -y cmake git pkgconfig automake libtool boost-devel openssl-devel qt5-qtbase-devel qt5-qttools-devel zlib-devel qt5-qtsvg-devel python3 curl
             else
                 log_info "为[极速模式]安装核心依赖..."
-                yum install -y boost-system boost-chrono openssl-libs qt5-qtbase qt5-qtsvg zlib curl
+                yum install -y glibc-common curl
             fi
             ;;
         *)
@@ -110,40 +118,77 @@ install_dependencies() {
     log_info "依赖安装完成。"
 }
 
+# [新增] 验证二进制文件依赖
+verify_binary_dependencies() {
+    log_cyan "正在验证二进制文件依赖..."
+    local binary_path="/usr/local/bin/qbittorrent-nox"
+    if ! command -v ldd &> /dev/null; then
+        log_warn "'ldd' 命令不可用，无法检查动态库依赖。将跳过此步骤。"
+        return
+    fi
+
+    # 使用ldd和grep查找“not found”的库
+    local missing_libs
+    missing_libs=$(ldd "$binary_path" 2>/dev/null | grep 'not found')
+
+    if [ -n "$missing_libs" ]; then
+        log_error "依赖检查失败！预编译的 qbittorrent-nox 缺少以下库:"
+        echo -e "${RED}${missing_libs}${NC}"
+        log_error "这通常意味着您的系统环境与预编译文件不兼容。"
+        log_error "您可以尝试以下操作:"
+        log_error "1. 运行 'apt-get update && apt-get upgrade' (Debian/Ubuntu) 或 'yum update' (CentOS) 更新系统包。"
+        log_error "2. 重新运行此脚本并选择 [编译安装] 模式，为您的系统量身打造可执行文件。"
+        exit 1
+    else
+        log_info "依赖检查通过，所有必需的库均已找到。"
+    fi
+}
+
 # 极速安装 (下载预编译文件)
 fast_install_qbittorrent() {
     log_cyan "开始极速安装 qBittorrent..."
-    local arch=$(uname -m)
-    local download_url
+    local arch
+    arch=$(uname -m)
+    local primary_url
 
     if [[ "$arch" == "x86_64" ]]; then
-        download_url="${PRECOMPILED_URL_X86_64}"
+        primary_url="${PRECOMPILED_URL_X86_64}"
     elif [[ "$arch" == "aarch64" ]]; then
-        download_url="${PRECOMPILED_URL_AARCH64}"
+        primary_url="${PRECOMPILED_URL_AARCH64}"
     else
         log_error "不支持的架构: $arch"
         exit 1
     fi
 
-    # 使用代理下载
-    download_url="${GH_PROXY}${download_url}"
-    
-    wget_wrapper "${download_url}" "/usr/local/bin/qbittorrent-nox"
+    local download_success=false
+    for proxy in "${GH_PROXIES[@]}"; do
+        local full_url="${proxy}${primary_url}"
+        log_info "尝试从代理下载: ${proxy}"
+        if wget_wrapper "${full_url}" "/usr/local/bin/qbittorrent-nox"; then
+            download_success=true
+            break
+        else
+            log_warn "通过代理 ${proxy} 下载失败，正在尝试下一个..."
+        fi
+    done
 
-    if [ ! -f "/usr/local/bin/qbittorrent-nox" ]; then
-        log_error "下载预编译文件失败！"
+    if [ "$download_success" = false ]; then
+        log_error "从所有代理下载预编译文件均失败！请检查您的网络连接或稍后再试。"
         exit 1
     fi
 
     chmod +x /usr/local/bin/qbittorrent-nox
-    log_info "qBittorrent-nox v${QB_VERSION} 已安装到 /usr/local/bin/"
+    log_info "qBittorrent-nox v${QB_VERSION} 已下载到 /usr/local/bin/"
+
+    # 关键步骤：验证依赖
+    verify_binary_dependencies
 }
 
 # 编译安装 libtorrent
 compile_libtorrent() {
     log_cyan "编译安装 libtorrent v${LT_VERSION} (这可能需要很长时间)..."
     cd /tmp
-    wget_wrapper "${GH_PROXY}https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz" "libtorrent-rasterbar-${LT_VERSION}.tar.gz"
+    wget_wrapper "${GH_PROXIES[0]}https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz" "libtorrent-rasterbar-${LT_VERSION}.tar.gz"
     tar xf libtorrent-rasterbar-${LT_VERSION}.tar.gz
     cd libtorrent-rasterbar-${LT_VERSION}
     ./configure --prefix=/usr/local --disable-debug --enable-encryption --with-libiconv CXXFLAGS="-std=c++17"
@@ -157,7 +202,7 @@ compile_libtorrent() {
 compile_qbittorrent() {
     log_cyan "编译安装 qBittorrent v${QB_VERSION} (这可能需要很长时间)..."
     cd /tmp
-    wget_wrapper "${GH_PROXY}https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-${QB_VERSION}.tar.gz" "qbittorrent-${QB_VERSION}.tar.gz"
+    wget_wrapper "${GH_PROXIES[0]}https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-${QB_VERSION}.tar.gz" "qbittorrent-${QB_VERSION}.tar.gz"
     tar xf qbittorrent-${QB_VERSION}.tar.gz
     cd qBittorrent-release-${QB_VERSION}
     ./configure --prefix=/usr/local --disable-gui --enable-systemd CXXFLAGS="-std=c++17"
