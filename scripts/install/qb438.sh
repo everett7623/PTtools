@@ -3,7 +3,6 @@
 # qBittorrent 4.3.8 安装脚本
 # 修改自: https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh
 # 适配PTtools项目
-# 使用 libtorrent 1.2.20 版本
 
 # 颜色定义
 RED='\033[0;31m'
@@ -13,10 +12,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m'
-
-# 版本定义
-QB_VERSION="4.3.8"
-LT_VERSION="1.2.20"
 
 # 日志函数
 log_info() {
@@ -30,10 +25,6 @@ log_warn() {
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
-
-# 错误处理
-set -e
-trap 'log_error "脚本执行失败在第 $LINENO 行"; exit 1' ERR
 
 # 检查root权限
 check_root() {
@@ -55,28 +46,6 @@ check_system() {
         log_error "不支持的系统类型"
         exit 1
     fi
-}
-
-# 检查必要工具
-check_prerequisites() {
-    log_info "检查必要工具..."
-    
-    local missing_tools=()
-    
-    # 检查必要的命令
-    for cmd in wget curl make gcc g++ systemctl; do
-        if ! command -v $cmd &> /dev/null; then
-            missing_tools+=($cmd)
-        fi
-    done
-    
-    if [ ${#missing_tools[@]} -ne 0 ]; then
-        log_error "缺少必要工具: ${missing_tools[*]}"
-        log_info "请先安装这些工具后再运行脚本"
-        exit 1
-    fi
-    
-    log_info "工具检查通过"
 }
 
 # 安装依赖包
@@ -122,51 +91,28 @@ install_dependencies() {
 
 # 编译安装libtorrent-rasterbar
 install_libtorrent() {
-    log_info "编译安装libtorrent-rasterbar ${LT_VERSION}..."
+    log_info "编译安装libtorrent-rasterbar 1.2.19..."
     
     cd /tmp
     
-    # 备份旧配置
-    if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
-        cp "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" \
-           "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf.bak" 2>/dev/null || true
-    fi
-    
     # 下载libtorrent源码
-    if [ ! -f "libtorrent-rasterbar-${LT_VERSION}.tar.gz" ]; then
-        if ! wget https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz; then
-            log_error "下载libtorrent失败"
-            exit 1
-        fi
+    if [ ! -f "libtorrent-rasterbar-1.2.19.tar.gz" ]; then
+        wget https://github.com/arvidn/libtorrent/releases/download/v1.2.19/libtorrent-rasterbar-1.2.19.tar.gz
     fi
     
-    if ! tar xf libtorrent-rasterbar-${LT_VERSION}.tar.gz; then
-        log_error "解压libtorrent失败"
-        exit 1
-    fi
-    
-    cd libtorrent-rasterbar-${LT_VERSION}
+    tar xf libtorrent-rasterbar-1.2.19.tar.gz
+    cd libtorrent-rasterbar-1.2.19
     
     # 配置编译选项
-    if ! ./configure \
+    ./configure \
         --enable-encryption \
         --disable-debug \
         --enable-optimizations \
-        --with-libgeoip=system; then
-        log_error "配置libtorrent失败"
-        exit 1
-    fi
+        --with-libgeoip=system
     
     # 编译并安装
-    if ! make -j$(nproc); then
-        log_error "编译libtorrent失败"
-        exit 1
-    fi
-    
-    if ! make install; then
-        log_error "安装libtorrent失败"
-        exit 1
-    fi
+    make -j$(nproc)
+    make install
     
     # 更新库链接
     if [ "$OS" = "debian" ]; then
@@ -181,51 +127,27 @@ install_libtorrent() {
 
 # 编译安装qBittorrent
 install_qbittorrent() {
-    log_info "编译安装qBittorrent ${QB_VERSION}..."
+    log_info "编译安装qBittorrent 4.3.8..."
     
     cd /tmp
     
     # 下载qBittorrent源码
-    if [ ! -f "qbittorrent-${QB_VERSION}.tar.gz" ]; then
-        if ! wget https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz -O qbittorrent-${QB_VERSION}.tar.gz; then
-            log_error "下载qBittorrent失败"
-            exit 1
-        fi
+    if [ ! -f "qbittorrent-4.3.8.tar.gz" ]; then
+        wget https://github.com/qbittorrent/qBittorrent/archive/release-4.3.8.tar.gz -O qbittorrent-4.3.8.tar.gz
     fi
     
-    if ! tar xf qbittorrent-${QB_VERSION}.tar.gz; then
-        log_error "解压qBittorrent失败"
-        exit 1
-    fi
-    
-    cd qBittorrent-release-${QB_VERSION}
-    
-    # 根据系统类型设置boost库路径
-    if [ "$OS" = "debian" ]; then
-        BOOST_LIB_PATH="/usr/lib/x86_64-linux-gnu"
-    elif [ "$OS" = "centos" ]; then
-        BOOST_LIB_PATH="/usr/lib64"
-    fi
+    tar xf qbittorrent-4.3.8.tar.gz
+    cd qBittorrent-release-4.3.8
     
     # 配置编译选项
-    if ! ./configure \
+    ./configure \
         --disable-gui \
         --enable-systemd \
-        --with-boost-libdir=$BOOST_LIB_PATH; then
-        log_error "配置qBittorrent失败"
-        exit 1
-    fi
+        --with-boost-libdir=/usr/lib/x86_64-linux-gnu
     
     # 编译并安装
-    if ! make -j$(nproc); then
-        log_error "编译qBittorrent失败"
-        exit 1
-    fi
-    
-    if ! make install; then
-        log_error "安装qBittorrent失败"
-        exit 1
-    fi
+    make -j$(nproc)
+    make install
     
     log_info "qBittorrent编译安装完成"
 }
@@ -247,7 +169,7 @@ create_user() {
     mkdir -p /home/qbittorrent/.local/share/data/qBittorrent
     
     # 创建统一下载目录
-    mkdir -p /opt/downloads
+    mkdir -p /opt/downloads/{complete,incomplete,watch}
     
     # 设置目录权限
     chown -R qbittorrent:qbittorrent /home/qbittorrent
@@ -269,17 +191,19 @@ configure_qbittorrent() {
     # 删除可能存在的旧配置
     rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
-    # 创建配置文件 - 不使用临时下载文件夹
+    # 创建最简单但有效的配置文件
     cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [BitTorrent]
 Session\DefaultSavePath=/opt/downloads
-Session\TempPathEnabled=false
+Session\TempPath=/opt/downloads/incomplete
+Session\TempPathEnabled=true
 Session\Port=8999
 
 [Preferences]
 Downloads\SavePath=/opt/downloads
-Downloads\TempPathEnabled=false
-Downloads\UseIncompleteExtension=false
+Downloads\TempPath=/opt/downloads/incomplete
+Downloads\TempPathEnabled=true
+Downloads\UseIncompleteExtension=true
 WebUI\Username=admin
 WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
 WebUI\LocalHostAuth=false
@@ -309,21 +233,13 @@ EOF
 create_service() {
     log_info "创建systemd服务..."
     
-    # 检查systemd版本
-    SYSTEMD_VERSION=$(systemctl --version | head -1 | awk '{print $2}')
-    if [ "$SYSTEMD_VERSION" -ge 240 ] 2>/dev/null; then
-        SERVICE_TYPE="exec"
-    else
-        SERVICE_TYPE="simple"
-    fi
-    
     cat > /etc/systemd/system/qbittorrent.service << EOF
 [Unit]
 Description=qBittorrent Command Line Client
 After=network.target
 
 [Service]
-Type=$SERVICE_TYPE
+Type=exec
 User=qbittorrent
 Group=qbittorrent
 UMask=007
@@ -380,9 +296,9 @@ force_set_download_path() {
     if [ $? -eq 0 ]; then
         log_info "成功登录WebUI，正在设置下载路径..."
         
-        # 设置首选项 - 不使用临时文件夹
+        # 设置首选项
         curl -s -b /tmp/qb_cookies.txt \
-            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":false}" \
+            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":true,\"temp_path\":\"/opt/downloads/incomplete\"}" \
             "http://localhost:8080/api/v2/app/setPreferences" 2>/dev/null
         
         # 清理cookies文件
@@ -444,64 +360,23 @@ configure_firewall() {
     log_info "防火墙配置完成"
 }
 
-# 获取服务器IP的函数
-get_server_ip() {
-    local ip=""
-    
-    # 尝试获取公网IP
-    ip=$(curl -s --connect-timeout 3 ip.sb 2>/dev/null)
-    
-    if [ -z "$ip" ]; then
-        ip=$(curl -s --connect-timeout 3 ipinfo.io/ip 2>/dev/null)
-    fi
-    
-    # 如果获取公网IP失败，尝试获取本地IP
-    if [ -z "$ip" ]; then
-        # 获取主网卡的IP地址
-        ip=$(ip route get 1 2>/dev/null | awk '{print $(NF-2);exit}')
-    fi
-    
-    # 如果还是失败，返回localhost
-    if [ -z "$ip" ]; then
-        ip="localhost"
-    fi
-    
-    echo "$ip"
-}
-
-# 清理临时文件
-cleanup_temp_files() {
-    log_info "清理临时文件..."
-    
-    # 清理编译文件
-    rm -rf /tmp/libtorrent-rasterbar-${LT_VERSION}*
-    rm -rf /tmp/qBittorrent-release-${QB_VERSION}*
-    rm -f /tmp/qb_cookies.txt
-    
-    # 清理下载的压缩包（可选）
-    # rm -f /tmp/libtorrent-rasterbar-${LT_VERSION}.tar.gz
-    # rm -f /tmp/qbittorrent-${QB_VERSION}.tar.gz
-    
-    log_info "临时文件清理完成"
-}
-
 # 显示安装完成信息
 show_installation_result() {
     clear
     
     # 获取服务器IP
-    SERVER_IP=$(get_server_ip)
+    SERVER_IP=$(curl -s ip.sb 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "localhost")
     
     # 获取qBittorrent端口
-    QB_PORT=$(grep "Session\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "8999")
+    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "8999")
     
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║              qBittorrent ${QB_VERSION} 安装完成                    ║${NC}"
+    echo -e "${GREEN}║              qBittorrent 4.3.8 安装完成                    ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${CYAN}📋 安装信息:${NC}"
-    echo -e "   qBittorrent版本: ${WHITE}${QB_VERSION}${NC}"
-    echo -e "   libtorrent版本:  ${WHITE}${LT_VERSION}${NC}"
+    echo -e "   qBittorrent版本: ${WHITE}4.3.8${NC}"
+    echo -e "   libtorrent版本:  ${WHITE}1.2.19${NC}"
     echo -e "   安装目录:        ${WHITE}/home/qbittorrent${NC}"
     echo -e "   运行用户:        ${WHITE}qbittorrent${NC}"
     echo
@@ -513,6 +388,9 @@ show_installation_result() {
     echo
     echo -e "${CYAN}📁 目录信息:${NC}"
     echo -e "   下载目录:        ${WHITE}/opt/downloads${NC}"
+    echo -e "   完成目录:        ${WHITE}/opt/downloads/complete${NC}"
+    echo -e "   未完成目录:      ${WHITE}/opt/downloads/incomplete${NC}"
+    echo -e "   监控目录:        ${WHITE}/opt/downloads/watch${NC}"
     echo -e "   配置目录:        ${WHITE}/home/qbittorrent/.config/qBittorrent${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
@@ -525,26 +403,24 @@ show_installation_result() {
     echo -e "${YELLOW}⚠️  重要提醒:${NC}"
     echo -e "   1. 首次登录后请及时修改默认密码"
     echo -e "   2. 如果下载路径显示不正确，请在WebUI设置中手动修改为: ${WHITE}/opt/downloads${NC}"
-    echo -e "   3. 已禁用临时下载文件夹，所有文件直接下载到主目录"
-    echo -e "   4. 防火墙已自动配置，如有问题请检查防火墙设置"
-    echo -e "   5. 建议重启系统以确保所有优化生效"
+    echo -e "   3. 防火墙已自动配置，如有问题请检查防火墙设置"
+    echo -e "   4. 建议重启系统以确保所有优化生效"
     echo
     echo -e "${CYAN}📖 路径修改方法:${NC}"
     echo -e "   1. 登录WebUI: http://$SERVER_IP:8080"
     echo -e "   2. 进入 工具 -> 选项 -> 下载"
     echo -e "   3. 将 '默认保存路径' 修改为: ${WHITE}/opt/downloads${NC}"
-    echo -e "   4. 确保 '保存未完成的torrent到' 选项未勾选"
+    echo -e "   4. 将 '保存未完成的torrent到' 修改为: ${WHITE}/opt/downloads/incomplete${NC}"
     echo -e "   5. 点击 '应用' 保存设置"
     echo
 }
 
 # 主函数
 main() {
-    log_info "开始安装qBittorrent ${QB_VERSION} (使用 libtorrent ${LT_VERSION})..."
+    log_info "开始安装qBittorrent 4.3.8..."
     
     check_root
     check_system
-    check_prerequisites
     install_dependencies
     install_libtorrent
     install_qbittorrent
@@ -553,9 +429,6 @@ main() {
     create_service
     start_service  # 这个函数会处理配置和启动
     configure_firewall
-    
-    # 清理临时文件
-    cleanup_temp_files
     
     # 最终验证下载路径
     log_info "验证默认下载路径设置..."
@@ -576,12 +449,11 @@ main() {
     log_info "================================================================"
     log_info "🔧 下载路径设置验证"
     log_info "================================================================"
-    log_info "1. 打开 WebUI: http://$(get_server_ip):8080"
+    log_info "1. 打开 WebUI: http://$(curl -s ip.sb 2>/dev/null || echo 'your-ip'):8080"
     log_info "2. 用户名: admin，密码: adminadmin"
     log_info "3. 进入: 工具 → 选项 → 下载"
     log_info "4. 检查 '默认保存路径' 是否为: /opt/downloads"
-    log_info "5. 确保 '保存未完成的torrent到' 选项未勾选（已禁用临时文件夹）"
-    log_info "6. 如果不是，请手动修改为: /opt/downloads"
+    log_info "5. 如果不是，请手动修改为: /opt/downloads"
     log_info "================================================================"
 }
 
