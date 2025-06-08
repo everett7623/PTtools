@@ -9,7 +9,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m'
@@ -17,8 +16,6 @@ NC='\033[0m'
 # 全局变量
 QB_VERSION="4.3.9"
 LIBTORRENT_VERSION="1.2.19"
-INSTALL_DIR="/home/qbittorrent"
-SERVICE_USER="qbittorrent"
 
 # 日志函数
 log_info() {
@@ -33,10 +30,6 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-log_debug() {
-    echo -e "${BLUE}[DEBUG]${NC} $1"
-}
-
 # 检查root权限
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -45,101 +38,71 @@ check_root() {
     fi
 }
 
-# 检测系统信息
-detect_system() {
-    log_info "检测系统信息..."
-    
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$NAME
-        DISTRO=$ID
-        VERSION=$VERSION_ID
+# 检查系统类型
+check_system() {
+    if [ -f /etc/debian_version ]; then
+        OS="debian"
+        log_info "检测到Debian/Ubuntu系统"
+    elif [ -f /etc/redhat-release ]; then
+        OS="centos" 
+        log_info "检测到CentOS/RHEL系统"
     else
-        log_error "无法检测系统信息"
+        log_error "不支持的系统类型"
         exit 1
     fi
-    
-    # 检测架构
-    ARCH=$(uname -m)
-    
-    log_info "系统: $OS $VERSION"
-    log_info "架构: $ARCH"
-    
-    # 验证支持的系统
-    case $DISTRO in
-        ubuntu|debian)
-            PACKAGE_MANAGER="apt"
-            ;;
-        centos|rhel|fedora)
-            PACKAGE_MANAGER="yum"
-            if command -v dnf &> /dev/null; then
-                PACKAGE_MANAGER="dnf"
-            fi
-            ;;
-        *)
-            log_error "不支持的系统: $DISTRO"
-            exit 1
-            ;;
-    esac
 }
 
-# 安装系统依赖
-install_system_dependencies() {
-    log_info "安装系统依赖包..."
+# 安装依赖包
+install_dependencies() {
+    log_info "安装依赖包..."
     
-    case $PACKAGE_MANAGER in
-        apt)
-            apt-get update
-            apt-get install -y \
-                build-essential \
-                cmake \
-                git \
-                pkg-config \
-                automake \
-                libtool \
-                lsb-release \
-                curl \
-                wget \
-                software-properties-common \
-                apt-transport-https \
-                ca-certificates \
-                gnupg \
-                libboost-dev \
-                libboost-chrono-dev \
-                libboost-random-dev \
-                libboost-system-dev \
-                libssl-dev \
-                qtbase5-dev \
-                qttools5-dev-tools \
-                libqt5svg5-dev \
-                zlib1g-dev \
-                python3-dev \
-                python3-setuptools
-            ;;
-        yum|dnf)
-            $PACKAGE_MANAGER groupinstall -y "Development Tools"
-            $PACKAGE_MANAGER install -y \
-                cmake \
-                git \
-                pkgconfig \
-                automake \
-                libtool \
-                curl \
-                wget \
-                boost-devel \
-                openssl-devel \
-                qt5-qtbase-devel \
-                qt5-qttools-devel \
-                qt5-qtsvg-devel \
-                zlib-devel \
-                python3-devel \
-                python3-setuptools
-            ;;
-    esac
+    if [ "$OS" = "debian" ]; then
+        apt-get update
+        apt-get install -y \
+            build-essential \
+            cmake \
+            git \
+            pkg-config \
+            automake \
+            libtool \
+            libboost-dev \
+            libboost-chrono-dev \
+            libboost-random-dev \
+            libboost-system-dev \
+            libssl-dev \
+            qtbase5-dev \
+            qttools5-dev-tools \
+            zlib1g-dev \
+            libqt5svg5-dev \
+            python3 \
+            python3-dev \
+            python3-setuptools \
+            curl \
+            wget
+    elif [ "$OS" = "centos" ]; then
+        yum groupinstall -y "Development Tools"
+        yum install -y \
+            cmake \
+            git \
+            pkgconfig \
+            automake \
+            libtool \
+            boost-devel \
+            openssl-devel \
+            qt5-qtbase-devel \
+            qt5-qttools-devel \
+            zlib-devel \
+            qt5-qtsvg-devel \
+            python3 \
+            python3-devel \
+            python3-setuptools \
+            curl \
+            wget
+    fi
 }
 
 # 编译安装libtorrent-rasterbar
-compile_libtorrent() {
+install_libtorrent() {
     log_info "编译安装libtorrent-rasterbar $LIBTORRENT_VERSION..."
     
     cd /tmp
@@ -147,21 +110,15 @@ compile_libtorrent() {
     # 清理之前的源码
     rm -rf libtorrent-rasterbar-*
     
-    # 下载源码
-    wget -O libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz \
-        "https://github.com/arvidn/libtorrent/releases/download/v${LIBTORRENT_VERSION}/libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz"
-    
-    if [ $? -ne 0 ]; then
-        log_error "下载libtorrent源码失败"
-        exit 1
+    # 下载libtorrent源码
+    if [ ! -f "libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz" ]; then
+        wget https://github.com/arvidn/libtorrent/releases/download/v${LIBTORRENT_VERSION}/libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz
     fi
     
-    tar -xzf libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz
+    tar xf libtorrent-rasterbar-${LIBTORRENT_VERSION}.tar.gz
     cd libtorrent-rasterbar-${LIBTORRENT_VERSION}
     
     # 配置编译选项
-    log_info "配置libtorrent编译选项..."
-    
     ./configure \
         --prefix=/usr/local \
         --enable-encryption \
@@ -176,7 +133,7 @@ compile_libtorrent() {
         exit 1
     fi
     
-    # 编译
+    # 编译并安装
     log_info "编译libtorrent (这可能需要一些时间)..."
     make -j$(nproc)
     
@@ -185,22 +142,21 @@ compile_libtorrent() {
         exit 1
     fi
     
-    # 安装
     make install
     
-    # 更新动态链接库
-    if [ "$PACKAGE_MANAGER" = "apt" ]; then
+    # 更新库链接
+    if [ "$OS" = "debian" ]; then
         ldconfig
-    else
+    elif [ "$OS" = "centos" ]; then
         echo "/usr/local/lib" > /etc/ld.so.conf.d/libtorrent.conf
         ldconfig
     fi
     
-    log_info "libtorrent安装完成"
+    log_info "libtorrent-rasterbar安装完成"
 }
 
 # 编译安装qBittorrent
-compile_qbittorrent() {
+install_qbittorrent() {
     log_info "编译安装qBittorrent $QB_VERSION..."
     
     cd /tmp
@@ -208,21 +164,15 @@ compile_qbittorrent() {
     # 清理之前的源码
     rm -rf qBittorrent-*
     
-    # 下载源码
-    wget -O qbittorrent-${QB_VERSION}.tar.gz \
-        "https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz"
-    
-    if [ $? -ne 0 ]; then
-        log_error "下载qBittorrent源码失败"
-        exit 1
+    # 下载qBittorrent源码
+    if [ ! -f "qbittorrent-${QB_VERSION}.tar.gz" ]; then
+        wget https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz -O qbittorrent-${QB_VERSION}.tar.gz
     fi
     
-    tar -xzf qbittorrent-${QB_VERSION}.tar.gz
+    tar xf qbittorrent-${QB_VERSION}.tar.gz
     cd qBittorrent-release-${QB_VERSION}
     
     # 配置编译选项
-    log_info "配置qBittorrent编译选项..."
-    
     PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     ./configure \
         --prefix=/usr/local \
@@ -234,7 +184,7 @@ compile_qbittorrent() {
         exit 1
     fi
     
-    # 编译
+    # 编译并安装
     log_info "编译qBittorrent (这可能需要一些时间)..."
     make -j$(nproc)
     
@@ -243,15 +193,14 @@ compile_qbittorrent() {
         exit 1
     fi
     
-    # 安装
     make install
     
-    log_info "qBittorrent安装完成"
+    log_info "qBittorrent编译安装完成"
 }
 
-# 创建qbittorrent用户和目录
-setup_user_and_directories() {
-    log_info "设置用户和目录..."
+# 创建qbittorrent用户
+create_user() {
+    log_info "创建qbittorrent用户..."
     
     # 删除可能存在的旧用户和目录
     userdel -r qbittorrent 2>/dev/null || true
@@ -259,169 +208,231 @@ setup_user_and_directories() {
     rm -rf /var/lib/qbittorrent 2>/dev/null || true
     
     # 创建系统用户，明确指定home目录为/home/qbittorrent
-    if ! id "$SERVICE_USER" &>/dev/null; then
-        useradd --system --shell /usr/sbin/nologin --home-dir "$INSTALL_DIR" --create-home "$SERVICE_USER"
-        log_info "创建用户: $SERVICE_USER"
-    else
-        log_info "用户已存在: $SERVICE_USER"
-    fi
+    useradd --system --shell /usr/sbin/nologin --home-dir /home/qbittorrent --create-home qbittorrent
     
     # 创建必要目录
-    mkdir -p "$INSTALL_DIR"/.config/qBittorrent
-    mkdir -p "$INSTALL_DIR"/.local/share/data/qBittorrent
+    mkdir -p /home/qbittorrent/.config/qBittorrent
+    mkdir -p /home/qbittorrent/.local/share/data/qBittorrent
     
     # 创建统一下载目录
     mkdir -p /opt/downloads
     
-    # 设置权限
-    chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
-    chown -R "$SERVICE_USER":"$SERVICE_USER" /opt/downloads
-    chmod -R 755 "$INSTALL_DIR"
+    # 设置目录权限
+    chown -R qbittorrent:qbittorrent /home/qbittorrent
+    chown -R qbittorrent:qbittorrent /opt/downloads
+    
+    # 确保qbittorrent用户对/opt/downloads有完全控制权
     chmod -R 755 /opt/downloads
     
-    log_info "目录结构创建完成"
+    log_info "用户创建完成"
 }
 
-# 生成qBittorrent配置文件
-generate_config() {
-    log_info "生成qBittorrent配置文件..."
+# 配置qBittorrent
+configure_qbittorrent() {
+    log_info "配置qBittorrent..."
+    
+    # 确保配置目录存在
+    mkdir -p /home/qbittorrent/.config/qBittorrent
+    
+    # 删除可能存在的旧配置
+    rm -f /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
     # 生成随机端口 (范围: 10000-65000)
     RANDOM_PORT=$((RANDOM % 55000 + 10000))
     
-    # 获取服务器IP
-    SERVER_IP=$(curl -s ip.sb || curl -s ipinfo.io/ip || echo "0.0.0.0")
-    
-    cat > "$INSTALL_DIR/.config/qBittorrent/qBittorrent.conf" << EOF
+    # 创建配置文件 - 不使用临时下载文件夹
+    cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << EOF
 [Application]
-FileLogger\\Enabled=true
-FileLogger\\Age=1
-FileLogger\\MaxSizeBytes=66560
-FileLogger\\Path=$INSTALL_DIR/.local/share/data/qBittorrent
+FileLogger\Enabled=true
+FileLogger\Age=1
+FileLogger\MaxSizeBytes=66560
+FileLogger\Path=/home/qbittorrent/.local/share/data/qBittorrent
 
 [BitTorrent]
-Session\\DefaultSavePath=/opt/downloads
-Session\\Port=$RANDOM_PORT
-Session\\TempPath=/opt/downloads/incomplete
-Session\\TempPathEnabled=true
-Session\\AddExtensionToIncompleteFiles=true
-Session\\Preallocation=true
-Session\\UseAlternativeGlobalSpeedLimit=false
-Session\\GlobalMaxRatio=0
-Session\\GlobalMaxSeedingMinutes=-1
-Session\\MaxConnections=500
-Session\\MaxConnectionsPerTorrent=100
-Session\\MaxUploads=20
-Session\\MaxUploadsPerTorrent=4
-Session\\GlobalDLSpeedLimit=0
-Session\\GlobalUPSpeedLimit=0
+Session\DefaultSavePath=/opt/downloads
+Session\Port=$RANDOM_PORT
+Session\TempPathEnabled=false
+Session\AddExtensionToIncompleteFiles=false
+Session\Preallocation=true
+Session\UseAlternativeGlobalSpeedLimit=false
+Session\GlobalMaxRatio=0
+Session\GlobalMaxSeedingMinutes=-1
+Session\MaxConnections=500
+Session\MaxConnectionsPerTorrent=100
+Session\MaxUploads=20
+Session\MaxUploadsPerTorrent=4
+Session\GlobalDLSpeedLimit=0
+Session\GlobalUPSpeedLimit=0
 
 [Preferences]
-WebUI\\Port=8080
-WebUI\\Username=admin
-WebUI\\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
-WebUI\\LocalHostAuth=false
-WebUI\\AuthSubnetWhitelistEnabled=false
-WebUI\\CSRFProtection=false
-WebUI\\ClickjackingProtection=false
-Downloads\\SavePath=/opt/downloads
-Downloads\\TempPath=/opt/downloads/incomplete
-Downloads\\TempPathEnabled=true
-Downloads\\UseIncompleteExtension=true
-Downloads\\ScanDirs\\1\\enabled=true
-Downloads\\ScanDirs\\1\\path=/opt/downloads/watch
-Downloads\\ScanDirs\\size=1
-Downloads\\PreallocateAll=true
-Connection\\PortRangeMin=$RANDOM_PORT
-Connection\\PortRangeMax=$RANDOM_PORT
-Connection\\UPnP=false
-Connection\\GlobalDLLimitAlt=0
-Connection\\GlobalUPLimitAlt=0
-Bittorrent\\DHT=true
-Bittorrent\\PeX=true
-Bittorrent\\LSD=true
-Bittorrent\\Encryption=1
-Queueing\\MaxActiveDownloads=5
-Queueing\\MaxActiveTorrents=10
-Queueing\\MaxActiveUploads=5
-General\\DefaultSavePath=/opt/downloads
-General\\TempPath=/opt/downloads/incomplete
-General\\TempPathEnabled=true
+WebUI\Port=8080
+WebUI\Username=admin
+WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
+WebUI\LocalHostAuth=false
+WebUI\AuthSubnetWhitelistEnabled=false
+WebUI\CSRFProtection=false
+WebUI\ClickjackingProtection=false
+Downloads\SavePath=/opt/downloads
+Downloads\TempPathEnabled=false
+Downloads\UseIncompleteExtension=false
+Downloads\PreallocateAll=true
+Connection\PortRangeMin=$RANDOM_PORT
+Connection\PortRangeMax=$RANDOM_PORT
+Connection\UPnP=false
+Connection\GlobalDLLimitAlt=0
+Connection\GlobalUPLimitAlt=0
+Bittorrent\DHT=true
+Bittorrent\PeX=true
+Bittorrent\LSD=true
+Bittorrent\Encryption=1
+Queueing\MaxActiveDownloads=5
+Queueing\MaxActiveTorrents=10
+Queueing\MaxActiveUploads=5
+
+[Core]
+AutoDeleteAddedTorrentFile=Never
+
+[Meta]
+MigrationVersion=4
+
+[Network]
+Cookies=@Invalid()
+Proxy\OnlyForTorrents=false
 EOF
 
     # 设置配置文件权限
-    chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR/.config"
-    chmod 600 "$INSTALL_DIR/.config/qBittorrent/qBittorrent.conf"
+    chown qbittorrent:qbittorrent /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
+    chmod 600 /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
-    log_info "配置文件生成完成 (端口: $RANDOM_PORT)"
+    log_info "配置文件创建完成 (端口: $RANDOM_PORT)"
+    log_warn "默认登录信息: 用户名=admin, 密码=adminadmin"
 }
 
-# 创建systemd服务文件
-create_systemd_service() {
-    log_info "创建systemd服务文件..."
+# 创建systemd服务
+create_service() {
+    log_info "创建systemd服务..."
     
     cat > /etc/systemd/system/qbittorrent.service << EOF
 [Unit]
-Description=qBittorrent-nox service
-Documentation=man:qbittorrent-nox(1)
-Wants=network-online.target
-After=network-online.target nss-lookup.target
+Description=qBittorrent Command Line Client
+After=network.target
 
 [Service]
 Type=exec
-User=$SERVICE_USER
-Group=$SERVICE_USER
-UMask=0002
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080 --profile=$INSTALL_DIR
-ExecStop=/bin/kill -HUP \$MAINPID
+User=qbittorrent
+Group=qbittorrent
+UMask=007
+WorkingDirectory=/home/qbittorrent
+ExecStart=/usr/local/bin/qbittorrent-nox --webui-port=8080 --profile=/home/qbittorrent
 Restart=on-failure
-RestartSec=5
-TimeoutStopSec=30
-KillMode=mixed
+TimeoutStopSec=1800
 
 # 环境变量
-Environment=HOME=$INSTALL_DIR
-Environment=XDG_CONFIG_HOME=$INSTALL_DIR/.config
-Environment=XDG_DATA_HOME=$INSTALL_DIR/.local/share
-
-# 安全设置
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=false
-ReadWritePaths=$INSTALL_DIR
-ReadWritePaths=/opt/downloads
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
+Environment=HOME=/home/qbittorrent
+Environment=XDG_CONFIG_HOME=/home/qbittorrent/.config
+Environment=XDG_DATA_HOME=/home/qbittorrent/.local/share
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # 重新加载systemd配置
+    # 重新加载systemd并启用服务
     systemctl daemon-reload
+    systemctl enable qbittorrent
     
-    log_info "systemd服务文件创建完成"
+    log_info "systemd服务创建完成"
 }
 
-# 配置防火墙
+# 通过WebUI API强制设置下载路径
+force_set_download_path() {
+    log_info "通过WebUI API强制设置下载路径..."
+    
+    # 等待WebUI完全启动
+    local max_attempts=15
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s -f http://localhost:8080 > /dev/null 2>&1; then
+            log_info "WebUI已启动，正在配置路径..."
+            break
+        fi
+        log_info "等待WebUI启动... ($attempt/$max_attempts)"
+        sleep 3
+        ((attempt++))
+    done
+    
+    if [ $attempt -gt $max_attempts ]; then
+        log_warn "WebUI启动超时，跳过API配置"
+        return 1
+    fi
+    
+    # 尝试通过API设置路径
+    local login_response
+    login_response=$(curl -s -c /tmp/qb_cookies.txt \
+        -d "username=admin&password=adminadmin" \
+        "http://localhost:8080/api/v2/auth/login" 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        log_info "成功登录WebUI，正在设置下载路径..."
+        
+        # 设置首选项 - 不使用临时文件夹
+        curl -s -b /tmp/qb_cookies.txt \
+            -d "json={\"save_path\":\"/opt/downloads\",\"temp_path_enabled\":false}" \
+            "http://localhost:8080/api/v2/app/setPreferences" 2>/dev/null
+        
+        # 清理cookies文件
+        rm -f /tmp/qb_cookies.txt
+        
+        log_info "API配置完成"
+        return 0
+    else
+        log_warn "API登录失败"
+        return 1
+    fi
+}
+
+# 启动qBittorrent服务并确保配置正确
+start_service() {
+    log_info "启动qBittorrent服务..."
+    
+    # 确保配置文件存在
+    configure_qbittorrent
+    
+    # 启动服务
+    systemctl start qbittorrent
+    
+    # 检查服务状态
+    sleep 3
+    if ! systemctl is-active --quiet qbittorrent; then
+        log_error "qBittorrent服务启动失败"
+        systemctl status qbittorrent --no-pager
+        journalctl -u qbittorrent --no-pager -n 20
+        exit 1
+    fi
+    
+    log_info "qBittorrent服务启动成功"
+    
+    # 通过API强制设置路径
+    if force_set_download_path; then
+        log_info "已通过API设置下载路径"
+    else
+        log_warn "API设置失败，需要手动配置"
+    fi
+}
+
+# 防火墙配置
 configure_firewall() {
-    log_info "配置防火墙规则..."
+    log_info "配置防火墙..."
     
     # 获取qBittorrent端口
-    QB_PORT=$(grep "Session\\\\Port=" "$INSTALL_DIR/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2)
+    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2)
     
-    # UFW (Ubuntu/Debian)
+    # 检查并配置iptables/firewalld
     if command -v ufw &> /dev/null; then
         ufw allow 8080/tcp comment "qBittorrent WebUI"
         ufw allow ${QB_PORT}/tcp comment "qBittorrent"
         ufw allow ${QB_PORT}/udp comment "qBittorrent"
-    fi
-    
-    # firewalld (CentOS/RHEL/Fedora)
-    if command -v firewall-cmd &> /dev/null; then
+    elif command -v firewall-cmd &> /dev/null; then
         firewall-cmd --permanent --add-port=8080/tcp
         firewall-cmd --permanent --add-port=${QB_PORT}/tcp
         firewall-cmd --permanent --add-port=${QB_PORT}/udp
@@ -431,38 +442,14 @@ configure_firewall() {
     log_info "防火墙配置完成"
 }
 
-# 启动并启用服务
-start_service() {
-    log_info "启动qBittorrent服务..."
-    
-    # 启用服务
-    systemctl enable qbittorrent
-    
-    # 启动服务
-    systemctl start qbittorrent
-    
-    # 等待服务启动
-    sleep 3
-    
-    # 检查服务状态
-    if systemctl is-active --quiet qbittorrent; then
-        log_info "qBittorrent服务启动成功"
-    else
-        log_error "qBittorrent服务启动失败"
-        log_error "查看服务状态: systemctl status qbittorrent"
-        log_error "查看服务日志: journalctl -u qbittorrent -f"
-        exit 1
-    fi
-}
-
-# 优化系统设置
+# 系统优化 (来自Jerry脚本的优化)
 optimize_system() {
-    log_info "优化系统设置..."
+    log_info "应用系统优化..."
     
     # 增加文件描述符限制
     cat >> /etc/security/limits.conf << EOF
-$SERVICE_USER soft nofile 51200
-$SERVICE_USER hard nofile 51200
+qbittorrent soft nofile 51200
+qbittorrent hard nofile 51200
 EOF
 
     # 添加到 systemd 服务文件中
@@ -487,15 +474,15 @@ EOF
     log_info "系统优化完成"
 }
 
-# 显示安装结果
+# 显示安装完成信息
 show_installation_result() {
     clear
     
     # 获取服务器IP
-    SERVER_IP=$(curl -s ip.sb || curl -s ipinfo.io/ip || echo "localhost")
+    SERVER_IP=$(curl -s ip.sb 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "localhost")
     
     # 获取qBittorrent端口
-    QB_PORT=$(grep "Session\\\\Port=" "$INSTALL_DIR/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2)
+    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "随机端口")
     
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║              qBittorrent $QB_VERSION 安装完成                    ║${NC}"
@@ -504,8 +491,8 @@ show_installation_result() {
     echo -e "${CYAN}📋 安装信息:${NC}"
     echo -e "   qBittorrent版本: ${WHITE}$QB_VERSION${NC}"
     echo -e "   libtorrent版本:  ${WHITE}$LIBTORRENT_VERSION${NC}"
-    echo -e "   安装目录:        ${WHITE}$INSTALL_DIR${NC}"
-    echo -e "   运行用户:        ${WHITE}$SERVICE_USER${NC}"
+    echo -e "   安装目录:        ${WHITE}/home/qbittorrent${NC}"
+    echo -e "   运行用户:        ${WHITE}qbittorrent${NC}"
     echo
     echo -e "${CYAN}🌐 访问信息:${NC}"
     echo -e "   WebUI地址:       ${WHITE}http://$SERVER_IP:8080${NC}"
@@ -514,9 +501,8 @@ show_installation_result() {
     echo -e "   BT端口:          ${WHITE}$QB_PORT${NC}"
     echo
     echo -e "${CYAN}📁 目录信息:${NC}"
-    echo -e "   下载目录:        ${WHITE}$INSTALL_DIR/Downloads${NC}"
-    echo -e "   监控目录:        ${WHITE}$INSTALL_DIR/watch${NC}"
-    echo -e "   配置目录:        ${WHITE}$INSTALL_DIR/.config/qBittorrent${NC}"
+    echo -e "   下载目录:        ${WHITE}/opt/downloads${NC}"
+    echo -e "   配置目录:        ${WHITE}/home/qbittorrent/.config/qBittorrent${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
     echo -e "   启动服务:        ${WHITE}systemctl start qbittorrent${NC}"
@@ -528,52 +514,58 @@ show_installation_result() {
     echo -e "${YELLOW}⚠️  重要提醒:${NC}"
     echo -e "   1. 首次登录后请及时修改默认密码"
     echo -e "   2. 建议在WebUI中进行进一步的个性化配置"
-    echo -e "   3. 防火墙已自动配置，如有问题请检查防火墙设置"
+    echo -e "   3. 已禁用临时下载文件夹，所有文件直接下载到 /opt/downloads"
+    echo -e "   4. 防火墙已自动配置，如有问题请检查防火墙设置"
+    echo -e "   5. 建议重启系统以确保所有优化生效"
+    echo
+    echo -e "${CYAN}📖 路径修改方法:${NC}"
+    echo -e "   1. 登录WebUI: http://$SERVER_IP:8080"
+    echo -e "   2. 进入 工具 -> 选项 -> 下载"
+    echo -e "   3. 将 '默认保存路径' 修改为: ${WHITE}/opt/downloads${NC}"
+    echo -e "   4. 确保 '保存未完成的torrent到' 选项未勾选"
+    echo -e "   5. 点击 '应用' 保存设置"
     echo
 }
 
-# 主安装函数
+# 主函数
 main() {
-    clear
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║            qBittorrent $QB_VERSION 自动安装脚本                  ║${NC}"
-    echo -e "${CYAN}║                                                              ║${NC}"
-    echo -e "${CYAN}║  此脚本将编译安装最新版本的 qBittorrent 和 libtorrent       ║${NC}"
-    echo -e "${CYAN}║                                                              ║${NC}"
-    echo -e "${CYAN}║  适配 PTtools 项目 - github.com/everett7623/PTtools         ║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo
+    log_info "开始安装qBittorrent $QB_VERSION..."
     
-    read -p "按回车键开始安装，或按 Ctrl+C 取消..."
-    
-    log_info "开始安装 qBittorrent $QB_VERSION..."
-    
-    # 执行安装步骤
     check_root
-    detect_system
-    install_system_dependencies
-    compile_libtorrent
-    compile_qbittorrent
-    setup_user_and_directories
-    generate_config
-    create_systemd_service
+    check_system
+    install_dependencies
+    install_libtorrent
+    install_qbittorrent
+    create_user
+    # 注意：这里先不调用configure_qbittorrent，在start_service中处理
+    create_service
+    optimize_system  # 添加系统优化
+    start_service    # 这个函数会处理配置和启动
     configure_firewall
-    optimize_system
-    start_service
     
-    # 显示安装结果
+    # 最终验证下载路径
+    log_info "验证默认下载路径设置..."
+    sleep 2
+    if [ -f "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" ]; then
+        if grep -q "Downloads.*SavePath=/opt/downloads" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf"; then
+            log_info "✓ 默认下载路径已正确设置为: /opt/downloads"
+        else
+            log_warn "⚠ 下载路径配置需要在WebUI中手动确认"
+            log_info "请在WebUI设置中将下载路径修改为: /opt/downloads"
+        fi
+    fi
+    
     show_installation_result
     
     log_info "安装完成！"
     log_info ""
     log_info "================================================================"
-    log_info "✅ qBittorrent 4.3.9 安装成功"
+    log_info "✅ qBittorrent $QB_VERSION 安装成功"
     log_info "🔧 默认保存路径已设置为: /opt/downloads"
     log_info "📁 已禁用临时下载文件夹，所有文件直接下载到主目录"
+    log_info "⚡ 系统已优化，支持高性能PT刷流"
     log_info "================================================================"
 }
 
-# 脚本入口点
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# 执行主函数
+main "$@"
