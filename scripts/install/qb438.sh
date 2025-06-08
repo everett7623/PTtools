@@ -278,7 +278,7 @@ show_installation_result() {
     SERVER_IP=$(curl -s ip.sb 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "localhost")
     
     # 获取qBittorrent端口
-    QB_PORT=$(grep "Session\\\\Port=" "$INSTALL_DIR/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "8999")
+    QB_PORT=$(grep "Session\\\\Port=" "/home/qbittorrent/.config/qBittorrent/qBittorrent.conf" | cut -d'=' -f2 2>/dev/null || echo "随机端口")
     
     echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║              qBittorrent 4.3.8 安装完成                    ║${NC}"
@@ -287,7 +287,7 @@ show_installation_result() {
     echo -e "${CYAN}📋 安装信息:${NC}"
     echo -e "   qBittorrent版本: ${WHITE}4.3.8${NC}"
     echo -e "   libtorrent版本:  ${WHITE}1.2.19${NC}"
-    echo -e "   安装目录:        ${WHITE}$INSTALL_DIR${NC}"
+    echo -e "   安装目录:        ${WHITE}/home/qbittorrent${NC}"
     echo -e "   运行用户:        ${WHITE}qbittorrent${NC}"
     echo
     echo -e "${CYAN}🌐 访问信息:${NC}"
@@ -297,9 +297,9 @@ show_installation_result() {
     echo -e "   BT端口:          ${WHITE}$QB_PORT${NC}"
     echo
     echo -e "${CYAN}📁 目录信息:${NC}"
-    echo -e "   下载目录:        ${WHITE}$INSTALL_DIR/Downloads${NC}"
-    echo -e "   监控目录:        ${WHITE}$INSTALL_DIR/watch${NC}"
-    echo -e "   配置目录:        ${WHITE}$INSTALL_DIR/.config/qBittorrent${NC}"
+    echo -e "   下载目录:        ${WHITE}/home/qbittorrent/Downloads${NC}"
+    echo -e "   监控目录:        ${WHITE}/home/qbittorrent/watch${NC}"
+    echo -e "   配置目录:        ${WHITE}/home/qbittorrent/.config/qBittorrent${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
     echo -e "   启动服务:        ${WHITE}systemctl start qbittorrent${NC}"
@@ -312,6 +312,7 @@ show_installation_result() {
     echo -e "   1. 首次登录后请及时修改默认密码"
     echo -e "   2. 建议在WebUI中进行进一步的个性化配置"
     echo -e "   3. 防火墙已自动配置，如有问题请检查防火墙设置"
+    echo -e "   4. 建议重启系统以确保所有优化生效"
     echo
 }
 
