@@ -337,43 +337,61 @@ install_qb439() {
     log_info "qBittorrent 4.3.9 安装完成"
 }
 
-# Vertex优化脚本安装
-install_vertex() {
-    log_info "安装Vertex PT优化脚本..."
+# PTBoost优化脚本安装
+install_ptboost() {
+    log_info "安装PTBoost性能优化脚本..."
     
-    # 下载Vertex脚本
+    # 下载PTBoost脚本
+    wget -O /tmp/ptboost.sh "$GITHUB_REPO/scripts/install/applications/ptboost.sh"
+    chmod +x /tmp/ptboost.sh
+    
+    # 执行PTBoost优化
+    bash /tmp/ptboost.sh
+    
+    # 清理临时文件
+    rm -f /tmp/ptboost.sh
+    
+    log_info "PTBoost优化脚本安装完成"
+}
+
+# Vertex刷流工具安装
+install_vertex() {
+    log_info "安装Vertex刷流工具..."
+    
+    # 先安装基础环境
+    install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
+    
+    # 下载并运行Vertex安装脚本
     wget -O /tmp/vertex.sh "$GITHUB_REPO/scripts/install/applications/vertex.sh"
     chmod +x /tmp/vertex.sh
-    
-    # 执行Vertex优化
     bash /tmp/vertex.sh
     
     # 清理临时文件
     rm -f /tmp/vertex.sh
     
-    log_info "Vertex优化脚本安装完成"
+    log_info "Vertex刷流工具安装完成"
 }
 
-# qBittorrent 4.3.8 + Vertex
-install_qb438_with_vertex() {
-    log_info "安装qBittorrent 4.3.8 + Vertex (终极PT优化)..."
+# qBittorrent 4.3.8 + PTBoost
+install_qb438_with_ptboost() {
+    log_info "安装qBittorrent 4.3.8 + PTBoost (终极PT优化)..."
     
     install_qb438
     sleep 2
-    install_vertex
+    install_ptboost
     
-    log_info "qBittorrent 4.3.8 + Vertex 安装完成"
+    log_info "qBittorrent 4.3.8 + PTBoost 安装完成"
 }
 
-# qBittorrent 4.3.9 + Vertex  
-install_qb439_with_vertex() {
-    log_info "安装qBittorrent 4.3.9 + Vertex (终极PT优化)..."
+# qBittorrent 4.3.9 + PTBoost  
+install_qb439_with_ptboost() {
+    log_info "安装qBittorrent 4.3.9 + PTBoost (终极PT优化)..."
     
     install_qb439
     sleep 2
-    install_vertex
+    install_ptboost
     
-    log_info "qBittorrent 4.3.9 + Vertex 安装完成"
+    log_info "qBittorrent 4.3.9 + PTBoost 安装完成"
 }
 
 # Docker应用安装函数
@@ -409,21 +427,22 @@ application_category_menu() {
         echo
         echo -e "${WHITE}📥 下载工具:${NC}"
         echo -e "${GREEN}1.${NC}  Transmission (轻量级BT客户端)"
+        echo -e "${GREEN}2.${NC}  Vertex (专业刷流工具) ${YELLOW}★刷流专用${NC}"
         echo
         echo -e "${WHITE}🎬 媒体服务器:${NC}"
-        echo -e "${GREEN}2.${NC}  Emby (功能丰富)"
-        echo -e "${GREEN}3.${NC}  Jellyfin (开源免费)"
-        echo -e "${GREEN}4.${NC}  Plex (专业级)"
+        echo -e "${GREEN}3.${NC}  Emby (功能丰富)"
+        echo -e "${GREEN}4.${NC}  Jellyfin (开源免费)"
+        echo -e "${GREEN}5.${NC}  Plex (专业级)"
         echo
         echo -e "${WHITE}🔍 索引器/搜索:${NC}"
-        echo -e "${GREEN}5.${NC}  Jackett (传统代理)"
-        echo -e "${GREEN}6.${NC}  Prowlarr (新一代管理) ${YELLOW}★推荐${NC}"
+        echo -e "${GREEN}6.${NC}  Jackett (传统代理)"
+        echo -e "${GREEN}7.${NC}  Prowlarr (新一代管理) ${YELLOW}★推荐${NC}"
         echo
         echo -e "${WHITE}🤖 自动化工具:${NC}"
-        echo -e "${GREEN}7.${NC}  Sonarr (电视剧管理)"
-        echo -e "${GREEN}8.${NC}  Radarr (电影管理)"
-        echo -e "${GREEN}9.${NC}  Lidarr (音乐管理)"
-        echo -e "${GREEN}10.${NC} Bazarr (字幕管理)"
+        echo -e "${GREEN}8.${NC}  Sonarr (电视剧管理)"
+        echo -e "${GREEN}9.${NC}  Radarr (电影管理)"
+        echo -e "${GREEN}10.${NC} Lidarr (音乐管理)"
+        echo -e "${GREEN}11.${NC} Bazarr (字幕管理)"
         echo
         echo -e "${WHITE}🚀 批量安装:${NC}"
         echo -e "${PURPLE}88.${NC} 安装媒体服务器套件 (Emby+Prowlarr+Sonarr+Radarr)"
@@ -431,7 +450,7 @@ application_category_menu() {
         echo
         echo -e "${BLUE}0.${NC}  返回主菜单"
         echo
-        read -p "请输入选项 [0-10,88,89]: " choice
+        read -p "请输入选项 [0-11,88,89]: " choice
         
         case $choice in
             1) 
@@ -439,38 +458,41 @@ application_category_menu() {
                 install_docker_app "transmission"
                 ;;
             2) 
-                install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "emby"
+                install_vertex
                 ;;
             3) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "jellyfin"
+                install_docker_app "emby"
                 ;;
             4) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "plex"
+                install_docker_app "jellyfin"
                 ;;
             5) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "jackett"
+                install_docker_app "plex"
                 ;;
             6) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "prowlarr"
+                install_docker_app "jackett"
                 ;;
             7) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "sonarr"
+                install_docker_app "prowlarr"
                 ;;
             8) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "radarr"
+                install_docker_app "sonarr"
                 ;;
             9) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
-                install_docker_app "lidarr"
+                install_docker_app "radarr"
                 ;;
             10) 
+                install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
+                install_docker_app "lidarr"
+                ;;
+            11) 
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
                 install_docker_app "bazarr"
                 ;;
@@ -486,6 +508,7 @@ application_category_menu() {
                 log_info "安装完整自动化套件..."
                 install_dependencies && install_docker && install_docker_compose && create_directories && download_configs
                 install_docker_app "transmission"
+                install_vertex
                 install_docker_app "emby"
                 install_docker_app "prowlarr"
                 install_docker_app "sonarr"
@@ -685,8 +708,8 @@ main_menu() {
         echo
         echo -e "${GREEN}1.${NC}  qBittorrent 4.3.8 ${BLUE}(经典稳定版)${NC}"
         echo -e "${GREEN}2.${NC}  qBittorrent 4.3.9 ${YELLOW}(推荐版本)${NC}"
-        echo -e "${GREEN}3.${NC}  qBittorrent 4.3.8 + Vertex ${PURPLE}(终极优化)${NC}"
-        echo -e "${GREEN}4.${NC}  qBittorrent 4.3.9 + Vertex ${RED}(最强配置)${NC}"
+        echo -e "${GREEN}3.${NC}  qBittorrent 4.3.8 + PTBoost ${PURPLE}(终极优化)${NC}"
+        echo -e "${GREEN}4.${NC}  qBittorrent 4.3.9 + PTBoost ${RED}(最强配置)${NC}"
         echo
         echo -e "${WHITE}📦 其他功能:${NC}"
         echo -e "${GREEN}5.${NC}  选择安装应用 ${CYAN}(分类安装)${NC}"
@@ -710,14 +733,14 @@ main_menu() {
                 install_qb439
                 ;;
             3) 
-                log_info "开始安装qBittorrent 4.3.8 + Vertex (终极优化)..."
+                log_info "开始安装qBittorrent 4.3.8 + PTBoost (终极优化)..."
                 install_dependencies
-                install_qb438_with_vertex
+                install_qb438_with_ptboost
                 ;;
             4) 
-                log_info "开始安装qBittorrent 4.3.9 + Vertex (最强配置)..."
+                log_info "开始安装qBittorrent 4.3.9 + PTBoost (最强配置)..."
                 install_dependencies
-                install_qb439_with_vertex
+                install_qb439_with_ptboost
                 ;;
             5) application_category_menu ;;
             6) uninstall_menu ;;
