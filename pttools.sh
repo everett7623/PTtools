@@ -266,7 +266,7 @@ create_directories() {
     mkdir -p "$DOWNLOAD_DIR"/complete/{movies,tv,music,software,books}
     
     # 创建各应用目录
-    mkdir -p "$DOCKER_DIR"/{qbittorrent,transmission,emby,jellyfin,plex,jackett,prowlarr,sonarr,radarr,lidarr,bazarr}/config
+    mkdir -p "$DOCKER_DIR"/{qbittorrent,transmission,vertex,emby,jellyfin,plex,jackett,prowlarr,sonarr,radarr,lidarr,bazarr}/config
     
     log_info "目录结构创建完成"
 }
@@ -279,6 +279,7 @@ download_configs() {
     configs=(
         "qbittorrent.yml"
         "transmission.yml"
+        "vertex.yml"
         "emby.yml"
         "jellyfin.yml"
         "plex.yml"
@@ -372,26 +373,38 @@ install_vertex() {
     log_info "Vertex刷流工具安装完成"
 }
 
-# qBittorrent 4.3.8 + PTBoost
-install_qb438_with_ptboost() {
-    log_info "安装qBittorrent 4.3.8 + PTBoost (终极PT优化)..."
+# qBittorrent 4.3.8 + Vertex
+install_qb438_with_vertex() {
+    log_info "安装qBittorrent 4.3.8 + Vertex刷流工具..."
     
     install_qb438
     sleep 2
-    install_ptboost
+    # 安装Docker环境（如果还没有）
+    install_docker
+    install_docker_compose
+    create_directories
+    download_configs
+    # 安装Vertex刷流工具
+    install_vertex
     
-    log_info "qBittorrent 4.3.8 + PTBoost 安装完成"
+    log_info "qBittorrent 4.3.8 + Vertex 安装完成"
 }
 
-# qBittorrent 4.3.9 + PTBoost  
-install_qb439_with_ptboost() {
-    log_info "安装qBittorrent 4.3.9 + PTBoost (终极PT优化)..."
+# qBittorrent 4.3.9 + Vertex  
+install_qb439_with_vertex() {
+    log_info "安装qBittorrent 4.3.9 + Vertex刷流工具..."
     
     install_qb439
     sleep 2
-    install_ptboost
+    # 安装Docker环境（如果还没有）
+    install_docker
+    install_docker_compose
+    create_directories
+    download_configs
+    # 安装Vertex刷流工具
+    install_vertex
     
-    log_info "qBittorrent 4.3.9 + PTBoost 安装完成"
+    log_info "qBittorrent 4.3.9 + Vertex 安装完成"
 }
 
 # Docker应用安装函数
@@ -538,35 +551,37 @@ uninstall_menu() {
         echo
         echo -e "${YELLOW}1.${NC}  卸载qBittorrent (编译版本)"
         echo -e "${YELLOW}2.${NC}  卸载Transmission"
-        echo -e "${YELLOW}3.${NC}  卸载Emby"
-        echo -e "${YELLOW}4.${NC}  卸载Jellyfin"
-        echo -e "${YELLOW}5.${NC}  卸载Plex"
-        echo -e "${YELLOW}6.${NC}  卸载Jackett"
-        echo -e "${YELLOW}7.${NC}  卸载Prowlarr"
-        echo -e "${YELLOW}8.${NC}  卸载Sonarr"
-        echo -e "${YELLOW}9.${NC}  卸载Radarr"
-        echo -e "${YELLOW}10.${NC} 卸载Lidarr"
-        echo -e "${YELLOW}11.${NC} 卸载Bazarr"
+        echo -e "${YELLOW}3.${NC}  卸载Vertex (刷流工具)"
+        echo -e "${YELLOW}4.${NC}  卸载Emby"
+        echo -e "${YELLOW}5.${NC}  卸载Jellyfin"
+        echo -e "${YELLOW}6.${NC}  卸载Plex"
+        echo -e "${YELLOW}7.${NC}  卸载Jackett"
+        echo -e "${YELLOW}8.${NC}  卸载Prowlarr"
+        echo -e "${YELLOW}9.${NC}  卸载Sonarr"
+        echo -e "${YELLOW}10.${NC} 卸载Radarr"
+        echo -e "${YELLOW}11.${NC} 卸载Lidarr"
+        echo -e "${YELLOW}12.${NC} 卸载Bazarr"
         echo
         echo -e "${RED}88.${NC} 完全卸载 (所有应用和Docker)"
         echo -e "${RED}89.${NC} 重置优化设置"
         echo
         echo -e "${BLUE}0.${NC}  返回主菜单"
         echo
-        read -p "请输入选项 [0-11,88,89]: " choice
+        read -p "请输入选项 [0-12,88,89]: " choice
         
         case $choice in
             1) uninstall_qbittorrent ;;
             2) uninstall_docker_app "transmission" ;;
-            3) uninstall_docker_app "emby" ;;
-            4) uninstall_docker_app "jellyfin" ;;
-            5) uninstall_docker_app "plex" ;;
-            6) uninstall_docker_app "jackett" ;;
-            7) uninstall_docker_app "prowlarr" ;;
-            8) uninstall_docker_app "sonarr" ;;
-            9) uninstall_docker_app "radarr" ;;
-            10) uninstall_docker_app "lidarr" ;;
-            11) uninstall_docker_app "bazarr" ;;
+            3) uninstall_docker_app "vertex" ;;
+            4) uninstall_docker_app "emby" ;;
+            5) uninstall_docker_app "jellyfin" ;;
+            6) uninstall_docker_app "plex" ;;
+            7) uninstall_docker_app "jackett" ;;
+            8) uninstall_docker_app "prowlarr" ;;
+            9) uninstall_docker_app "sonarr" ;;
+            10) uninstall_docker_app "radarr" ;;
+            11) uninstall_docker_app "lidarr" ;;
+            12) uninstall_docker_app "bazarr" ;;
             88) complete_uninstall ;;
             89) reset_optimizations ;;
             0) return ;;
@@ -704,46 +719,48 @@ main_menu() {
         echo -e "${CYAN}║     Github: everett7623/PTtools      ║${NC}"
         echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
         echo
-        echo -e "${WHITE}🏆 核心项目安装选项 (PT刷流优化):${NC}"
+        echo -e "${WHITE}🏆 核心安装选项:${NC}"
         echo
-        echo -e "${GREEN}1.${NC}  qBittorrent 4.3.8 ${BLUE}(经典稳定版)${NC}"
-        echo -e "${GREEN}2.${NC}  qBittorrent 4.3.9 ${YELLOW}(推荐版本)${NC}"
-        echo -e "${GREEN}3.${NC}  qBittorrent 4.3.8 + PTBoost ${PURPLE}(终极优化)${NC}"
-        echo -e "${GREEN}4.${NC}  qBittorrent 4.3.9 + PTBoost ${RED}(最强配置)${NC}"
+        echo -e "${GREEN}1.${NC}  qBittorrent 4.3.8"
+        echo -e "${GREEN}2.${NC}  qBittorrent 4.3.9 ${YELLOW}(推荐)${NC}"
+        echo -e "${GREEN}3.${NC}  qBittorrent 4.3.8 + Vertex ${PURPLE}(刷流组合)${NC}"
+        echo -e "${GREEN}4.${NC}  qBittorrent 4.3.9 + Vertex ${RED}(最强组合)${NC}"
         echo
         echo -e "${WHITE}📦 其他功能:${NC}"
-        echo -e "${GREEN}5.${NC}  选择安装应用 ${CYAN}(分类安装)${NC}"
-        echo -e "${YELLOW}6.${NC}  卸载应用"
+        echo -e "${GREEN}5.${NC}  选择安装应用 ${CYAN}(功能分类与工具列表)${NC}"
+        echo -e "${GREEN}6.${NC}  系统优化 ${YELLOW}(VPS性能调优)${NC}"
+        echo -e "${GREEN}7.${NC}  卸载应用"
         echo
         echo -e "${RED}0.${NC}  退出脚本"
         echo
-        echo -e "${CYAN}💡 提示: 选项1-4已针对VPS进行PT刷流优化${NC}"
+        echo -e "${CYAN}💡 说明: 选项1-4为PT专用优化版本${NC}"
         echo
-        read -p "请输入选项 [0-6]: " choice
+        read -p "请输入选项 [0-7]: " choice
         
         case $choice in
             1) 
-                log_info "开始安装qBittorrent 4.3.8 (PT优化版)..."
+                log_info "开始安装qBittorrent 4.3.8..."
                 install_dependencies
                 install_qb438
                 ;;
             2) 
-                log_info "开始安装qBittorrent 4.3.9 (PT优化版)..."
+                log_info "开始安装qBittorrent 4.3.9 (推荐)..."
                 install_dependencies
                 install_qb439
                 ;;
             3) 
-                log_info "开始安装qBittorrent 4.3.8 + PTBoost (终极优化)..."
+                log_info "开始安装qBittorrent 4.3.8 + Vertex刷流组合..."
                 install_dependencies
-                install_qb438_with_ptboost
+                install_qb438_with_vertex
                 ;;
             4) 
-                log_info "开始安装qBittorrent 4.3.9 + PTBoost (最强配置)..."
+                log_info "开始安装qBittorrent 4.3.9 + Vertex最强组合..."
                 install_dependencies
-                install_qb439_with_ptboost
+                install_qb439_with_vertex
                 ;;
             5) application_category_menu ;;
-            6) uninstall_menu ;;
+            6) system_optimization_menu ;;
+            7) uninstall_menu ;;
             0) 
                 log_info "感谢使用PTtools！"
                 exit 0
@@ -751,7 +768,7 @@ main_menu() {
             *) log_error "无效选项，请重新选择" ;;
         esac
         
-        if [ "$choice" != "0" ] && [ "$choice" != "5" ] && [ "$choice" != "6" ]; then
+        if [ "$choice" != "0" ] && [ "$choice" != "5" ] && [ "$choice" != "6" ] && [ "$choice" != "7" ]; then
             show_completion_info
             read -p "按回车键返回主菜单..." 
         fi
@@ -821,7 +838,7 @@ main() {
     echo
     echo -e "${WHITE}🏆 推荐配置:${NC}"
     echo -e "  新手: ${GREEN}选项2${NC} (qB 4.3.9)"
-    echo -e "  进阶: ${PURPLE}选项4${NC} (qB 4.3.9 + Vertex)"
+    echo -e "  刷流: ${PURPLE}选项4${NC} (qB 4.3.9 + Vertex)"
     echo
     read -p "按回车键进入主菜单..."
     
