@@ -178,7 +178,7 @@ configure_qbittorrent() {
     log_info "配置qBittorrent..."
     
     # 创建配置文件
-    cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << EOF
+    cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
 [Application]
 FileLogger\Enabled=true
 FileLogger\Age=1
@@ -208,10 +208,20 @@ Connection\PortRangeMax=8999
 General\DefaultSavePath=/opt/downloads
 General\TempPath=/opt/downloads/incomplete
 General\TempPathEnabled=true
+
+[Core]
+AutoDeleteAddedTorrentFile=Never
+
+[Meta]
+MigrationVersion=4
+
+[Network]
+Cookies=@Invalid()
 EOF
 
     # 设置配置文件权限
     chown -R qbittorrent:qbittorrent /home/qbittorrent/.config
+    chmod 600 /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
     
     log_info "配置文件创建完成"
     log_warn "默认登录信息: 用户名=admin, 密码=adminadmin"
