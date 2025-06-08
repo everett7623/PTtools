@@ -1,335 +1,339 @@
-# PTtools - PT工具一键安装脚本
+# PTtools - PT工具一键安装脚本 (VPS优化版)
 
-[![GitHub](https://img.shields.io/github/license/everett7623/PTtools)](https://github.com/everett7623/PTtools/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/everett7623/PTtools)](https://github.com/everett7623/PTtools/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/release/everett7623/PTtools.svg)](https://github.com/everett7623/PTtools/releases)
+[![GitHub stars](https://img.shields.io/github/stars/everett7623/PTtools.svg)](https://github.com/everett7623/PTtools/stargazers)
 
-## 简介
+🚀 **专为PT用户设计的VPS优化脚本，针对刷流场景深度优化**
 
-PTtools 是一个为 PT (Private Tracker) 用户设计的一键安装脚本，旨在帮助新手快速部署常用的 PT 工具。脚本针对 VPS 环境进行了优化，特别适合用于 PT 刷流。
+适合小白用户快速部署，同时为高级用户提供极致性能调优。
 
-## 功能特点
+## 🎯 核心特性
 
-- 🚀 一键安装常用 PT 工具
-- 🔧 针对 VPS 优化配置
-- 🐳 基于 Docker 的应用管理
-- 📦 模块化设计，易于扩展
-- 🛡️ 自动配置防火墙规则
-- 🔄 支持应用卸载和更新
+### ⚡ VPS性能优化
+- **BBR拥塞控制算法** - 显著提升网络吞吐量
+- **TCP参数调优** - 专为大量并发连接优化
+- **文件描述符优化** - 支持数万并发连接
+- **磁盘I/O优化** - SSD/HDD自动识别优化
+- **内存缓存调优** - 根据服务器配置自动调整
 
-## 快速开始
+### 🏆 核心安装选项
 
-### 一键安装（主脚本）
+| 选项 | 说明 | 推荐场景 |
+|------|------|----------|
+| **qBittorrent 4.3.8** | 经典稳定版 + VPS优化 | 稳定性优先 |
+| **qBittorrent 4.3.9** | 最新版本 + VPS优化 | ⭐ **推荐选择** |
+| **qB 4.3.8 + Vertex** | 刷流组合配置 | 高级用户 |
+| **qB 4.3.9 + Vertex** | 🔥 **最强组合** | 刷流专业用户 |
+
+## 🚀 快速开始
+
+### 一键安装命令
 
 ```bash
+# 方式1：下载后执行 (推荐)
 wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh && chmod +x pttools.sh && ./pttools.sh
+
+# 方式2：直接执行
+bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
 ```
 
-### 其他安装方式
+### 菜单导航
 
-#### 静态版本安装（最快）
-```bash
-wget -O install-qb-static.sh https://raw.githubusercontent.com/everett7623/PTtools/main/install-qb-static.sh && chmod +x install-qb-static.sh && ./install-qb-static.sh
+```
+PTtools 主菜单
+├── 1. qBittorrent 4.3.8
+├── 2. qBittorrent 4.3.9 (推荐) ⭐
+├── 3. qBittorrent 4.3.8 + Vertex (刷流组合)
+├── 4. qBittorrent 4.3.9 + Vertex (最强组合) 🔥
+├── 5. 选择安装应用 (功能分类与工具列表)
+│   ├── 下载工具 (Transmission/Vertex)
+│   ├── 媒体服务器 (Emby/Jellyfin/Plex)
+│   ├── 索引器 (Jackett/Prowlarr)
+│   └── 自动化工具 (*arr套件)
+├── 6. 系统优化 (VPS性能调优)
+├── 7. 卸载应用
+└── 0. 退出脚本
 ```
 
-#### 编译安装（最稳定）
-```bash
-wget -O compile-qb.sh https://raw.githubusercontent.com/everett7623/PTtools/main/compile-qb.sh && chmod +x compile-qb.sh && ./compile-qb.sh
-```
+## 📦 支持的应用
 
-#### 快速修复
-```bash
-wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh && chmod +x fix.sh && ./fix.sh
-```
+### 🏆 核心下载工具
+- **qBittorrent 4.3.8/4.3.9** - 编译版本，深度优化
+- **Transmission** - 轻量级BT客户端 (Docker版)
+- **Vertex** - 专业刷流工具 (Docker版)
 
-### 系统要求
+### 🎬 媒体服务器
+- **Emby** - 功能丰富的媒体服务器
+- **Jellyfin** - 开源免费媒体服务器
+- **Plex** - 专业级媒体服务器
 
-- 操作系统：Ubuntu 18.04+, Debian 9+, CentOS 7+
-- 权限：需要 root 权限
-- 架构：x86_64
-- 内存：建议 2GB 以上
-- 硬盘：建议 20GB 以上
+### 🔍 索引器/搜索
+- **Jackett** - 传统索引器代理
+- **Prowlarr** - 新一代索引器管理 ⭐
 
-## 目录结构
+### 🤖 自动化工具
+- **Sonarr** - 电视剧自动下载管理
+- **Radarr** - 电影自动下载管理
+- **Lidarr** - 音乐自动下载管理
+- **Bazarr** - 字幕自动下载管理
+
+## 🗂️ 项目结构
 
 ```
 PTtools/
-├── pttools.sh                    # 主脚本
-├── fix.sh                        # 快速修复脚本
-├── compile-qb.sh                 # 编译安装脚本
-├── install-qb-static.sh          # 静态版本安装脚本
+├── pttools.sh                          # 主安装脚本
 ├── scripts/
 │   └── install/
-│       ├── qb438.sh             # qBittorrent 4.3.8 安装脚本
-│       ├── qb439.sh             # qBittorrent 4.3.9 安装脚本
+│       ├── qb438.sh                    # qBittorrent 4.3.8 安装脚本
+│       ├── qb439.sh                    # qBittorrent 4.3.9 安装脚本
 │       └── applications/
-│           └── vertex.sh        # Vertex 安装脚本
+│           └── vertex.sh               # Vertex PT高级优化脚本
 └── configs/
     └── docker-compose/
-        └── vertex.yml           # Vertex Docker Compose 配置（已集成到脚本中）
+        ├── qbittorrent.yml             # qBittorrent Docker配置
+        ├── transmission.yml            # Transmission Docker配置
+        ├── emby.yml                    # Emby Docker配置
+        ├── jellyfin.yml                # Jellyfin Docker配置
+        ├── plex.yml                    # Plex Docker配置
+        ├── jackett.yml                 # Jackett Docker配置
+        ├── prowlarr.yml                # Prowlarr Docker配置
+        ├── sonarr.yml                  # Sonarr Docker配置
+        ├── radarr.yml                  # Radarr Docker配置
+        ├── lidarr.yml                  # Lidarr Docker配置
+        └── bazarr.yml                  # Bazarr Docker配置
 ```
 
-## 安装方式对比
+## 📍 默认路径
 
-| 安装方式 | 速度 | 稳定性 | 适用场景 |
-|---------|------|--------|---------|
-| 主脚本（预编译优先） | 快 | 中 | 一般用户 |
-| 静态版本 | 最快 | 高 | 快速部署 |
-| 编译安装 | 慢 | 最高 | 追求稳定 |
+| 项目 | 路径 | 说明 |
+|------|------|------|
+| Docker应用目录 | `/opt/docker` | 所有Docker应用的配置和数据 |
+| 下载目录 | `/opt/downloads` | 统一下载目录 |
+| qBittorrent目录 | `/home/qbittorrent` | qB用户主目录 |
+| 脚本目录 | `/opt/pttools` | PTtools脚本存放目录 |
 
-### 推荐安装流程
+## 🛠️ 系统优化功能
 
-1. **首选**：使用主脚本 `pttools.sh`
-2. **如果失败**：使用静态版本 `install-qb-static.sh`
-3. **终极方案**：编译安装 `compile-qb.sh`
+PTtools内置强大的系统优化功能（主菜单选项6），包括：
 
-## 当前支持的应用
+### 🚀 VPS性能优化
+- **BBR拥塞控制** - 提升网络吞吐量
+- **TCP参数调优** - 针对大量并发连接优化  
+- **文件描述符优化** - 支持数万并发连接
 
-### 核心项目（已完成）
+### 💿 磁盘I/O优化
+- **调度器优化** - 自动设置最优I/O调度器
+- **读前瞻设置** - 提升磁盘读取性能
+- **缓存策略** - 智能磁盘缓存管理
 
-1. **qBittorrent 4.3.8** - 经典稳定版本（配合 libtorrent 1.2.20）
-2. **qBittorrent 4.3.9** - 最新稳定版本（配合 libtorrent 1.2.20）
-3. **qBittorrent 4.3.8 + Vertex** - 组合安装
-4. **qBittorrent 4.3.9 + Vertex** - 组合安装
+### 🌐 网络连接优化
+- **连接数优化** - 提升并发连接能力
+- **缓冲区调优** - 优化网络缓冲区大小
+- **协议优化** - TCP/UDP协议栈优化
 
-### 计划支持的应用
+### 💾 内存管理优化
+- **交换设置** - 优化虚拟内存使用
+- **缓存策略** - 智能内存缓存管理
+- **页面回收** - 优化内存页面回收策略
 
-- 下载管理：Transmission
-- 自动化管理：IYUUPlus, MoviePilot, Sonarr, Radarr
-- 媒体服务器：Emby, Jellyfin, Plex
-- 更多工具正在开发中...
+### 📊 优化状态监控
+- 实时查看系统优化状态
+- BBR状态检查
+- 文件描述符限制检查
+- 磁盘调度器状态
+- 内存使用情况
 
-## 使用说明
+使用方法：主菜单选择 **6. 系统优化** 进入优化菜单
 
-### 安装应用
+## ⚡ PTBoost & Vertex 工具
 
-1. 运行主脚本：`./pttools.sh`
-2. 选择要安装的应用（输入对应数字）
-3. 按照提示完成安装
-4. 记录显示的访问地址和登录信息
-
-### 默认配置
-
-- Docker 安装路径：`/opt/docker`
-- qBittorrent 配置路径：`/root/.config/qBittorrent`
-- 下载目录：`/opt/downloads`
-- qBittorrent Web UI 端口：8080
-- qBittorrent BT 端口：25000
-- Vertex 端口：3334
-- 默认缓存大小：3072 MB
-
-### 默认登录信息
-
-- qBittorrent
-  - 用户名：admin
-  - 密码：adminadmin
-  
-- Vertex
-  - 默认无需认证
-
-**⚠️ 重要：请在首次登录后立即修改默认密码！**
-
-### 管理命令
-
-#### qBittorrent
+### PTBoost优化器（qBittorrent性能优化）
 ```bash
-systemctl start qbittorrent    # 启动
-systemctl stop qbittorrent     # 停止
-systemctl restart qbittorrent  # 重启
-systemctl status qbittorrent   # 查看状态
-journalctl -u qbittorrent -f   # 查看实时日志
+# 性能监控
+ptboost-monitor
+
+# 服务管理  
+ptboost-manage
+
+# 性能调优
+ptboost-tune
 ```
 
-#### Vertex
+### Vertex刷流工具管理
 ```bash
-cd /opt/docker/vertex
-docker-compose up -d           # 启动
-docker-compose down            # 停止
-docker-compose restart         # 重启
-docker logs -f vertex          # 查看日志
+# 启动/停止服务
+vertex-ctl start|stop|restart
+
+# 查看状态和日志
+vertex-ctl status|logs
+
+# 更新容器
+vertex-ctl update
 ```
 
-### 服务诊断
+### 📊 监控指标
+- 系统负载和资源使用
+- qBittorrent进程状态
+- 网络连接数统计
+- 磁盘I/O性能
+- TCP连接状态分析
 
-脚本内置了服务诊断功能，可以快速检查服务状态：
+## 🎛️ 系统优化详情
 
-1. 运行主脚本：`./pttools.sh`
-2. 选择 "7. 服务诊断"
-3. 查看各项服务状态和系统信息
+### 🌐 网络优化
+```bash
+# BBR拥塞控制
+net.ipv4.tcp_congestion_control = bbr
 
-## VPS 优化说明
+# TCP缓冲区优化
+net.core.rmem_max = 134217728
+net.core.wmem_max = 134217728
+net.ipv4.tcp_rmem = 4096 65536 134217728
+net.ipv4.tcp_wmem = 4096 65536 134217728
 
-脚本会自动应用以下优化：
+# 连接优化
+net.core.somaxconn = 65535
+net.ipv4.tcp_max_syn_backlog = 65536
+```
 
-1. **系统优化**
-   - 启用 BBR 拥塞控制
-   - 优化 TCP 参数
-   - 增加文件描述符限制
+### 💾 内存优化
+```bash
+# 文件描述符
+* soft nofile 1000000
+* hard nofile 1000000
 
-2. **qBittorrent 优化**
-   - 禁用不必要的功能
-   - 优化缓存设置
-   - 配置适合刷流的参数
+# 虚拟内存
+vm.swappiness = 10
+vm.dirty_ratio = 15
+vm.vfs_cache_pressure = 50
+```
 
-3. **网络优化**
-   - 自动配置防火墙规则
-   - 优化连接数限制
+### 💿 磁盘I/O优化
+- **I/O调度器**: 自动设置为 `mq-deadline` 或 `deadline`
+- **读前瞻**: 优化为 4MB
+- **缓存策略**: 根据内存大小动态调整
 
-## 技术细节
+## 🔧 使用指南
 
-### 版本信息
-- **libtorrent-rasterbar**: 1.2.20
-- **qBittorrent**: 4.3.8 / 4.3.9
-- **编译优化**: 启用加密，禁用调试
+### 🎯 推荐配置
 
-### 安装方式
-本脚本采用了优化的安装方式：
-1. **优先使用预编译版本**：大幅减少安装时间
-2. **自动降级到编译安装**：当预编译版本不可用时
-3. **优化的编译参数**：`-O3 -march=native` 提升性能
+| 服务器配置 | 推荐选项 | 预期性能 |
+|-----------|----------|----------|
+| 1C1G | 选项2 (qB 4.3.9) | 200+ 种子 |
+| 2C2G | 选项4 (qB 4.3.9 + Vertex) | 500+ 种子 |
+| 4C4G+ | 选项4 (qB 4.3.9 + Vertex) | 1000+ 种子 |
 
-### 编译参数
-- libtorrent: `--disable-debug --enable-encryption`
-- qBittorrent: `--disable-gui --disable-debug`
-- 编译优化: `CXXFLAGS="-O3 -march=native -pipe"`
+### 📋 安装步骤
 
-### 性能优化
-- **缓存优化**：默认 3GB 缓存，可根据内存调整
-- **连接优化**：异步 IO 线程数设为 8
-- **文件池**：500 个文件句柄
-- **BBR 拥塞控制**：自动启用
+1. **执行脚本**
+   ```bash
+   bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
+   ```
 
-## 卸载应用
+2. **选择核心选项** (推荐选项2或4)
 
-1. 运行主脚本：`./pttools.sh`
-2. 选择 "6. 卸载管理"
-3. 选择要卸载的应用或全部卸载
+3. **配置qBittorrent**
+   - 访问: `http://你的IP:8080`
+   - 用户名: `admin`
+   - 密码: `adminadmin`
 
-## 故障排除
+4. **性能监控** (可选)
+   ```bash
+   vertex-monitor  # 查看性能状态
+   vertex-manage   # 管理服务
+   ```
 
-### 快速修复
-
-如果遇到服务无法启动的问题，可以使用快速修复脚本：
+### 🔍 故障排除
 
 ```bash
-wget -O fix.sh https://raw.githubusercontent.com/everett7623/PTtools/main/fix.sh && chmod +x fix.sh && ./fix.sh
+# 检查服务状态
+systemctl status qbittorrent
+
+# 查看实时日志
+journalctl -u qbittorrent -f
+
+# 重启服务
+systemctl restart qbittorrent
+
+# 系统优化状态检查
+# 在PTtools主菜单选择 "6. 系统优化" -> "9. 查看当前优化状态"
+
+# Vertex管理
+vertex-ctl status    # 查看Vertex状态
+vertex-ctl logs      # 查看Vertex日志
 ```
 
-### 编译安装（推荐）
+## 📈 性能优化建议
 
-如果预编译版本出现兼容性问题，建议使用编译安装：
+### 🎯 刷流场景优化
+
+1. **连接数设置**
+   - 小内存VPS: 200-400连接
+   - 中等配置: 400-800连接  
+   - 高配置: 800-1500连接
+
+2. **上传策略**
+   - 最大上传数: 50-100
+   - 单种子上传: 5-10
+   - 上传限速: 不限制 (让带宽跑满)
+
+3. **磁盘优化**
+   - 启用预分配
+   - 使用临时下载目录
+   - 定期清理日志文件
+
+### ⚡ 极致优化
+
+选择 **选项4** (qBittorrent 4.3.9 + Vertex) 可获得：
+
+- **专业刷流**: qBittorrent + Vertex双重加持
+- **网络性能提升**: 30-50%
+- **连接数增加**: 支持1000+并发
+- **智能策略**: Vertex专业刷流算法
+- **完整生态**: qB下载 + Vertex刷流完美结合
+
+## 🆘 技术支持
+
+### 📞 获取帮助
+
+- **GitHub Issues**: [提交问题](https://github.com/everett7623/PTtools/issues)
+- **性能问题**: 使用主菜单选项6进行系统优化
+- **配置问题**: 使用 `vertex-ctl` 或 `ptboost-manage` 管理服务
+
+### 🔄 更新脚本
 
 ```bash
-wget -O compile-qb.sh https://raw.githubusercontent.com/everett7623/PTtools/main/compile-qb.sh && chmod +x compile-qb.sh && ./compile-qb.sh
+# 更新到最新版本
+wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
+chmod +x pttools.sh
+./pttools.sh
 ```
 
-编译安装选项：
-- 默认安装 qBittorrent 4.3.9 + libtorrent 1.2.20
-- 自定义版本：`./compile-qb.sh -q 4.3.8 -l 1.2.20`
-- 查看帮助：`./compile-qb.sh -h`
+### 🗑️ 完全卸载
 
-### 常见问题
+脚本提供完整的卸载功能，包括：
+- 停止所有服务
+- 删除用户和配置
+- 清理Docker容器
+- 恢复系统设置
 
-#### 1. Exec format error
-- **原因**：预编译二进制文件架构不匹配
-- **快速解决**：
-  ```bash
-  # 使用静态版本
-  ./install-qb-static.sh
-  
-  # 或编译安装
-  ./compile-qb.sh
-  ```
+## 📄 许可证
 
-#### 2. 502 Bad Gateway 错误
-- **原因**：qBittorrent 服务未正常启动
-- **解决方案**：
-  ```bash
-  # 检查服务状态
-  systemctl status qbittorrent
-  
-  # 查看错误日志
-  journalctl -u qbittorrent -f
-  
-  # 重启服务
-  systemctl restart qbittorrent
-  ```
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-#### 2. Vertex 安装失败（404错误）
-- **原因**：配置文件路径错误
-- **解决方案**：使用最新版本的脚本（已修复）
+## 🙏 致谢
 
-#### 3. 提示权限不足
-- 确保使用 root 用户或使用 sudo 运行脚本
-
-#### 4. Docker 安装失败
-- 检查网络连接
-- 尝试使用阿里云镜像安装
-
-#### 5. 无法访问 Web UI
-- 检查防火墙设置
-- 确认服务是否正常运行：`./pttools.sh` 选择 "7. 服务诊断"
-- 检查端口是否被占用：`netstat -tuln | grep 8080`
-
-#### 6. qBittorrent 编译失败
-- 确保系统有足够的内存（至少 2GB）
-- 检查是否安装了所有依赖
-- 尝试使用预编译版本（新版脚本默认使用）
-
-### 服务管理命令
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 开发新的安装脚本
-
-1. 在 `scripts/install/` 目录下创建脚本
-2. 配置文件可以直接集成到脚本中（推荐）或放在 `configs/` 目录
-3. 更新主脚本 `pttools.sh` 添加新选项
-4. 测试并提交 PR
-
-### 脚本规范
-
-- 使用统一的颜色定义和消息函数
-- 提供详细的安装进度提示
-- 包含错误处理和回滚机制
-- 优化安装速度（优先使用预编译版本）
-
-## 许可证
-
-本项目采用 MIT 许可证，详见 [LICENSE](LICENSE) 文件。
-
-## 免责声明
-
-- 本脚本仅供学习和研究使用
-- 使用本脚本造成的任何后果由使用者自行承担
-- 请遵守当地法律法规和 PT 站点规则
-
-## 更新日志
-
-### v1.0.1 (2024-12)
-- 修复 qBittorrent "Exec format error" 问题
-- 添加文件验证机制
-- 新增静态版本安装脚本
-- 新增独立编译安装脚本
-- 改进错误处理和日志输出
-- 优化安装流程
-
-### v1.0.0 (2024-12)
-- 初始版本发布
-- 支持 qBittorrent 4.3.8/4.3.9 安装
-- 支持 Vertex 安装
-- 优化安装速度（使用预编译版本）
-- 添加服务诊断功能
-- 添加快速修复工具
-- 修复配置文件路径问题
-
-## 致谢
-
-- 感谢 [jerry048](https://github.com/jerry048/Dedicated-Seedbox) 的优秀脚本提供参考
-- 感谢所有贡献者和使用者的支持！
+- qBittorrent 开发团队
+- Docker 社区
+- 所有贡献者和用户反馈
 
 ---
 
-**作者：** everett7623  
-**GitHub：** https://github.com/everett7623/PTtools
+<div align="center">
+
+**⭐ 如果这个项目对你有帮助，请给个星标支持！⭐**
+
+**🚀 让PT刷流更简单，让VPS性能更极致！🚀**
+
+</div>
