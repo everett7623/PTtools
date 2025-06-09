@@ -21,12 +21,13 @@ NC='\033[0m' # No Color
 # 全局变量
 QB_VERSION="4.3.8"
 LT_VERSION="1.2.14"
-SERVICE_USER="admin"
+SERVICE_USER="qbittorrent"
 QB_CONFIG_DIR="/home/${SERVICE_USER}/.config/qBittorrent"
-QB_DOWNLOAD_DIR="/home/${SERVICE_USER}/Downloads"
+QB_DOWNLOAD_DIR="/opt/downloads"
 DEFAULT_PORT="8080"
 DEFAULT_UP_PORT="23333"
 DEFAULT_PASSWORD="adminadmin"
+DEFAULT_USERNAME="admin"
 
 # 日志函数 - 与PTtools风格一致
 log_info() {
@@ -162,12 +163,16 @@ create_user() {
     
     # 更新目录变量
     QB_CONFIG_DIR="/home/${SERVICE_USER}/.config/qBittorrent"
-    QB_DOWNLOAD_DIR="/home/${SERVICE_USER}/Downloads"
     
     # 创建必要目录
     mkdir -p "$QB_CONFIG_DIR"
-    mkdir -p "$QB_DOWNLOAD_DIR"/{complete,incomplete,torrents}
+    mkdir -p "$QB_DOWNLOAD_DIR"/{torrents,temp}
+    
+    # 设置配置目录权限
     chown -R "$SERVICE_USER:$SERVICE_USER" "/home/$SERVICE_USER"
+    
+    # 设置下载目录权限
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$QB_DOWNLOAD_DIR"
 }
 
 # 下载并安装预编译的qBittorrent
@@ -269,6 +274,15 @@ Session\\MaxActiveDownloads=50
 Session\\MaxActiveTorrents=100
 Session\\MaxActiveUploads=50
 Session\\GlobalMaxSeedingMinutes=-1
+Session\\DHT=false
+Session\\DHTPort=6881
+Session\\PeX=false
+Session\\LSD=false
+Session\\Encryption=1
+Session\\MaxConnectionsPerTorrent=100
+Session\\MaxUploadsPerTorrent=50
+Session\\uTPEnabled=true
+Session\\uTPRateLimited=false
 
 [Core]
 AutoDeleteAddedTorrentFile=Never
@@ -283,8 +297,8 @@ Connection\\PortRangeMin=$up_port
 Connection\\ResolvePeerCountries=false
 Downloads\\DiskWriteCacheSize=$CACHE_SIZE
 Downloads\\PreAllocation=false
-Downloads\\SavePath=/home/$SERVICE_USER/Downloads/
-Downloads\\TempPath=/home/$SERVICE_USER/Downloads/temp/
+Downloads\\SavePath=$QB_DOWNLOAD_DIR/
+Downloads\\TempPath=$QB_DOWNLOAD_DIR/temp/
 Downloads\\TempPathEnabled=true
 DynDNS\\Enabled=false
 General\\Locale=zh
@@ -309,11 +323,11 @@ EOF
     
     # 创建日志目录
     mkdir -p "$QB_CONFIG_DIR/logs"
-    mkdir -p "/home/$SERVICE_USER/Downloads/temp"
+    mkdir -p "$QB_DOWNLOAD_DIR/temp"
     
     # 设置权限
     chown -R "$SERVICE_USER:$SERVICE_USER" "$QB_CONFIG_DIR"
-    chown -R "$SERVICE_USER:$SERVICE_USER" "/home/$SERVICE_USER/Downloads"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$QB_DOWNLOAD_DIR"
     
     log_info "配置文件生成完成"
 }
@@ -376,6 +390,11 @@ EOF
     if ! lsmod | grep -q tcp_bbr; then
         modprobe tcp_bbr
         echo "tcp_bbr" >> /etc/modules-load.d/modules.conf
+    fi
+    
+    # 禁用系统中的tso（如果存在相关配置）
+    if [ -f /root/.boot-script.sh ]; then
+        sed -i "s/disable_tso_/# disable_tso_/" /root/.boot-script.sh 2>/dev/null || true
     fi
     
     log_info "VPS优化配置已应用"
@@ -472,7 +491,7 @@ show_info() {
     echo -e "   默认密码: ${WHITE}adminadmin${NC}"
     echo
     echo -e "${CYAN}📁 重要目录:${NC}"
-    echo -e "   下载目录: ${WHITE}/home/$SERVICE_USER/Downloads${NC}"
+    echo -e "   下载目录: ${WHITE}$QB_DOWNLOAD_DIR${NC}"
     echo -e "   配置目录: ${WHITE}$QB_CONFIG_DIR${NC}"
     echo
     echo -e "${CYAN}🔧 服务管理:${NC}"
@@ -590,6 +609,18 @@ install_main() {
     fi
     
     log_info "安装完成！"
+    
+    # 询问是否重启
+    echo
+    log_warn "系统优化需要重启才能完全生效"
+    read -p "是否立即重启系统？(y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_info "系统将在1分钟后重启..."
+        shutdown -r +1
+    else
+        log_info "请记得稍后手动重启系统以应用所有优化"
+    fi
 }
 
 # 卸载功能
