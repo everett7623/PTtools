@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 # 全局变量
 QB_VERSION="4.3.8"
 LT_VERSION="1.2.14"
-SERVICE_USER="qbittorrent"
+SERVICE_USER="admin"
 QB_CONFIG_DIR="/home/${SERVICE_USER}/.config/qBittorrent"
 QB_DOWNLOAD_DIR="/home/${SERVICE_USER}/Downloads"
 DEFAULT_PORT="8080"
