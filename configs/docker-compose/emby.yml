@@ -1,0 +1,27 @@
+services:
+  emby:
+    image: emby/embyserver:latest
+    container_name: emby
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+      - UID=0
+      - GID=0
+    volumes:
+      - /opt/docker/emby/config:/config
+      - /opt/downloads:/media
+      - /opt/docker/emby/cache:/cache
+    ports:
+      - 8096:8096
+      - 8920:8920
+    devices:
+      - /dev/dri:/dev/dri
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
