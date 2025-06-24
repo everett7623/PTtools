@@ -1,353 +1,350 @@
 #!/bin/bash
-# ========================================
+#
 # 脚本名称: qb438.sh
-# 脚本描述: qBittorrent 4.3.8 编译安装脚本 (libtorrent 1.2.20)
-# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/scripts/install/qb438.sh
-# 使用方法: bash qb438.sh
+# 脚本描述: qBittorrent 4.3.8 + libtorrent 1.2.20 快速安装脚本
+# 脚本路径: https://github.com/everett7623/PTtools/blob/main/scripts/install/qb438.sh
+# 使用方法: wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/scripts/install/qb438.sh | bash
 # 作者: everett7623
-# 更新时间: 2025-01-24
-# ========================================
+# 更新时间: 2024-06-24
+# 版本: v1.0.0
+#
 
-set -e  # 遇到错误立即退出
+# 设置错误时退出
+set -e
 
-# 颜色定义
+# 定义颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# 日志函数
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# 定义全局变量
+QB_VERSION="4.3.8"
+LT_VERSION="1.2.20"
+INSTALL_DIR="/usr/local/qbittorrent"
+DOWNLOAD_DIR="/opt/downloads"
+CONFIG_DIR="/root/.config/qBittorrent"
+WEB_PORT="8080"
+BT_PORT="28888"
+USERNAME="admin"
+PASSWORD=""
+
+# 显示安装信息
+show_install_info() {
+    clear
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                                                               ║${NC}"
+    echo -e "${CYAN}║           qBittorrent ${QB_VERSION} + libtorrent ${LT_VERSION} 安装脚本          ║${NC}"
+    echo -e "${CYAN}║                                                               ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-# 检查是否为root用户
+# 检查root权限
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "此脚本必须以root权限运行！"
+        echo -e "${RED}错误: 此脚本需要root权限运行${NC}"
         exit 1
     fi
 }
 
-# 检查系统版本
+# 检查系统
 check_system() {
     if [[ -f /etc/redhat-release ]]; then
-        OS="centos"
-    elif cat /etc/issue | grep -q -E -i "debian"; then
-        OS="debian"
-    elif cat /etc/issue | grep -q -E -i "ubuntu"; then
-        OS="ubuntu"
+        SYSTEM="centos"
+        PM="yum"
+    elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
+        SYSTEM="centos"
+        PM="yum"
     else
-        log_error "不支持的操作系统！"
+        echo -e "${RED}不支持的操作系统！${NC}"
         exit 1
     fi
     
-    # 获取系统版本号
-    if [[ "$OS" == "ubuntu" ]]; then
-        VERSION=$(lsb_release -rs)
-    elif [[ "$OS" == "debian" ]]; then
-        VERSION=$(cat /etc/debian_version)
-    fi
-    
-    log_info "检测到系统: $OS $VERSION"
-}
-
-# 安装依赖包
-install_dependencies() {
-    log_info "开始安装依赖包..."
-    
-    if [[ "$OS" == "ubuntu" ]] || [[ "$OS" == "debian" ]]; then
-        apt-get update -y
-        apt-get install -y \
-            build-essential \
-            cmake \
-            git \
-            pkg-config \
-            libssl-dev \
-            libgeoip-dev \
-            zlib1g-dev \
-            libboost-dev \
-            libboost-system-dev \
-            libboost-chrono-dev \
-            libboost-random-dev \
-            qtbase5-dev \
-            qttools5-dev-tools \
-            libqt5svg5-dev \
-            python3 \
-            python3-dev \
-            ninja-build \
-            wget \
-            curl \
-            ca-certificates
-    fi
-    
-    log_info "依赖包安装完成"
-}
-
-# 创建qbittorrent用户
-create_user() {
-    if id "qbittorrent" &>/dev/null; then
-        log_info "qbittorrent用户已存在"
+    # 获取系统架构
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]]; then
+        ARCH_TYPE="x86_64"
+    elif [[ "$ARCH" == "aarch64" ]]; then
+        ARCH_TYPE="aarch64"
     else
-        log_info "创建qbittorrent用户..."
-        useradd -m -s /bin/bash qbittorrent
-        log_info "qbittorrent用户创建成功"
+        echo -e "${RED}不支持的系统架构: $ARCH${NC}"
+        exit 1
     fi
 }
 
-# 编译安装libtorrent
-install_libtorrent() {
-    log_info "开始编译安装 libtorrent 1.2.20..."
+# 安装依赖
+install_dependencies() {
+    echo -e "${GREEN}正在安装依赖包...${NC}"
     
-    cd /tmp
-    rm -rf libtorrent-1.2.20
-    
-    # 下载libtorrent源码
-    wget -q --show-progress -O libtorrent-1.2.20.tar.gz https://github.com/arvidn/libtorrent/archive/refs/tags/v1.2.20.tar.gz
-    tar -xzf libtorrent-1.2.20.tar.gz
-    cd libtorrent-1.2.20
-    
-    # 配置编译参数
-    mkdir build && cd build
-    cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_STANDARD=17 \
-        -DBUILD_SHARED_LIBS=ON \
-        -Dencryption=ON \
-        -Diconv=ON
-    
-    # 编译安装
-    make -j$(nproc)
-    make install
-    
-    # 更新动态链接库
-    ldconfig
-    
-    log_info "libtorrent 1.2.20 安装完成"
+    if [[ "$PM" == "apt-get" ]]; then
+        apt-get update -y
+        apt-get install -y wget curl ca-certificates python3 python3-pip
+    elif [[ "$PM" == "yum" ]]; then
+        yum update -y
+        yum install -y wget curl ca-certificates python3 python3-pip
+    fi
 }
 
-# 编译安装qBittorrent
+# 创建必要的目录
+create_directories() {
+    mkdir -p ${INSTALL_DIR}/bin
+    mkdir -p ${INSTALL_DIR}/lib
+    mkdir -p ${DOWNLOAD_DIR}
+    mkdir -p ${CONFIG_DIR}
+}
+
+# 下载并安装qBittorrent二进制文件
 install_qbittorrent() {
-    log_info "开始编译安装 qBittorrent 4.3.8..."
+    echo -e "${GREEN}正在下载qBittorrent ${QB_VERSION}...${NC}"
     
+    # 这里使用预编译的二进制文件
+    # 根据参考脚本，我们需要下载预编译的qbittorrent-nox
     cd /tmp
-    rm -rf qBittorrent-4.3.8
     
-    # 下载qBittorrent源码
-    wget -q --show-progress -O qBittorrent-4.3.8.tar.gz https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.3.8.tar.gz
-    tar -xzf qBittorrent-4.3.8.tar.gz
-    cd qBittorrent-release-4.3.8
+    # 下载URL根据架构选择
+    if [[ "$ARCH_TYPE" == "x86_64" ]]; then
+        # 使用官方或第三方预编译版本
+        wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox" || {
+            echo -e "${RED}下载失败，尝试备用地址...${NC}"
+            # 备用下载地址
+            wget -O qbittorrent-nox "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-linux/qbittorrent-${QB_VERSION}/qbittorrent-nox" || {
+                echo -e "${RED}下载qBittorrent失败！${NC}"
+                exit 1
+            }
+        }
+    else
+        echo -e "${RED}暂不支持 ${ARCH_TYPE} 架构的自动安装${NC}"
+        exit 1
+    fi
     
-    # 配置编译参数
-    ./configure \
-        --prefix=/usr/local \
-        --disable-gui \
-        CXXFLAGS="-std=c++17"
+    # 安装二进制文件
+    chmod +x qbittorrent-nox
+    mv qbittorrent-nox ${INSTALL_DIR}/bin/
     
-    # 编译安装
-    make -j$(nproc)
-    make install
+    # 创建符号链接
+    ln -sf ${INSTALL_DIR}/bin/qbittorrent-nox /usr/local/bin/qbittorrent-nox
     
-    log_info "qBittorrent 4.3.8 安装完成"
+    echo -e "${GREEN}qBittorrent ${QB_VERSION} 安装完成！${NC}"
 }
 
 # 配置qBittorrent
 configure_qbittorrent() {
-    log_info "开始配置 qBittorrent..."
+    echo -e "${GREEN}正在配置qBittorrent...${NC}"
     
-    # 创建配置目录
-    mkdir -p /home/qbittorrent/.config/qBittorrent
-    mkdir -p /home/qbittorrent/.local/share/qBittorrent
-    mkdir -p /opt/downloads
+    # 获取用户输入
+    read -p "请输入Web UI端口 [默认: 8080]: " input_port
+    WEB_PORT=${input_port:-8080}
+    
+    read -p "请输入BT监听端口 [默认: 28888]: " input_bt_port
+    BT_PORT=${input_bt_port:-28888}
+    
+    read -p "请输入Web UI用户名 [默认: admin]: " input_username
+    USERNAME=${input_username:-admin}
+    
+    # 生成随机密码
+    if [[ -z "$PASSWORD" ]]; then
+        PASSWORD=$(openssl rand -base64 12)
+        echo -e "${YELLOW}已生成随机密码: ${PASSWORD}${NC}"
+    else
+        read -s -p "请输入Web UI密码: " input_password
+        echo ""
+        PASSWORD=${input_password}
+    fi
+    
+    # 生成密码哈希
+    PBKDF2_PASSWORD=$(python3 -c "
+import hashlib
+import os
+salt = os.urandom(16)
+password = '${PASSWORD}'.encode('utf-8')
+dk = hashlib.pbkdf2_hmac('sha512', password, salt, 100000, dklen=64)
+print(salt.hex() + ':' + dk.hex())
+")
     
     # 创建配置文件
-    cat > /home/qbittorrent/.config/qBittorrent/qBittorrent.conf << 'EOF'
+    cat > ${CONFIG_DIR}/qBittorrent.conf << EOF
 [AutoRun]
 enabled=false
 program=
-
-[BitTorrent]
-Session\AsyncIOThreadsCount=8
-Session\CheckingMemUsageSize=32
-Session\CoalesceReadWrite=true
-Session\FilePoolSize=40
-Session\GuidedReadCache=true
-Session\MultiConnectionsPerIp=true
-Session\SendBufferWatermark=512
-Session\SendBufferLowWatermark=10
-Session\SendBufferWatermarkFactor=200
-Session\SocketBacklogSize=100
-Session\SuggestMode=true
-Session\uTPMixedMode=true
 
 [LegalNotice]
 Accepted=true
 
 [Preferences]
-Advanced\AnnounceToAllTrackers=true
-Advanced\AnonymousMode=false
-Advanced\IgnoreLimitsLAN=true
-Advanced\LtTrackerExchange=true
-Advanced\RecheckOnCompletion=false
-Bittorrent\AddTrackers=false
-Bittorrent\DHT=true
-Bittorrent\Encryption=1
-Bittorrent\LSD=true
-Bittorrent\MaxConnecs=5000
-Bittorrent\MaxConnecsPerTorrent=1000
-Bittorrent\MaxUploads=20
-Bittorrent\MaxUploadsPerTorrent=5
-Bittorrent\PeX=true
-Bittorrent\uTP=true
-Bittorrent\uTP_rate_limited=false
-Connection\GlobalDLLimitAlt=0
-Connection\GlobalUPLimitAlt=0
-Connection\PortRangeMin=6881
-Downloads\DiskWriteCacheSize=64
-Downloads\DiskWriteCacheTTL=60
-Downloads\SavePath=/opt/downloads/
-Downloads\ScanDirsV2=@Variant(\0\0\0\x1c\0\0\0\0)
+Bittorrent\MaxRatio=-1
+Bittorrent\Port=${BT_PORT}
+Connection\PortRangeMin=${BT_PORT}
+Downloads\SavePath=${DOWNLOAD_DIR}/
+Downloads\TempPath=${DOWNLOAD_DIR}/temp/
 General\Locale=zh_CN
-Queueing\MaxActiveDownloads=50
-Queueing\MaxActiveTorrents=100
-Queueing\MaxActiveUploads=50
-Queueing\QueueingEnabled=false
 WebUI\Address=*
 WebUI\AlternativeUIEnabled=false
-WebUI\AuthSubnetWhitelist=@Invalid()
+WebUI\AuthSubnetWhitelist=
 WebUI\AuthSubnetWhitelistEnabled=false
+WebUI\BanDuration=3600
 WebUI\CSRFProtection=true
 WebUI\ClickjackingProtection=true
+WebUI\CustomHTTPHeaders=
+WebUI\CustomHTTPHeadersEnabled=false
 WebUI\HTTPS\Enabled=false
 WebUI\HostHeaderValidation=true
-WebUI\LocalHostAuth=true
+WebUI\LocalHostAuth=false
 WebUI\MaxAuthenticationFailCount=5
-WebUI\Port=8080
+WebUI\Password_PBKDF2="@ByteArray(${PBKDF2_PASSWORD})"
+WebUI\Port=${WEB_PORT}
+WebUI\RootFolder=
 WebUI\SecureCookie=true
 WebUI\ServerDomains=*
 WebUI\SessionTimeout=3600
 WebUI\UseUPnP=false
-WebUI\Username=admin
+WebUI\Username=${USERNAME}
 EOF
 
-    # 设置默认密码为 adminadmin
-    PBKDF2_HASH=$(echo -n 'adminadmin' | openssl dgst -sha512 -binary | openssl enc -base64 -A)
-    echo "WebUI\Password_PBKDF2=\"@ByteArray(${PBKDF2_HASH}):adminadmin\"" >> /home/qbittorrent/.config/qBittorrent/qBittorrent.conf
+    # 创建下载目录
+    mkdir -p ${DOWNLOAD_DIR}/temp
     
-    # 设置权限
-    chown -R qbittorrent:qbittorrent /home/qbittorrent
-    chown -R qbittorrent:qbittorrent /opt/downloads
-    chmod 755 /opt/downloads
-    
-    log_info "qBittorrent 配置完成"
+    echo -e "${GREEN}qBittorrent配置完成！${NC}"
 }
 
 # 创建systemd服务
-create_systemd_service() {
-    log_info "创建 systemd 服务..."
+create_service() {
+    echo -e "${GREEN}正在创建systemd服务...${NC}"
     
-    cat > /etc/systemd/system/qbittorrent.service << 'EOF'
+    cat > /etc/systemd/system/qbittorrent.service << EOF
 [Unit]
-Description=qBittorrent Daemon Service
-Documentation=https://github.com/qbittorrent/qBittorrent/wiki
+Description=qBittorrent-nox service
+Documentation=https://github.com/qbittorrent/qBittorrent
 After=network.target
 
 [Service]
-Type=exec
-User=qbittorrent
-Group=qbittorrent
-UMask=007
-ExecStart=/usr/local/bin/qbittorrent-nox
+Type=simple
+User=root
+ExecStart=${INSTALL_DIR}/bin/qbittorrent-nox
 Restart=on-failure
-TimeoutStopSec=infinity
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # 重载systemd
+    # 重新加载systemd并启动服务
     systemctl daemon-reload
+    systemctl enable qbittorrent
+    systemctl start qbittorrent
     
-    # 启动服务
-    systemctl enable qbittorrent.service
-    systemctl start qbittorrent.service
-    
-    log_info "qBittorrent 服务已启动"
+    echo -e "${GREEN}qBittorrent服务已启动！${NC}"
 }
 
 # 配置防火墙
 configure_firewall() {
-    log_info "配置防火墙规则..."
+    echo -e "${GREEN}正在配置防火墙...${NC}"
     
-    if command -v ufw &> /dev/null; then
-        ufw allow 8080/tcp comment 'qBittorrent Web UI'
-        ufw allow 6881/tcp comment 'qBittorrent TCP'
-        ufw allow 6881/udp comment 'qBittorrent UDP'
-        log_info "UFW 防火墙规则已添加"
-    elif command -v firewall-cmd &> /dev/null; then
-        firewall-cmd --permanent --add-port=8080/tcp
-        firewall-cmd --permanent --add-port=6881/tcp
-        firewall-cmd --permanent --add-port=6881/udp
+    # 检查防火墙类型
+    if command -v firewall-cmd &> /dev/null; then
+        # firewalld
+        firewall-cmd --permanent --add-port=${WEB_PORT}/tcp
+        firewall-cmd --permanent --add-port=${BT_PORT}/tcp
+        firewall-cmd --permanent --add-port=${BT_PORT}/udp
         firewall-cmd --reload
-        log_info "Firewalld 防火墙规则已添加"
-    else
-        log_warning "未检测到防火墙，请手动配置端口 8080(WebUI) 和 6881(BT)"
+    elif command -v ufw &> /dev/null; then
+        # ufw
+        ufw allow ${WEB_PORT}/tcp
+        ufw allow ${BT_PORT}/tcp
+        ufw allow ${BT_PORT}/udp
+    elif command -v iptables &> /dev/null; then
+        # iptables
+        iptables -I INPUT -p tcp --dport ${WEB_PORT} -j ACCEPT
+        iptables -I INPUT -p tcp --dport ${BT_PORT} -j ACCEPT
+        iptables -I INPUT -p udp --dport ${BT_PORT} -j ACCEPT
+        
+        # 保存规则
+        if [[ "$SYSTEM" == "centos" ]]; then
+            service iptables save
+        elif [[ "$SYSTEM" == "debian" ]] || [[ "$SYSTEM" == "ubuntu" ]]; then
+            iptables-save > /etc/iptables/rules.v4
+        fi
     fi
+    
+    echo -e "${GREEN}防火墙配置完成！${NC}"
 }
 
 # 显示安装信息
-show_info() {
+show_install_result() {
+    # 获取服务器IP
+    SERVER_IP=$(curl -s4 ip.sb || curl -s4 ipinfo.io/ip || curl -s4 ifconfig.me)
+    
     echo ""
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}qBittorrent 4.3.8 安装完成！${NC}"
-    echo -e "${GREEN}========================================${NC}"
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║                    qBittorrent 安装成功！                      ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${BLUE}访问地址:${NC} http://$(curl -s ip.sb):8080"
-    echo -e "${BLUE}默认用户:${NC} admin"
-    echo -e "${BLUE}默认密码:${NC} adminadmin"
-    echo -e "${BLUE}下载目录:${NC} /opt/downloads"
+    echo -e "${GREEN}访问地址:${NC} http://${SERVER_IP}:${WEB_PORT}"
+    echo -e "${GREEN}用户名:${NC} ${USERNAME}"
+    echo -e "${GREEN}密码:${NC} ${PASSWORD}"
+    echo -e "${GREEN}BT端口:${NC} ${BT_PORT}"
     echo ""
     echo -e "${YELLOW}常用命令:${NC}"
-    echo -e "启动服务: systemctl start qbittorrent"
-    echo -e "停止服务: systemctl stop qbittorrent"
-    echo -e "重启服务: systemctl restart qbittorrent"
-    echo -e "查看状态: systemctl status qbittorrent"
-    echo -e "查看日志: journalctl -u qbittorrent -f"
+    echo -e "启动: systemctl start qbittorrent"
+    echo -e "停止: systemctl stop qbittorrent"
+    echo -e "重启: systemctl restart qbittorrent"
+    echo -e "状态: systemctl status qbittorrent"
+    echo -e "日志: journalctl -u qbittorrent -f"
     echo ""
-    echo -e "${GREEN}========================================${NC}"
+    echo -e "${PURPLE}请保存以上信息！${NC}"
+    echo ""
 }
 
 # 主函数
 main() {
-    clear
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}qBittorrent 4.3.8 安装脚本${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    echo ""
-    
-    # 执行安装步骤
+    show_install_info
     check_root
     check_system
+    
+    # 检查是否已安装
+    if systemctl is-active --quiet qbittorrent; then
+        echo -e "${YELLOW}检测到qBittorrent已安装并运行中${NC}"
+        read -p "是否要重新安装? [y/N]: " reinstall
+        if [[ ! "$reinstall" =~ ^[Yy]$ ]]; then
+            echo -e "${GREEN}已取消安装${NC}"
+            exit 0
+        fi
+        
+        # 停止并删除旧版本
+        systemctl stop qbittorrent
+        systemctl disable qbittorrent
+        rm -rf ${INSTALL_DIR}
+        rm -f /etc/systemd/system/qbittorrent.service
+        systemctl daemon-reload
+    fi
+    
+    # 开始安装
     install_dependencies
-    create_user
-    install_libtorrent
+    create_directories
     install_qbittorrent
     configure_qbittorrent
-    create_systemd_service
+    create_service
     configure_firewall
-    show_info
-    
-    log_info "安装脚本执行完成！"
+    show_install_result
 }
 
-# 执行主函数
-main "$@"
+# 运行主函数
+mainetc/issue | grep -q -E -i "debian"; then
+        SYSTEM="debian"
+        PM="apt-get"
+    elif cat /etc/issue | grep -q -E -i "ubuntu"; then
+        SYSTEM="ubuntu"
+        PM="apt-get"
+    elif cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
+        SYSTEM="centos"
+        PM="yum"
+    elif cat /proc/version | grep -q -E -i "debian"; then
+        SYSTEM="debian"
+        PM="apt-get"
+    elif cat /proc/version | grep -q -E -i "ubuntu"; then
+        SYSTEM="ubuntu"
+        PM="apt-get"
+    elif cat /
