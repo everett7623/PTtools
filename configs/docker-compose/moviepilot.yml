@@ -1,0 +1,36 @@
+services:
+  moviepilot:
+    stdin_open: true
+    tty: true
+    container_name: moviepilot-v2
+    hostname: moviepilot-v2
+    network_mode: host
+    volumes:
+      - /opt/downloads:/media
+      - /opt/docker/moviepilot/config:/config
+      - /opt/docker/moviepilot/core:/moviepilot/.cache/ms-playwright
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
+      - /opt/docker/transmission/config/torrents:/tr
+    environment:
+      - NGINX_PORT=3000
+      - PORT=3001
+      - PUID=0
+      - PGID=0
+      - UMASK=000
+      - TZ=Asia/Shanghai
+      - SUPERUSER=admin
+      - SUPERUSER_PASSWORD=adminadmin
+      - AUTH_SITE=iyuu
+      - IYUU_SIGN=
+      - DOWNLOAD_PATH=/media
+      - LIBRARY_PATH=/media
+      - TORRENT_DOWNLOAD_PATH=/media/torrents
+      - QB_HOST=http://127.0.0.1:8080
+      - QB_USER=admin
+      - QB_PASSWORD=adminadmin
+      - TR_HOST=http://127.0.0.1:9091
+      - TR_USER=admin
+      - TR_PASSWORD=adminadmin
+    restart: always
+    image: jxxghp/moviepilot-v2:latest
