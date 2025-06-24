@@ -132,9 +132,9 @@ download_precompiled_qb() {
     
     print_info "正在下载: $filename"
     
-    # 下载文件
-    if wget --progress=bar:force -t 3 -T 30 -O "$filename" "$url" 2>&1; then
-        # 检查文件是否存在且大小合理
+    # 使用curl下载，带进度条
+    if curl -L --progress-bar --connect-timeout 30 --retry 3 -o "$filename" "$url"; then
+        # 检查文件是否存在且大小合理（至少5MB）
         if [[ -f "$filename" ]] && [[ $(stat -c%s "$filename" 2>/dev/null || echo 0) -gt 5000000 ]]; then
             return 0
         fi
@@ -149,7 +149,7 @@ install_qbittorrent() {
     print_info "开始安装 qBittorrent ${QB_VERSION}..."
     
     # 创建临时目录
-    TMP_DIR="/tmp/qb_install_$$"
+    TMP_DIR="/tmp/qb_install_$"
     mkdir -p $TMP_DIR
     cd $TMP_DIR
     
@@ -157,47 +157,56 @@ install_qbittorrent() {
     DOWNLOAD_SUCCESS=false
     
     # 方案1: 使用已知的稳定预编译版本
-    print_info "尝试下载预编译版本..."
+    print_info "尝试下载 qBittorrent 4.3.8 预编译版本..."
     
-    # 下载链接列表
+    # 下载链接列表 - 使用确认可用的4.3.8版本链接
     declare -A DOWNLOAD_LINKS=(
-        ["qb_shutu"]="https://github.com/Shutu736/pt/raw/master/qb-nox/qbittorrent-nox_4.3.8_linux_x64"
-        ["qb_static_1214"]="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4.3.8_v1.2.14/x86_64-qbittorrent-nox"
-        ["qb_static_1215"]="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4.3.8_v1.2.15/x86_64-qbittorrent-nox"
+        ["qb_438_direct"]="https://github.com/Shutu736/pt/releases/download/qb-nox/qbittorrent-nox_4.3.8_linux_x64"
+        ["qb_438_static"]="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4.3.8_v1.2.19/x86_64-qbittorrent-nox"
+        ["qb_438_alt"]="https://github.com/jerry048/Seedbox-Components/releases/download/v2.0.0/qbittorrent-nox"
     )
     
     # 尝试每个下载源
     for key in "${!DOWNLOAD_LINKS[@]}"; do
+        print_info "尝试从 $key 下载..."
         if download_precompiled_qb "${DOWNLOAD_LINKS[$key]}" "qbittorrent-nox"; then
-            DOWNLOAD_SUCCESS=true
-            print_success "从 $key 下载成功"
-            break
+            # 验证版本
+            chmod +x qbittorrent-nox
+            VERSION_CHECK=$(./qbittorrent-nox --version 2>&1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "")
+            
+            if [[ "$VERSION_CHECK" == "v4.3.8" ]]; then
+                DOWNLOAD_SUCCESS=true
+                print_success "从 $key 下载成功，版本确认: $VERSION_CHECK"
+                break
+            else
+                print_warning "版本不匹配 (获得: $VERSION_CHECK)，尝试下一个源..."
+                rm -f qbittorrent-nox
+            fi
         else
             print_warning "从 $key 下载失败，尝试下一个源..."
         fi
     done
     
-    # 如果下载失败，尝试apt安装
+    # 如果下载失败，尝试手动编译指定版本
     if [[ "$DOWNLOAD_SUCCESS" = false ]]; then
-        print_warning "所有预编译版本下载失败，尝试通过apt安装..."
+        print_error "无法下载正确的预编译版本"
+        print_info "请尝试以下方法："
+        print_info "1. 手动下载 qBittorrent 4.3.8 二进制文件"
+        print_info "2. 使用其他版本的 qBittorrent"
+        print_info "3. 从源码编译安装"
         
-        # 安装qbittorrent-nox
-        if apt-get install -y qbittorrent-nox; then
-            print_success "通过apt安装成功"
-            # 清理并返回
-            cd /
-            rm -rf $TMP_DIR
-            return 0
-        else
-            print_error "apt安装也失败了"
-            cd /
-            rm -rf $TMP_DIR
-            exit 1
-        fi
+        cd /
+        rm -rf $TMP_DIR
+        exit 1
     fi
     
     # 安装下载的二进制文件
     chmod +x qbittorrent-nox
+    
+    # 备份旧版本（如果存在）
+    if [[ -f /usr/bin/qbittorrent-nox ]]; then
+        mv /usr/bin/qbittorrent-nox /usr/bin/qbittorrent-nox.bak
+    fi
     
     # 移动到安装目录
     mv qbittorrent-nox /usr/local/bin/qbittorrent-nox
@@ -205,7 +214,9 @@ install_qbittorrent() {
     # 创建符号链接
     ln -sf /usr/local/bin/qbittorrent-nox /usr/bin/qbittorrent-nox
     
-    print_success "qBittorrent ${QB_VERSION} 安装成功"
+    # 最终版本确认
+    INSTALLED_VERSION=$(qbittorrent-nox --version 2>&1 | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "unknown")
+    print_success "qBittorrent 安装成功，版本: $INSTALLED_VERSION"
     
     # 清理临时文件
     cd /
