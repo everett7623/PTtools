@@ -5,7 +5,7 @@
 # 脚本路径: https://github.com/everett7623/PTtools/blob/main/pttools.sh
 # 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
 # 作者: everett7623
-# 更新时间: 2024-06-24
+# 更新时间: 2025-06-24
 # 版本: v1.0.0
 #
 
