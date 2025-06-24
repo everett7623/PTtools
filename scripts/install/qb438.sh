@@ -138,23 +138,57 @@ install_qbittorrent() {
     print_info "下载qBittorrent ${QB_VERSION}..."
     
     # 创建临时目录
-    TMP_DIR="/tmp/qb_install_$$"
+    TMP_DIR="/tmp/qb_install_$"
     mkdir -p $TMP_DIR
     cd $TMP_DIR
     
-    # 下载预编译的qBittorrent二进制文件
-    # 注意：这里使用通用的下载链接格式，实际使用时可能需要调整
-    QB_URL="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox"
+    # 检测系统架构
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]]; then
+        ARCH_NAME="x86_64"
+    elif [[ "$ARCH" == "aarch64" ]]; then
+        ARCH_NAME="aarch64"
+    else
+        print_error "不支持的系统架构: $ARCH"
+        exit 1
+    fi
     
-    print_info "从 $QB_URL 下载..."
-    if ! wget -q --show-progress -O qbittorrent-nox "$QB_URL"; then
-        print_error "下载qBittorrent失败，尝试备用源..."
-        # 备用下载源
-        QB_URL_ALT="https://sourceforge.net/projects/qbittorrent/files/qbittorrent/qbittorrent-${QB_VERSION}/qbittorrent-nox"
-        if ! wget -q --show-progress -O qbittorrent-nox "$QB_URL_ALT"; then
-            print_error "下载qBittorrent失败"
-            exit 1
+    # 使用多个下载源
+    print_info "尝试从GitHub下载预编译版本..."
+    
+    # 方法1: 从userdocs的releases下载
+    QB_URL="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/${ARCH_NAME}-qbittorrent-nox"
+    
+    if wget -q --show-progress --timeout=30 -O qbittorrent-nox "$QB_URL" && [[ -f qbittorrent-nox ]]; then
+        print_success "从GitHub下载成功"
+    else
+        print_warning "GitHub下载失败，尝试备用方法..."
+        
+        # 方法2: 使用备用的静态编译版本
+        QB_URL_ALT="https://github.com/c0re100/qBittorrent-Enhanced-Edition/releases/download/release-${QB_VERSION}.${LT_VERSION}/qbittorrent-nox"
+        
+        if wget -q --show-progress --timeout=30 -O qbittorrent-nox "$QB_URL_ALT" && [[ -f qbittorrent-nox ]]; then
+            print_success "从备用源下载成功"
+        else
+            print_warning "备用源下载失败，尝试编译安装..."
+            
+            # 方法3: 如果预编译版本都失败，则编译安装
+            compile_qbittorrent
+            return
         fi
+    fi
+    
+    # 验证下载的文件
+    if [[ ! -f qbittorrent-nox ]]; then
+        print_error "下载文件不存在"
+        exit 1
+    fi
+    
+    # 检查文件大小（至少应该有1MB）
+    FILE_SIZE=$(stat -c%s qbittorrent-nox)
+    if [[ $FILE_SIZE -lt 1048576 ]]; then
+        print_error "下载的文件太小，可能已损坏"
+        exit 1
     fi
     
     # 安装二进制文件
@@ -166,6 +200,49 @@ install_qbittorrent() {
     # 清理临时文件
     cd /
     rm -rf $TMP_DIR
+}
+
+# 编译安装qBittorrent（作为备用方案）
+compile_qbittorrent() {
+    print_info "开始编译安装qBittorrent ${QB_VERSION}..."
+    
+    # 安装编译依赖
+    apt-get install -y -qq \
+        qtbase5-dev \
+        qttools5-dev-tools \
+        libqt5svg5-dev \
+        zlib1g-dev \
+        libssl-dev \
+        libboost-dev \
+        libboost-system-dev \
+        libboost-chrono-dev \
+        libboost-random-dev \
+        libboost-python-dev
+    
+    # 编译安装libtorrent
+    print_info "编译libtorrent ${LT_VERSION}..."
+    wget -q --show-progress "https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz"
+    tar xzf libtorrent-rasterbar-${LT_VERSION}.tar.gz
+    cd libtorrent-rasterbar-${LT_VERSION}
+    
+    ./configure --disable-debug --enable-encryption --with-boost-libdir=/usr/lib/x86_64-linux-gnu
+    make -j$(nproc)
+    make install
+    ldconfig
+    
+    cd ..
+    
+    # 编译安装qBittorrent
+    print_info "编译qBittorrent ${QB_VERSION}..."
+    wget -q --show-progress "https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz"
+    tar xzf release-${QB_VERSION}.tar.gz
+    cd qBittorrent-release-${QB_VERSION}
+    
+    ./configure --disable-gui --enable-systemd --with-boost-libdir=/usr/lib/x86_64-linux-gnu CXXFLAGS="-std=c++17"
+    make -j$(nproc)
+    make install
+    
+    print_success "qBittorrent ${QB_VERSION} 编译安装成功"
 }
 
 # 配置qBittorrent
