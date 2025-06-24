@@ -6,7 +6,7 @@
 # 使用方法: wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/scripts/install/qb438.sh | bash
 # 作者: everett7623
 # 更新时间: 2024-06-24
-# 版本: v1.0.0
+# 版本: v1.0.1 (修复版)
 #
 
 # 设置错误时退出
@@ -53,14 +53,16 @@ check_root() {
 
 # 检查系统
 check_system() {
-    if [[ -f /etc/redhat-release ]]; then
-        SYSTEM="centos"
-        PM="yum"
-    elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
+    # 检测Debian/Ubuntu系列
+    if [[ -f /etc/debian_version ]] || cat /etc/issue | grep -q -E -i "debian|ubuntu"; then
+        SYSTEM="debian"
+        PM="apt-get"
+    # 检测CentOS/RHEL系列
+    elif [[ -f /etc/redhat-release ]] || cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
         SYSTEM="centos"
         PM="yum"
     else
-        echo -e "${RED}不支持的操作系统！${NC}"
+        echo -e "${RED}不支持的操作系统！仅支持Debian/Ubuntu/CentOS${NC}"
         exit 1
     fi
     
@@ -68,10 +70,12 @@ check_system() {
     ARCH=$(uname -m)
     if [[ "$ARCH" == "x86_64" ]]; then
         ARCH_TYPE="x86_64"
-    elif [[ "$ARCH" == "aarch64" ]]; then
+    elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
         ARCH_TYPE="aarch64"
+    elif [[ "$ARCH" == "armv7l" || "$ARCH" == "armv8l" ]]; then
+        ARCH_TYPE="armhf"
     else
-        echo -e "${RED}不支持的系统架构: $ARCH${NC}"
+        echo -e "${RED}不支持的系统架构: $ARCH，仅支持x86_64/aarch64/armhf${NC}"
         exit 1
     fi
 }
@@ -82,10 +86,10 @@ install_dependencies() {
     
     if [[ "$PM" == "apt-get" ]]; then
         apt-get update -y
-        apt-get install -y wget curl ca-certificates python3 python3-pip
+        apt-get install -y wget curl ca-certificates python3 python3-pip systemd
     elif [[ "$PM" == "yum" ]]; then
         yum update -y
-        yum install -y wget curl ca-certificates python3 python3-pip
+        yum install -y wget curl ca-certificates python3 python3-pip systemd
     fi
 }
 
@@ -107,11 +111,28 @@ install_qbittorrent() {
     
     # 下载URL根据架构选择
     if [[ "$ARCH_TYPE" == "x86_64" ]]; then
-        # 使用官方或第三方预编译版本
+        # x86_64架构下载链接
         wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/x86_64-qbittorrent-nox" || {
-            echo -e "${RED}下载失败，尝试备用地址...${NC}"
-            # 备用下载地址
+            echo -e "${RED}主下载地址失败，尝试备用地址...${NC}"
             wget -O qbittorrent-nox "https://sourceforge.net/projects/qbittorrent/files/qbittorrent-linux/qbittorrent-${QB_VERSION}/qbittorrent-nox" || {
+                echo -e "${RED}下载qBittorrent失败！${NC}"
+                exit 1
+            }
+        }
+    elif [[ "$ARCH_TYPE" == "aarch64" ]]; then
+        # aarch64(ARM64)架构下载链接
+        wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/aarch64-qbittorrent-nox" || {
+            echo -e "${RED}主下载地址失败，尝试备用地址...${NC}"
+            wget -O qbittorrent-nox "https://github.com/ngosang/trackerslist/wiki/qBittorrent-ARM#download" || {
+                echo -e "${RED}下载qBittorrent失败！${NC}"
+                exit 1
+            }
+        }
+    elif [[ "$ARCH_TYPE" == "armhf" ]]; then
+        # armhf(32位ARM)架构下载链接
+        wget -O qbittorrent-nox "https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/armhf-qbittorrent-nox" || {
+            echo -e "${RED}主下载地址失败，尝试备用地址...${NC}"
+            wget -O qbittorrent-nox "https://github.com/ngosang/trackerslist/wiki/qBittorrent-ARM#download" || {
                 echo -e "${RED}下载qBittorrent失败！${NC}"
                 exit 1
             }
@@ -223,9 +244,11 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=${INSTALL_DIR}/bin/qbittorrent-nox
+ExecStart=${INSTALL_DIR}/bin/qbittorrent-nox --webui-port=${WEB_PORT}
 Restart=on-failure
 RestartSec=5s
+WorkingDirectory=${INSTALL_DIR}
+StandardOutput=journal+console
 
 [Install]
 WantedBy=multi-user.target
@@ -245,18 +268,21 @@ configure_firewall() {
     
     # 检查防火墙类型
     if command -v firewall-cmd &> /dev/null; then
-        # firewalld
+        # firewalld (CentOS 7+)
         firewall-cmd --permanent --add-port=${WEB_PORT}/tcp
         firewall-cmd --permanent --add-port=${BT_PORT}/tcp
         firewall-cmd --permanent --add-port=${BT_PORT}/udp
         firewall-cmd --reload
     elif command -v ufw &> /dev/null; then
-        # ufw
-        ufw allow ${WEB_PORT}/tcp
-        ufw allow ${BT_PORT}/tcp
-        ufw allow ${BT_PORT}/udp
+        # ufw (Debian/Ubuntu)
+        ufw allow ${WEB_PORT}/tcp || true
+        ufw allow ${BT_PORT}/tcp || true
+        ufw allow ${BT_PORT}/udp || true
+        if [[ "$(ufw status)" == "inactive" ]]; then
+            echo -e "${YELLOW}注意: UFW防火墙未启用，建议手动启用: ufw enable${NC}"
+        fi
     elif command -v iptables &> /dev/null; then
-        # iptables
+        # iptables (旧系统)
         iptables -I INPUT -p tcp --dport ${WEB_PORT} -j ACCEPT
         iptables -I INPUT -p tcp --dport ${BT_PORT} -j ACCEPT
         iptables -I INPUT -p udp --dport ${BT_PORT} -j ACCEPT
@@ -267,6 +293,8 @@ configure_firewall() {
         elif [[ "$SYSTEM" == "debian" ]] || [[ "$SYSTEM" == "ubuntu" ]]; then
             iptables-save > /etc/iptables/rules.v4
         fi
+    else
+        echo -e "${YELLOW}警告: 未检测到防火墙管理工具，需手动开放端口 ${WEB_PORT}(TCP) 和 ${BT_PORT}(TCP/UDP)${NC}"
     fi
     
     echo -e "${GREEN}防火墙配置完成！${NC}"
@@ -275,7 +303,7 @@ configure_firewall() {
 # 显示安装信息
 show_install_result() {
     # 获取服务器IP
-    SERVER_IP=$(curl -s4 ip.sb || curl -s4 ipinfo.io/ip || curl -s4 ifconfig.me)
+    SERVER_IP=$(curl -s4 ip.sb || curl -s4 ipinfo.io/ip || curl -s4 ifconfig.me || echo "localhost")
     
     echo ""
     echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -294,7 +322,7 @@ show_install_result() {
     echo -e "状态: systemctl status qbittorrent"
     echo -e "日志: journalctl -u qbittorrent -f"
     echo ""
-    echo -e "${PURPLE}请保存以上信息！${NC}"
+    echo -e "${PURPLE}请保存以上信息！建议首次登录后修改密码${NC}"
     echo ""
 }
 
@@ -332,19 +360,4 @@ main() {
 }
 
 # 运行主函数
-mainetc/issue | grep -q -E -i "debian"; then
-        SYSTEM="debian"
-        PM="apt-get"
-    elif cat /etc/issue | grep -q -E -i "ubuntu"; then
-        SYSTEM="ubuntu"
-        PM="apt-get"
-    elif cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
-        SYSTEM="centos"
-        PM="yum"
-    elif cat /proc/version | grep -q -E -i "debian"; then
-        SYSTEM="debian"
-        PM="apt-get"
-    elif cat /proc/version | grep -q -E -i "ubuntu"; then
-        SYSTEM="ubuntu"
-        PM="apt-get"
-    elif cat /
+main
