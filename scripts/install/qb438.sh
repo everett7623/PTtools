@@ -5,7 +5,7 @@
 # 脚本路径: https://github.com/everett7623/PTtools/blob/main/scripts/install/qb438.sh
 # 使用方法: wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/scripts/install/qb438.sh | bash
 # 作者: everett7623
-# 更新时间: 2024-06-24
+# 更新时间: 2025-06-24
 # 版本: v1.0.1 (修复版)
 #
 
