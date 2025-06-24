@@ -1,0 +1,19 @@
+services:
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=0
+      - PGID=0
+    volumes:
+      - /opt/docker/vertex:/vertex
+    ports:
+      - 3333:3000
+    restart: unless-stopped
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
