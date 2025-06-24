@@ -1,0 +1,23 @@
+services:
+  qbittorrent:
+    image: linuxserver/qbittorrent:4.6.7
+    container_name: qbittorrent
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8080
+    volumes:
+      - /opt/docker/qbittorrent/config:/config
+      - /opt/downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
