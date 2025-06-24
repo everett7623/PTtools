@@ -1,3 +1,13 @@
+#
+# 配置名称: qbittorrent.yml
+# 配置描述: qBittorrent Docker Compose配置文件
+# 配置路径: https://github.com/everett7623/PTtools/blob/main/config/docker-compose/qbittorrent.yml
+# 使用方法: docker-compose -f qbittorrent.yml up -d
+# 作者: everett7623
+# 更新时间: 2024-06-24
+# 版本: v1.0.0
+#
+
 services:
   qbittorrent:
     image: linuxserver/qbittorrent:4.6.7
@@ -11,13 +21,14 @@ services:
       - /opt/docker/qbittorrent/config:/config
       - /opt/downloads:/downloads
     ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
+      - "8080:8080"      # Web UI端口
+      - "28888:28888"    # BT端口
+      - "28888:28888/udp"
     restart: unless-stopped
     networks:
-      - pt-network
+      - pt_network
 
 networks:
-  pt-network:
+  pt_network:
+    name: pt_network
     driver: bridge
