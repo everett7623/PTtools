@@ -1,0 +1,22 @@
+services:
+  iyuuplus:
+    image: iyuucn/iyuuplus-dev:latest
+    container_name: iyuuplus
+    stdin_open: true
+    tty: true
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/iyuuplus/iyuu:/iyuu
+      - /opt/docker/iyuuplus/data:/data
+      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
+      - /opt/docker/transmission/config/torrents:/tr
+    ports:
+      - 8780:8780
+    restart: always
+    networks:
+      - pt-network
+
+networks:
+  pt-network:
+    driver: bridge
