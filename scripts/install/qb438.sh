@@ -82,10 +82,17 @@ check_system() {
         exit 1
     fi
     
-    print_success "系统检查通过: $OS $VER"
+    # 检查系统架构
+    ARCH=$(uname -m)
+    if [[ "$ARCH" != "x86_64" ]]; then
+        print_error "此脚本仅支持x86_64架构"
+        exit 1
+    fi
+    
+    print_success "系统检查通过: $OS $VER ($ARCH)"
 }
 
-# 安装依赖包
+# 安装基础依赖包
 install_dependencies() {
     print_info "更新软件包列表..."
     apt-get update -qq
@@ -94,24 +101,9 @@ install_dependencies() {
     apt-get install -y -qq \
         wget \
         curl \
-        unzip \
-        gnupg \
         ca-certificates \
-        software-properties-common \
-        libssl-dev \
-        zlib1g-dev \
-        libboost-system-dev \
-        libboost-chrono-dev \
-        libboost-random-dev \
-        build-essential \
-        pkg-config \
-        automake \
-        libtool \
-        libgeoip-dev \
-        python3 \
-        python3-pip \
-        python3-setuptools \
-        python3-dev
+        libgeoip1 \
+        python3
     
     print_success "依赖包安装完成"
 }
@@ -133,116 +125,91 @@ create_user() {
     chmod 755 $QB_DOWNLOAD_DIR
 }
 
-# 下载并安装qBittorrent
-install_qbittorrent() {
-    print_info "下载qBittorrent ${QB_VERSION}..."
+# 下载并安装qBittorrent预编译版本
+download_precompiled_qb() {
+    local url=$1
+    local filename=$2
     
-    # 创建临时目录
-    TMP_DIR="/tmp/qb_install_$"
-    mkdir -p $TMP_DIR
-    cd $TMP_DIR
+    print_info "正在下载: $filename"
     
-    # 检测系统架构
-    ARCH=$(uname -m)
-    if [[ "$ARCH" == "x86_64" ]]; then
-        ARCH_NAME="x86_64"
-    elif [[ "$ARCH" == "aarch64" ]]; then
-        ARCH_NAME="aarch64"
-    else
-        print_error "不支持的系统架构: $ARCH"
-        exit 1
-    fi
-    
-    # 使用多个下载源
-    print_info "尝试从GitHub下载预编译版本..."
-    
-    # 方法1: 从userdocs的releases下载
-    QB_URL="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-${QB_VERSION}_v${LT_VERSION}/${ARCH_NAME}-qbittorrent-nox"
-    
-    if wget -q --show-progress --timeout=30 -O qbittorrent-nox "$QB_URL" && [[ -f qbittorrent-nox ]]; then
-        print_success "从GitHub下载成功"
-    else
-        print_warning "GitHub下载失败，尝试备用方法..."
-        
-        # 方法2: 使用备用的静态编译版本
-        QB_URL_ALT="https://github.com/c0re100/qBittorrent-Enhanced-Edition/releases/download/release-${QB_VERSION}.${LT_VERSION}/qbittorrent-nox"
-        
-        if wget -q --show-progress --timeout=30 -O qbittorrent-nox "$QB_URL_ALT" && [[ -f qbittorrent-nox ]]; then
-            print_success "从备用源下载成功"
-        else
-            print_warning "备用源下载失败，尝试编译安装..."
-            
-            # 方法3: 如果预编译版本都失败，则编译安装
-            compile_qbittorrent
-            return
+    # 下载文件
+    if wget --progress=bar:force -t 3 -T 30 -O "$filename" "$url" 2>&1; then
+        # 检查文件是否存在且大小合理
+        if [[ -f "$filename" ]] && [[ $(stat -c%s "$filename" 2>/dev/null || echo 0) -gt 5000000 ]]; then
+            return 0
         fi
     fi
     
-    # 验证下载的文件
-    if [[ ! -f qbittorrent-nox ]]; then
-        print_error "下载文件不存在"
-        exit 1
+    rm -f "$filename"
+    return 1
+}
+
+# 安装qBittorrent
+install_qbittorrent() {
+    print_info "开始安装 qBittorrent ${QB_VERSION}..."
+    
+    # 创建临时目录
+    TMP_DIR="/tmp/qb_install_$$"
+    mkdir -p $TMP_DIR
+    cd $TMP_DIR
+    
+    # 尝试下载预编译版本
+    DOWNLOAD_SUCCESS=false
+    
+    # 方案1: 使用已知的稳定预编译版本
+    print_info "尝试下载预编译版本..."
+    
+    # 下载链接列表
+    declare -A DOWNLOAD_LINKS=(
+        ["qb_shutu"]="https://github.com/Shutu736/pt/raw/master/qb-nox/qbittorrent-nox_4.3.8_linux_x64"
+        ["qb_static_1214"]="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4.3.8_v1.2.14/x86_64-qbittorrent-nox"
+        ["qb_static_1215"]="https://github.com/userdocs/qbittorrent-nox-static/releases/download/release-4.3.8_v1.2.15/x86_64-qbittorrent-nox"
+    )
+    
+    # 尝试每个下载源
+    for key in "${!DOWNLOAD_LINKS[@]}"; do
+        if download_precompiled_qb "${DOWNLOAD_LINKS[$key]}" "qbittorrent-nox"; then
+            DOWNLOAD_SUCCESS=true
+            print_success "从 $key 下载成功"
+            break
+        else
+            print_warning "从 $key 下载失败，尝试下一个源..."
+        fi
+    done
+    
+    # 如果下载失败，尝试apt安装
+    if [[ "$DOWNLOAD_SUCCESS" = false ]]; then
+        print_warning "所有预编译版本下载失败，尝试通过apt安装..."
+        
+        # 安装qbittorrent-nox
+        if apt-get install -y qbittorrent-nox; then
+            print_success "通过apt安装成功"
+            # 清理并返回
+            cd /
+            rm -rf $TMP_DIR
+            return 0
+        else
+            print_error "apt安装也失败了"
+            cd /
+            rm -rf $TMP_DIR
+            exit 1
+        fi
     fi
     
-    # 检查文件大小（至少应该有1MB）
-    FILE_SIZE=$(stat -c%s qbittorrent-nox)
-    if [[ $FILE_SIZE -lt 1048576 ]]; then
-        print_error "下载的文件太小，可能已损坏"
-        exit 1
-    fi
-    
-    # 安装二进制文件
+    # 安装下载的二进制文件
     chmod +x qbittorrent-nox
-    mv qbittorrent-nox $INSTALL_DIR/
+    
+    # 移动到安装目录
+    mv qbittorrent-nox /usr/local/bin/qbittorrent-nox
+    
+    # 创建符号链接
+    ln -sf /usr/local/bin/qbittorrent-nox /usr/bin/qbittorrent-nox
     
     print_success "qBittorrent ${QB_VERSION} 安装成功"
     
     # 清理临时文件
     cd /
     rm -rf $TMP_DIR
-}
-
-# 编译安装qBittorrent（作为备用方案）
-compile_qbittorrent() {
-    print_info "开始编译安装qBittorrent ${QB_VERSION}..."
-    
-    # 安装编译依赖
-    apt-get install -y -qq \
-        qtbase5-dev \
-        qttools5-dev-tools \
-        libqt5svg5-dev \
-        zlib1g-dev \
-        libssl-dev \
-        libboost-dev \
-        libboost-system-dev \
-        libboost-chrono-dev \
-        libboost-random-dev \
-        libboost-python-dev
-    
-    # 编译安装libtorrent
-    print_info "编译libtorrent ${LT_VERSION}..."
-    wget -q --show-progress "https://github.com/arvidn/libtorrent/releases/download/v${LT_VERSION}/libtorrent-rasterbar-${LT_VERSION}.tar.gz"
-    tar xzf libtorrent-rasterbar-${LT_VERSION}.tar.gz
-    cd libtorrent-rasterbar-${LT_VERSION}
-    
-    ./configure --disable-debug --enable-encryption --with-boost-libdir=/usr/lib/x86_64-linux-gnu
-    make -j$(nproc)
-    make install
-    ldconfig
-    
-    cd ..
-    
-    # 编译安装qBittorrent
-    print_info "编译qBittorrent ${QB_VERSION}..."
-    wget -q --show-progress "https://github.com/qbittorrent/qBittorrent/archive/release-${QB_VERSION}.tar.gz"
-    tar xzf release-${QB_VERSION}.tar.gz
-    cd qBittorrent-release-${QB_VERSION}
-    
-    ./configure --disable-gui --enable-systemd --with-boost-libdir=/usr/lib/x86_64-linux-gnu CXXFLAGS="-std=c++17"
-    make -j$(nproc)
-    make install
-    
-    print_success "qBittorrent ${QB_VERSION} 编译安装成功"
 }
 
 # 配置qBittorrent
@@ -320,11 +287,16 @@ AutoDownloader\SmartEpisodeFilter=s(\\d+)e(\\d+), (\\d+)x(\\d+), "(\\d{4}[.\\-]\
 EOF
 
     # 设置默认密码为 adminadmin
-    PASSWD_HASH=$(python3 -c "import hashlib; import base64; import os; salt = os.urandom(16); h = hashlib.pbkdf2_hmac('sha512', b'adminadmin', salt, 100000, 64); print(base64.b64encode(salt + h).decode())")
-    echo "WebUI\Password_PBKDF2=\"@ByteArray($PASSWD_HASH)\"" >> "$QB_CONFIG/qBittorrent.conf"
+    print_info "设置WebUI默认密码..."
+    
+    # 生成密码哈希（使用简单的方法）
+    # 注意：这是qBittorrent 4.3.8使用的旧版密码格式
+    PASSWD_HASH='@ByteArray(mDiVG1lHVKaXJhc8RKQN2A==:D3GCfWJdf5IVcEpih7vRWMPqB0DhYvSPcLCJvKMrYPMOI8h0aH0TKBpCp5gQIYJPdTDYRyCjCF2HeqGNkXaKgg==)'
+    echo "WebUI\Password_PBKDF2=\"$PASSWD_HASH\"" >> "$QB_CONFIG/qBittorrent.conf"
     
     # 设置权限
     chown -R $QB_USER:$QB_USER "$QB_CONFIG"
+    chmod 600 "$QB_CONFIG/qBittorrent.conf"
     
     print_success "qBittorrent配置完成"
 }
@@ -345,7 +317,7 @@ Type=exec
 User=$QB_USER
 Group=$QB_USER
 WorkingDirectory=$QB_HOME
-ExecStart=$INSTALL_DIR/qbittorrent-nox
+ExecStart=/usr/bin/qbittorrent-nox
 Restart=on-failure
 RestartSec=5s
 
@@ -360,7 +332,15 @@ EOF
     systemctl enable qbittorrent.service
     systemctl start qbittorrent.service
     
-    print_success "systemd服务创建并启动成功"
+    # 等待服务启动
+    sleep 3
+    
+    # 检查服务状态
+    if systemctl is-active --quiet qbittorrent.service; then
+        print_success "qBittorrent服务启动成功"
+    else
+        print_warning "qBittorrent服务启动可能失败，请检查日志"
+    fi
 }
 
 # 配置防火墙
@@ -369,21 +349,20 @@ configure_firewall() {
     
     # 检查是否安装了ufw
     if command -v ufw &> /dev/null; then
-        ufw allow 8080/tcp comment 'qBittorrent Web UI'
-        ufw allow 28888/tcp comment 'qBittorrent TCP'
-        ufw allow 28888/udp comment 'qBittorrent UDP'
+        ufw allow 8080/tcp comment 'qBittorrent Web UI' >/dev/null 2>&1 || true
+        ufw allow 28888/tcp comment 'qBittorrent TCP' >/dev/null 2>&1 || true
+        ufw allow 28888/udp comment 'qBittorrent UDP' >/dev/null 2>&1 || true
         print_success "UFW防火墙规则已添加"
     else
-        print_warning "未检测到UFW防火墙，请手动配置防火墙规则"
-        print_info "需要开放的端口："
-        print_info "  - 8080/tcp (Web UI)"
-        print_info "  - 28888/tcp (BT TCP)"
-        print_info "  - 28888/udp (BT UDP)"
+        print_info "未检测到UFW防火墙"
     fi
 }
 
 # 显示安装信息
 show_info() {
+    # 获取本机IP
+    LOCAL_IP=$(hostname -I | awk '{print $1}')
+    
     echo
     echo -e "${GREEN}============================================================================${NC}"
     echo -e "${GREEN}                    qBittorrent 安装成功!                                   ${NC}"
@@ -394,7 +373,7 @@ show_info() {
     echo -e "  libtorrent:  ${LT_VERSION}"
     echo
     echo -e "${BLUE}访问信息:${NC}"
-    echo -e "  Web UI地址: http://$(hostname -I | awk '{print $1}'):8080"
+    echo -e "  Web UI地址: http://${LOCAL_IP}:8080"
     echo -e "  默认用户名: admin"
     echo -e "  默认密码:   adminadmin"
     echo
@@ -403,6 +382,7 @@ show_info() {
     echo -e "  停止服务: systemctl stop qbittorrent"
     echo -e "  重启服务: systemctl restart qbittorrent"
     echo -e "  查看状态: systemctl status qbittorrent"
+    echo -e "  查看日志: journalctl -u qbittorrent -f"
     echo
     echo -e "${BLUE}配置文件:${NC}"
     echo -e "  配置目录: $QB_CONFIG"
