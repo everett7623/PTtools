@@ -1,19 +1,27 @@
+# Vertex Docker Compose配置文件
+# 脚本名称: vertex.yml
+# 脚本描述: Vertex应用的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/vertex.yml
+# 使用方法: docker-compose -f vertex.yml up -d
+# 作者: everett7623
+# 更新时间: 2025-06-25
+
+version: '3.8'
+
 services:
   vertex:
     image: lswl/vertex:stable
     container_name: vertex
     environment:
       - TZ=Asia/Shanghai
-      - PUID=0
-      - PGID=0
     volumes:
       - /opt/docker/vertex:/vertex
     ports:
       - 3333:3000
     restart: unless-stopped
     networks:
-      - pt-network
+      - pttools
 
 networks:
-  pt-network:
+  pttools:
     driver: bridge
