@@ -16,6 +16,7 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[0;37m'
+GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 
 # 全局变量
@@ -205,6 +206,234 @@ install_qb438() {
     read -n 1
 }
 
+# 卸载应用
+uninstall_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}卸载应用${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    # 检测Docker应用
+    echo -e "${YELLOW}正在检测已安装的应用...${NC}"
+    echo
+    
+    # 检测Docker应用
+    docker_apps=()
+    if command -v docker &> /dev/null; then
+        echo -e "${BLUE}检测到的Docker应用：${NC}"
+        
+        # 检查常见的PT相关容器
+        containers=("vertex" "qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot")
+        found_docker=false
+        
+        for container in "${containers[@]}"; do
+            if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
+                status=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "^${container}" | awk '{print $2}')
+                if [ -n "$status" ]; then
+                    echo -e "${GREEN}  ✓ ${container} (运行中)${NC}"
+                else
+                    echo -e "${YELLOW}  ✓ ${container} (已停止)${NC}"
+                fi
+                docker_apps+=("$container")
+                found_docker=true
+            fi
+        done
+        
+        if [ "$found_docker" = false ]; then
+            echo -e "${GRAY}  未检测到相关Docker应用${NC}"
+        fi
+    else
+        echo -e "${GRAY}Docker未安装，跳过Docker应用检测${NC}"
+    fi
+    
+    echo
+    echo -e "${BLUE}原作者脚本安装的应用：${NC}"
+    echo -e "${WHITE}  • qBittorrent (原生安装)${NC}"
+    echo -e "${WHITE}  • Vertex (原生安装)${NC}"
+    echo -e "${WHITE}  • 其他jerry048脚本安装的组件${NC}"
+    
+    echo
+    echo -e "${GREEN}请选择卸载类型：${NC}"
+    echo "1. 卸载Docker应用"
+    echo "2. 卸载原作者脚本应用"
+    echo "3. 返回主菜单"
+    
+    read -p "请选择 [1-3]: " uninstall_choice
+    
+    case $uninstall_choice in
+        1)
+            uninstall_docker_apps
+            ;;
+        2)
+            uninstall_script_apps
+            ;;
+        3)
+            return
+            ;;
+        *)
+            echo -e "${RED}无效选择${NC}"
+            echo -e "${YELLOW}按任意键返回...${NC}"
+            read -n 1
+            ;;
+    esac
+}
+
+# 卸载Docker应用
+uninstall_docker_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}卸载Docker应用${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}Docker未安装，无法卸载Docker应用${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return
+    fi
+    
+    # 重新检测Docker应用
+    containers=("vertex" "qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot")
+    found_containers=()
+    
+    echo -e "${YELLOW}检测Docker应用中...${NC}"
+    for container in "${containers[@]}"; do
+        if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
+            found_containers+=("$container")
+        fi
+    done
+    
+    if [ ${#found_containers[@]} -eq 0 ]; then
+        echo -e "${YELLOW}未发现相关Docker应用${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo -e "${GREEN}发现以下Docker应用：${NC}"
+    for i in "${!found_containers[@]}"; do
+        status=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "^${found_containers[$i]}" | awk '{print $2}')
+        if [ -n "$status" ]; then
+            echo -e "${GREEN}  $((i+1)). ${found_containers[$i]} (运行中)${NC}"
+        else
+            echo -e "${YELLOW}  $((i+1)). ${found_containers[$i]} (已停止)${NC}"
+        fi
+    done
+    echo -e "${WHITE}  $((${#found_containers[@]}+1)). 全部卸载${NC}"
+    echo -e "${WHITE}  $((${#found_containers[@]}+2)). 返回上级菜单${NC}"
+    
+    read -p "请选择要卸载的应用: " docker_choice
+    
+    if [[ $docker_choice -eq $((${#found_containers[@]}+1)) ]]; then
+        # 全部卸载
+        echo -e "${RED}警告：这将卸载所有检测到的Docker应用！${NC}"
+        read -p "确认卸载所有应用？[y/N]: " confirm_all
+        if [[ $confirm_all =~ ^[Yy]$ ]]; then
+            for container in "${found_containers[@]}"; do
+                uninstall_single_docker_app "$container"
+            done
+        else
+            echo -e "${YELLOW}已取消卸载${NC}"
+        fi
+    elif [[ $docker_choice -eq $((${#found_containers[@]}+2)) ]]; then
+        # 返回上级菜单
+        return
+    elif [[ $docker_choice -ge 1 && $docker_choice -le ${#found_containers[@]} ]]; then
+        # 卸载单个应用
+        selected_container="${found_containers[$((docker_choice-1))]}"
+        uninstall_single_docker_app "$selected_container"
+    else
+        echo -e "${RED}无效选择${NC}"
+    fi
+    
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
+# 卸载单个Docker应用
+uninstall_single_docker_app() {
+    local container_name="$1"
+    echo -e "${YELLOW}正在卸载 ${container_name}...${NC}"
+    
+    # 停止容器
+    if docker ps --format "table {{.Names}}" | grep -q "^${container_name}$"; then
+        echo -e "${YELLOW}停止容器 ${container_name}...${NC}"
+        docker stop "$container_name"
+    fi
+    
+    # 删除容器
+    if docker ps -a --format "table {{.Names}}" | grep -q "^${container_name}$"; then
+        echo -e "${YELLOW}删除容器 ${container_name}...${NC}"
+        docker rm "$container_name"
+    fi
+    
+    # 询问是否删除数据目录
+    echo -e "${YELLOW}是否同时删除数据目录 /opt/docker/${container_name}？[y/N]: ${NC}"
+    read -r delete_data
+    if [[ $delete_data =~ ^[Yy]$ ]]; then
+        if [ -d "/opt/docker/${container_name}" ]; then
+            echo -e "${YELLOW}删除数据目录 /opt/docker/${container_name}...${NC}"
+            rm -rf "/opt/docker/${container_name}"
+            echo -e "${GREEN}数据目录已删除${NC}"
+        fi
+    else
+        echo -e "${BLUE}数据目录已保留：/opt/docker/${container_name}${NC}"
+    fi
+    
+    echo -e "${GREEN}${container_name} 卸载完成${NC}"
+}
+
+# 卸载原作者脚本应用
+uninstall_script_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}卸载原作者脚本应用${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    echo -e "${YELLOW}注意：原作者脚本安装的应用卸载需要手动操作${NC}"
+    echo
+    echo -e "${BLUE}常见卸载方法：${NC}"
+    echo -e "${WHITE}1. qBittorrent (原生安装):${NC}"
+    echo -e "${WHITE}   systemctl stop qbittorrent${NC}"
+    echo -e "${WHITE}   systemctl disable qbittorrent${NC}"
+    echo -e "${WHITE}   apt remove qbittorrent (Debian/Ubuntu)${NC}"
+    echo -e "${WHITE}   yum remove qbittorrent (CentOS/RHEL)${NC}"
+    echo
+    echo -e "${WHITE}2. Vertex (原生安装):${NC}"
+    echo -e "${WHITE}   需要查看jerry048脚本的具体安装方式${NC}"
+    echo -e "${WHITE}   通常涉及停止服务和删除相关文件${NC}"
+    echo
+    echo -e "${WHITE}3. 其他组件:${NC}"
+    echo -e "${WHITE}   autobrr、autoremove-torrents等${NC}"
+    echo -e "${WHITE}   需要根据具体安装方式进行卸载${NC}"
+    echo
+    
+    echo -e "${RED}建议：${NC}"
+    echo -e "${WHITE}1. 查看系统服务：systemctl list-units --type=service${NC}"
+    echo -e "${WHITE}2. 查看安装的软件包${NC}"
+    echo -e "${WHITE}3. 查看相关进程：ps aux | grep qbittorrent${NC}"
+    echo -e "${WHITE}4. 查看开机启动项${NC}"
+    echo
+    
+    echo -e "${YELLOW}是否要显示当前运行的相关服务？[Y/n]: ${NC}"
+    read -r show_services
+    show_services=${show_services:-Y}
+    
+    if [[ $show_services =~ ^[Yy]$ ]]; then
+        echo
+        echo -e "${BLUE}当前运行的相关服务：${NC}"
+        systemctl list-units --type=service --state=running | grep -E "(qbittorrent|transmission|emby|vertex)" || echo -e "${GRAY}未找到相关服务${NC}"
+        
+        echo
+        echo -e "${BLUE}相关进程：${NC}"
+        ps aux | grep -E "(qbittorrent|transmission|emby|vertex)" | grep -v grep || echo -e "${GRAY}未找到相关进程${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
 # 使用Docker安装Vertex
 install_vertex_docker() {
     echo -e "${YELLOW}正在创建Vertex目录...${NC}"
@@ -250,29 +479,6 @@ EOF
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
         echo -e "${GREEN}默认用户名: admin${NC}"
-        
-        # 等待容器完全启动并生成密码文件
-        echo -e "${YELLOW}正在等待Vertex初始化...${NC}"
-        sleep 10
-        
-        # 尝试读取密码文件
-        if [ -f "/opt/docker/vertex/data/password" ]; then
-            vertex_password=$(cat /opt/docker/vertex/data/password 2>/dev/null)
-            if [ -n "$vertex_password" ]; then
-                echo -e "${GREEN}初始密码: ${vertex_password}${NC}"
-                echo -e "${CYAN}================================================${NC}"
-                echo -e "${CYAN}Vertex登录信息${NC}"
-                echo -e "${CYAN}地址: http://你的服务器IP:3333${NC}"
-                echo -e "${CYAN}用户名: admin${NC}"
-                echo -e "${CYAN}密码: ${vertex_password}${NC}"
-                echo -e "${CYAN}================================================${NC}"
-            else
-                echo -e "${YELLOW}密码文件为空，请稍后查看 /opt/docker/vertex/data/password${NC}"
-            fi
-        else
-            echo -e "${YELLOW}密码文件尚未生成，请稍后查看 /opt/docker/vertex/data/password${NC}"
-            echo -e "${YELLOW}或执行命令: cat /opt/docker/vertex/data/password${NC}"
-        fi
         return 0
     else
         echo -e "${RED}Vertex Docker安装失败${NC}"
@@ -419,7 +625,19 @@ install_qb438_vt() {
         if [ "$vertex_install_type" == "docker" ]; then
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
             echo -e "${GREEN}Vertex用户名: admin${NC}"
-            echo -e "${GREEN}Vertex密码: 查看上方显示或执行 cat /opt/docker/vertex/data/password${NC}"
+            # 等待并直接显示密码
+            echo -e "${YELLOW}正在获取Vertex密码...${NC}"
+            sleep 5
+            if [ -f "/opt/docker/vertex/data/password" ]; then
+                vertex_password=$(cat /opt/docker/vertex/data/password 2>/dev/null)
+                if [ -n "$vertex_password" ]; then
+                    echo -e "${GREEN}Vertex密码: ${vertex_password}${NC}"
+                else
+                    echo -e "${YELLOW}Vertex密码: 密码文件为空，请执行 cat /opt/docker/vertex/data/password${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Vertex密码: 密码文件未生成，请执行 cat /opt/docker/vertex/data/password${NC}"
+            fi
         else
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
             echo -e "${GREEN}Vertex用户名: admin${NC}"
@@ -601,7 +819,19 @@ install_qb439_vt() {
             echo -e "${GREEN}================================================${NC}"
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
             echo -e "${GREEN}Vertex用户名: admin${NC}"
-            echo -e "${GREEN}Vertex密码: 查看上方显示或执行 cat /opt/docker/vertex/data/password${NC}"
+            # 等待并直接显示密码
+            echo -e "${YELLOW}正在获取Vertex密码...${NC}"
+            sleep 5
+            if [ -f "/opt/docker/vertex/data/password" ]; then
+                vertex_password=$(cat /opt/docker/vertex/data/password 2>/dev/null)
+                if [ -n "$vertex_password" ]; then
+                    echo -e "${GREEN}Vertex密码: ${vertex_password}${NC}"
+                else
+                    echo -e "${YELLOW}Vertex密码: 密码文件为空，请执行 cat /opt/docker/vertex/data/password${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Vertex密码: 密码文件未生成，请执行 cat /opt/docker/vertex/data/password${NC}"
+            fi
             echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
             echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
             echo -e "${GREEN}qBittorrent缓存大小: ${cache_size} MiB${NC}"
@@ -816,9 +1046,7 @@ main() {
                 read -n 1
                 ;;
             8)
-                echo -e "${YELLOW}卸载功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                uninstall_apps
                 ;;
             9)
                 echo -e "${YELLOW}正在卸载脚本...${NC}"
