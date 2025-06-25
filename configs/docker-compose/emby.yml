@@ -1,17 +1,24 @@
+# Emby Docker Compose配置文件
+# 脚本名称: emby.yml
+# 脚本描述: Emby媒体服务器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/emby.yml
+# 使用方法: docker-compose -f emby.yml up -d
+# 作者: everett7623
+# 更新时间: 2025-06-25
+
+version: '3.8'
+
 services:
   emby:
-    image: emby/embyserver:latest
+    image: emby/embyserver
     container_name: emby
     environment:
       - PUID=0
       - PGID=0
       - TZ=Asia/Shanghai
-      - UID=0
-      - GID=0
     volumes:
       - /opt/docker/emby/config:/config
       - /opt/downloads:/media
-      - /opt/docker/emby/cache:/cache
     ports:
       - 8096:8096
       - 8920:8920
@@ -20,8 +27,8 @@ services:
     privileged: true
     restart: unless-stopped
     networks:
-      - pt-network
+      - pttools
 
 networks:
-  pt-network:
+  pttools:
     driver: bridge
