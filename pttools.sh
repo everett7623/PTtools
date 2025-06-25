@@ -269,10 +269,30 @@ install_qb438_vt() {
     
     # 检查Docker
     if ! command -v docker &> /dev/null; then
-        echo -e "${RED}错误：未安装Docker，无法安装Vertex${NC}"
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
-        return
+        echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
+        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+        read -r install_docker_choice
+        install_docker_choice=${install_docker_choice:-Y}
+        
+        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}正在安装Docker...${NC}"
+            install_docker_func
+            
+            # 检查Docker是否安装成功
+            if ! command -v docker &> /dev/null; then
+                echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            else
+                echo -e "${GREEN}Docker安装成功！${NC}"
+            fi
+        else
+            echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
     fi
     
     echo -e "${BLUE}qBittorrent 4.3.8 安装参数配置：${NC}"
@@ -363,10 +383,30 @@ install_qb439_vt() {
     
     # 检查Docker
     if ! command -v docker &> /dev/null; then
-        echo -e "${RED}错误：未安装Docker，无法安装Vertex${NC}"
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
-        return
+        echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
+        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+        read -r install_docker_choice
+        install_docker_choice=${install_docker_choice:-Y}
+        
+        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}正在安装Docker...${NC}"
+            install_docker_func
+            
+            # 检查Docker是否安装成功
+            if ! command -v docker &> /dev/null; then
+                echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            else
+                echo -e "${GREEN}Docker安装成功！${NC}"
+            fi
+        else
+            echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
     fi
     
     echo -e "${BLUE}qBittorrent 4.3.9 安装参数配置：${NC}"
