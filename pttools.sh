@@ -1,352 +1,275 @@
 #!/bin/bash
-#
+
+# PTtools - PT工具一键安装脚本
 # 脚本名称: pttools.sh
-# 脚本描述: PTtools - PT常用工具一键安装脚本
-# 脚本路径: https://github.com/everett7623/PTtools/blob/main/pttools.sh
-# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
+# 脚本描述: PT工具一键安装脚本，支持qBittorrent、Transmission、Emby等应用的快捷安装
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
+# 使用方法: wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh && chmod +x pttools.sh && ./pttools.sh
 # 作者: everett7623
-# 更新时间: 2025-06-24
-# 版本: v1.0.0
-#
+# 更新时间: 2025-06-25
 
-# 设置错误时退出
-set -e
-
-# 定义颜色
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
+WHITE='\033[0;37m'
 NC='\033[0m' # No Color
 
-# 定义全局变量
-GITHUB_USER="everett7623"
-GITHUB_REPO="PTtools"
-GITHUB_URL="https://github.com/${GITHUB_USER}/${GITHUB_REPO}"
-GITHUB_RAW_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main"
+# 全局变量
 DOCKER_DIR="/opt/docker"
-DOWNLOAD_DIR="/opt/downloads"
-SCRIPT_VERSION="v1.0.0"
+DOWNLOADS_DIR="/opt/downloads"
+GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 
-# 显示logo
-show_logo() {
-    clear
+# 显示横幅
+show_banner() {
     echo -e "${CYAN}"
-    echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                                                               ║"
-    echo "║                      PTtools 一键安装脚本                      ║"
-    echo "║                                                               ║"
-    echo "║                    Version: ${SCRIPT_VERSION}                          ║"
-    echo "║                                                               ║"
-    echo "╚═══════════════════════════════════════════════════════════════╝"
+    echo "=================================================="
+    echo "           PTtools - PT工具一键安装脚本"
+    echo "               作者: everett7623"
+    echo "=================================================="
     echo -e "${NC}"
 }
 
-# 检查root权限
+# 检查是否为root用户
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        echo -e "${RED}错误: 此脚本需要root权限运行${NC}"
-        echo -e "${YELLOW}请使用 sudo -i 切换到root用户后再运行${NC}"
+        echo -e "${RED}错误：此脚本需要root权限运行${NC}"
+        echo "请使用 sudo 或切换到root用户后重新运行"
         exit 1
     fi
 }
 
-# 检查系统
+# 检查系统类型
 check_system() {
     if [[ -f /etc/redhat-release ]]; then
-        SYSTEM="centos"
-    elif cat /etc/issue | grep -q -E -i "debian"; then
-        SYSTEM="debian"
-    elif cat /etc/issue | grep -q -E -i "ubuntu"; then
-        SYSTEM="ubuntu"
-    elif cat /etc/issue | grep -q -E -i "centos|red hat|redhat"; then
-        SYSTEM="centos"
-    elif cat /proc/version | grep -q -E -i "debian"; then
-        SYSTEM="debian"
-    elif cat /proc/version | grep -q -E -i "ubuntu"; then
-        SYSTEM="ubuntu"
-    elif cat /proc/version | grep -q -E -i "centos|red hat|redhat"; then
-        SYSTEM="centos"
+        DISTRO="centos"
+        PM="yum"
+    elif [[ -f /etc/debian_version ]]; then
+        DISTRO="debian"
+        PM="apt"
     else
-        echo -e "${RED}不支持的操作系统！${NC}"
+        echo -e "${RED}不支持的系统类型${NC}"
         exit 1
+    fi
+    echo -e "${GREEN}系统类型: $DISTRO${NC}"
+}
+
+# 更新系统
+update_system() {
+    echo -e "${YELLOW}正在更新系统...${NC}"
+    if [[ $DISTRO == "debian" ]]; then
+        apt update -y && apt upgrade -y
+    elif [[ $DISTRO == "centos" ]]; then
+        yum update -y
     fi
 }
 
-# 创建必要的目录
-create_directories() {
-    mkdir -p ${DOCKER_DIR}
-    mkdir -p ${DOWNLOAD_DIR}
+# 安装基础工具
+install_base_tools() {
+    echo -e "${YELLOW}正在安装基础工具...${NC}"
+    if [[ $DISTRO == "debian" ]]; then
+        apt install -y curl wget git unzip
+    elif [[ $DISTRO == "centos" ]]; then
+        yum install -y curl wget git unzip
+    fi
 }
 
 # 检查Docker是否安装
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到Docker未安装${NC}"
-        echo -e "${CYAN}请选择Docker安装方式:${NC}"
-        echo "1) 官方源安装（国外服务器推荐）"
-        echo "2) 阿里云镜像安装（国内服务器推荐）"
-        echo "3) 跳过Docker安装"
-        read -p "请选择 [1-3]: " docker_choice
-        
-        case $docker_choice in
-            1)
-                echo -e "${GREEN}正在从官方源安装Docker...${NC}"
-                curl -fsSL https://get.docker.com | bash -s docker
-                ;;
-            2)
-                echo -e "${GREEN}正在从阿里云镜像安装Docker...${NC}"
-                curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
-                ;;
-            3)
-                echo -e "${YELLOW}跳过Docker安装${NC}"
-                ;;
-            *)
-                echo -e "${RED}无效选择，跳过Docker安装${NC}"
-                ;;
-        esac
-        
-        # 检查是否需要安装docker-compose
-        if command -v docker &> /dev/null && ! command -v docker-compose &> /dev/null; then
-            echo -e "${YELLOW}检测到docker-compose未安装${NC}"
-            read -p "是否安装docker-compose? [y/N]: " install_compose
-            if [[ "$install_compose" =~ ^[Yy]$ ]]; then
-                echo -e "${GREEN}正在安装docker-compose...${NC}"
-                curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                chmod +x /usr/local/bin/docker-compose
-            fi
+        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？(y/n)${NC}"
+        read -r install_docker
+        if [[ $install_docker =~ ^[Yy]$ ]]; then
+            install_docker_func
+        else
+            echo -e "${RED}部分功能需要Docker支持${NC}"
         fi
-        
-        # 启动Docker服务
-        if command -v docker &> /dev/null; then
-            systemctl enable docker
-            systemctl start docker
-            echo -e "${GREEN}Docker服务已启动${NC}"
-        fi
+    else
+        echo -e "${GREEN}Docker已安装${NC}"
     fi
+}
+
+# 安装Docker
+install_docker_func() {
+    echo -e "${YELLOW}正在安装Docker...${NC}"
+    echo -e "${YELLOW}选择安装源：${NC}"
+    echo "1. 官方源（默认）"
+    echo "2. 阿里云镜像源"
+    read -p "请选择 [1-2]: " docker_source
+    
+    case $docker_source in
+        2)
+            curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
+            ;;
+        *)
+            curl -fsSL https://get.docker.com | bash -s docker
+            ;;
+    esac
+    
+    systemctl start docker
+    systemctl enable docker
+    
+    echo -e "${YELLOW}是否安装Docker Compose？(y/n)${NC}"
+    read -r install_compose
+    if [[ $install_compose =~ ^[Yy]$ ]]; then
+        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+        echo -e "${GREEN}Docker Compose安装完成${NC}"
+    fi
+}
+
+# 创建必要目录
+create_directories() {
+    echo -e "${YELLOW}正在创建必要目录...${NC}"
+    mkdir -p "$DOCKER_DIR"
+    mkdir -p "$DOWNLOADS_DIR"
+    echo -e "${GREEN}目录创建完成${NC}"
+    echo -e "${GREEN}Docker目录: $DOCKER_DIR${NC}"
+    echo -e "${GREEN}下载目录: $DOWNLOADS_DIR${NC}"
+}
+
+# 安装qBittorrent 4.3.8
+install_qb438() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}正在安装 qBittorrent 4.3.8${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    echo -e "${YELLOW}此功能将调用原作者脚本进行安装${NC}"
+    echo -e "${YELLOW}原作者：iniwex5${NC}"
+    echo -e "${YELLOW}脚本来源：https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh${NC}"
+    echo
+    echo -e "${RED}注意：安装过程中请按照原脚本提示进行操作${NC}"
+    echo
+    read -p "是否继续安装？(y/n): " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}安装已取消${NC}"
+        return
+    fi
+    
+    echo -e "${YELLOW}正在下载并执行安装脚本...${NC}"
+    
+    # 下载并执行原作者脚本
+    if curl -fsSL https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh | bash; then
+        echo
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}qBittorrent 4.3.8 安装完成！${NC}"
+        echo -e "${GREEN}================================================${NC}"
+    else
+        echo
+        echo -e "${RED}================================================${NC}"
+        echo -e "${RED}qBittorrent 4.3.8 安装失败！${NC}"
+        echo -e "${RED}================================================${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+    read -n 1
 }
 
 # 显示主菜单
 show_menu() {
-    echo ""
-    echo -e "${PURPLE}==================== PTtools 主菜单 ====================${NC}"
-    echo -e "${GREEN}1.${NC} qBittorrent 4.3.8⭐"
-    echo -e "${GREEN}2.${NC} qBittorrent 4.3.9⭐"
-    echo -e "${GREEN}3.${NC} Vertex + qBittorrent 4.3.8🔥"
-    echo -e "${GREEN}4.${NC} Vertex + qBittorrent 4.3.9🔥"
-    echo -e "${GREEN}5.${NC} qBittorrent 4.6.7 + Transmission 4.0.5 + emby + iyuuplus + moviepilot🔥"
-    echo -e "${GREEN}6.${NC} PT Docker应用 ${YELLOW}(待开发)${NC}"
-    echo -e "${GREEN}7.${NC} 系统优化 ${YELLOW}(待开发)${NC}"
-    echo -e "${GREEN}8.${NC} 卸载应用"
-    echo -e "${GREEN}9.${NC} 卸载脚本"
-    echo -e "${GREEN}0.${NC} 退出脚本"
-    echo -e "${PURPLE}=======================================================${NC}"
-}
-
-# 执行安装脚本
-execute_install_script() {
-    local script_name=$1
-    local script_url="${GITHUB_RAW_URL}/scripts/install/${script_name}"
-    
-    echo -e "${GREEN}正在下载并执行安装脚本: ${script_name}${NC}"
-    
-    # 下载并执行脚本
-    if wget -qO- ${script_url} | bash; then
-        echo -e "${GREEN}安装完成！${NC}"
-    else
-        echo -e "${RED}安装失败！${NC}"
-    fi
-    
-    read -p "按任意键返回主菜单..." -n 1 -r
-}
-
-# 卸载应用菜单
-uninstall_menu() {
     clear
-    show_logo
-    echo -e "${PURPLE}==================== 卸载应用 ====================${NC}"
-    echo -e "${GREEN}1.${NC} 卸载 qBittorrent"
-    echo -e "${GREEN}2.${NC} 卸载 Transmission"
-    echo -e "${GREEN}3.${NC} 卸载 Emby"
-    echo -e "${GREEN}4.${NC} 卸载 iyuuplus"
-    echo -e "${GREEN}5.${NC} 卸载 MoviePilot"
-    echo -e "${GREEN}6.${NC} 卸载 Vertex"
-    echo -e "${GREEN}7.${NC} 卸载所有Docker容器和镜像"
-    echo -e "${GREEN}0.${NC} 返回主菜单"
-    echo -e "${PURPLE}=================================================${NC}"
-    
-    read -p "请选择要卸载的应用 [0-7]: " uninstall_choice
-    
-    case $uninstall_choice in
-        1)
-            echo -e "${YELLOW}正在卸载 qBittorrent...${NC}"
-            systemctl stop qbittorrent 2>/dev/null || true
-            systemctl disable qbittorrent 2>/dev/null || true
-            rm -rf /usr/local/qbittorrent
-            rm -f /etc/systemd/system/qbittorrent.service
-            docker stop qbittorrent 2>/dev/null || true
-            docker rm qbittorrent 2>/dev/null || true
-            echo -e "${GREEN}qBittorrent 已卸载${NC}"
-            ;;
-        2)
-            echo -e "${YELLOW}正在卸载 Transmission...${NC}"
-            docker stop transmission 2>/dev/null || true
-            docker rm transmission 2>/dev/null || true
-            rm -rf ${DOCKER_DIR}/transmission
-            echo -e "${GREEN}Transmission 已卸载${NC}"
-            ;;
-        3)
-            echo -e "${YELLOW}正在卸载 Emby...${NC}"
-            docker stop emby 2>/dev/null || true
-            docker rm emby 2>/dev/null || true
-            rm -rf ${DOCKER_DIR}/emby
-            echo -e "${GREEN}Emby 已卸载${NC}"
-            ;;
-        4)
-            echo -e "${YELLOW}正在卸载 iyuuplus...${NC}"
-            docker stop iyuuplus 2>/dev/null || true
-            docker rm iyuuplus 2>/dev/null || true
-            rm -rf ${DOCKER_DIR}/iyuuplus
-            echo -e "${GREEN}iyuuplus 已卸载${NC}"
-            ;;
-        5)
-            echo -e "${YELLOW}正在卸载 MoviePilot...${NC}"
-            docker stop moviepilot 2>/dev/null || true
-            docker rm moviepilot 2>/dev/null || true
-            rm -rf ${DOCKER_DIR}/moviepilot
-            echo -e "${GREEN}MoviePilot 已卸载${NC}"
-            ;;
-        6)
-            echo -e "${YELLOW}正在卸载 Vertex...${NC}"
-            docker stop vertex 2>/dev/null || true
-            docker rm vertex 2>/dev/null || true
-            rm -rf ${DOCKER_DIR}/vertex
-            echo -e "${GREEN}Vertex 已卸载${NC}"
-            ;;
-        7)
-            echo -e "${RED}警告: 这将删除所有Docker容器和镜像！${NC}"
-            read -p "确定要继续吗? [y/N]: " confirm
-            if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                docker stop $(docker ps -aq) 2>/dev/null || true
-                docker rm $(docker ps -aq) 2>/dev/null || true
-                docker rmi $(docker images -q) 2>/dev/null || true
-                echo -e "${GREEN}所有Docker容器和镜像已删除${NC}"
-            fi
-            ;;
-        0)
-            return
-            ;;
-        *)
-            echo -e "${RED}无效的选择${NC}"
-            ;;
-    esac
-    
-    read -p "按任意键继续..." -n 1 -r
-    uninstall_menu
+    show_banner
+    echo -e "${GREEN}请选择要安装的应用：${NC}"
+    echo
+    echo -e "${WHITE}├── 1. qBittorrent 4.3.8⭐${NC}"
+    echo -e "${WHITE}├── 2. qBittorrent 4.3.9⭐${NC}"
+    echo -e "${WHITE}├── 3. Vertex + qBittorrent 4.3.8🔥${NC}"
+    echo -e "${WHITE}├── 4. Vertex + qBittorrent 4.3.9🔥${NC}"
+    echo -e "${WHITE}├── 5. qBittorrent 4.6.7 + Transmission 4.0.5 + emby + iyuuplus + moviepilot🔥${NC}"
+    echo -e "${WHITE}├── 6. PT Docker应用 (功能分类与工具列表, 以后添加)${NC}"
+    echo -e "${WHITE}├── 7. 系统优化 (VPS性能调优, 以后添加)${NC}"
+    echo -e "${WHITE}├── 8. 卸载应用${NC}"
+    echo -e "${WHITE}├── 9. 卸载脚本${NC}"
+    echo -e "${WHITE}└── 0. 退出脚本${NC}"
+    echo
+    echo -e "${BLUE}当前Docker目录: $DOCKER_DIR${NC}"
+    echo -e "${BLUE}当前下载目录: $DOWNLOADS_DIR${NC}"
+    echo
 }
 
-# 卸载脚本
-uninstall_script() {
-    clear
-    show_logo
-    echo -e "${RED}警告: 这将完全卸载PTtools脚本及其所有组件！${NC}"
-    echo -e "${YELLOW}这包括:${NC}"
-    echo "- 所有已安装的应用"
-    echo "- 所有配置文件"
-    echo "- 所有下载的文件"
-    echo ""
-    read -p "确定要完全卸载PTtools吗? [y/N]: " confirm
-    
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}正在卸载PTtools...${NC}"
-        
-        # 停止所有相关服务
-        systemctl stop qbittorrent 2>/dev/null || true
-        systemctl disable qbittorrent 2>/dev/null || true
-        
-        # 停止并删除所有相关Docker容器
-        docker stop $(docker ps -a | grep -E "qbittorrent|transmission|emby|iyuuplus|moviepilot|vertex" | awk '{print $1}') 2>/dev/null || true
-        docker rm $(docker ps -a | grep -E "qbittorrent|transmission|emby|iyuuplus|moviepilot|vertex" | awk '{print $1}') 2>/dev/null || true
-        
-        # 删除目录
-        rm -rf ${DOCKER_DIR}
-        rm -rf ${DOWNLOAD_DIR}
-        rm -rf /usr/local/qbittorrent
-        
-        # 删除脚本自身
-        SCRIPT_PATH="$0"
-        rm -f "$SCRIPT_PATH"
-        
-        echo -e "${GREEN}PTtools已完全卸载！${NC}"
-        echo -e "${YELLOW}感谢使用PTtools！${NC}"
-        exit 0
-    else
-        echo -e "${GREEN}已取消卸载${NC}"
-        read -p "按任意键返回主菜单..." -n 1 -r
-    fi
-}
-
-# 主函数
+# 主程序
 main() {
+    # 初始化检查
     check_root
     check_system
-    create_directories
     
     while true; do
-        show_logo
         show_menu
-        
         read -p "请输入选项 [0-9]: " choice
         
         case $choice in
             1)
-                check_docker
-                execute_install_script "qb438.sh"
+                install_qb438
                 ;;
             2)
-                check_docker
-                execute_install_script "qb439.sh"
+                echo -e "${YELLOW}qBittorrent 4.3.9 功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             3)
-                check_docker
-                execute_install_script "qb438_vt.sh"
+                echo -e "${YELLOW}Vertex + qBittorrent 4.3.8 功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             4)
-                check_docker
-                execute_install_script "qb439_vt.sh"
+                echo -e "${YELLOW}Vertex + qBittorrent 4.3.9 功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             5)
-                check_docker
-                echo -e "${YELLOW}功能开发中...${NC}"
-                read -p "按任意键返回主菜单..." -n 1 -r
+                echo -e "${YELLOW}全套Docker应用安装功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             6)
-                echo -e "${YELLOW}功能开发中...${NC}"
-                read -p "按任意键返回主菜单..." -n 1 -r
+                echo -e "${YELLOW}PT Docker应用功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             7)
-                echo -e "${YELLOW}功能开发中...${NC}"
-                read -p "按任意键返回主菜单..." -n 1 -r
+                echo -e "${YELLOW}系统优化功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             8)
-                uninstall_menu
+                echo -e "${YELLOW}卸载功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             9)
-                uninstall_script
+                echo -e "${YELLOW}正在卸载脚本...${NC}"
+                rm -f "$0"
+                echo -e "${GREEN}脚本已删除${NC}"
+                exit 0
                 ;;
             0)
-                echo -e "${GREEN}感谢使用PTtools！再见！${NC}"
+                echo -e "${GREEN}感谢使用PTtools！${NC}"
                 exit 0
                 ;;
             *)
-                echo -e "${RED}无效的选择，请重新输入${NC}"
-                read -p "按任意键继续..." -n 1 -r
+                echo -e "${RED}无效选项，请重新选择${NC}"
+                echo -e "${YELLOW}按任意键继续...${NC}"
+                read -n 1
                 ;;
         esac
     done
 }
 
-# 运行主函数
+# 初始化环境
+echo -e "${YELLOW}正在初始化环境...${NC}"
+update_system
+install_base_tools
+check_docker
+create_directories
+
+echo -e "${GREEN}环境初始化完成！${NC}"
+echo -e "${YELLOW}按任意键进入主菜单...${NC}"
+read -n 1
+
+# 运行主程序
 main
