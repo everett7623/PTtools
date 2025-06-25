@@ -249,6 +249,30 @@ EOF
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
+        echo -e "${GREEN}默认用户名: admin${NC}"
+        
+        # 等待容器完全启动并生成密码文件
+        echo -e "${YELLOW}正在等待Vertex初始化...${NC}"
+        sleep 10
+        
+        # 尝试读取密码文件
+        if [ -f "/opt/docker/vertex/data/password" ]; then
+            vertex_password=$(cat /opt/docker/vertex/data/password 2>/dev/null)
+            if [ -n "$vertex_password" ]; then
+                echo -e "${GREEN}初始密码: ${vertex_password}${NC}"
+                echo -e "${CYAN}================================================${NC}"
+                echo -e "${CYAN}Vertex登录信息${NC}"
+                echo -e "${CYAN}地址: http://你的服务器IP:3333${NC}"
+                echo -e "${CYAN}用户名: admin${NC}"
+                echo -e "${CYAN}密码: ${vertex_password}${NC}"
+                echo -e "${CYAN}================================================${NC}"
+            else
+                echo -e "${YELLOW}密码文件为空，请稍后查看 /opt/docker/vertex/data/password${NC}"
+            fi
+        else
+            echo -e "${YELLOW}密码文件尚未生成，请稍后查看 /opt/docker/vertex/data/password${NC}"
+            echo -e "${YELLOW}或执行命令: cat /opt/docker/vertex/data/password${NC}"
+        fi
         return 0
     else
         echo -e "${RED}Vertex Docker安装失败${NC}"
@@ -263,7 +287,6 @@ install_qb438_vt() {
     echo -e "${CYAN}================================================${NC}"
     echo
     echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.8${NC}"
-    echo -e "${YELLOW}Vertex: Docker方式安装${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.8 作者：iniwex5${NC}"
     echo
     
@@ -295,6 +318,28 @@ install_qb438_vt() {
         fi
     fi
     
+    echo -e "${BLUE}Vertex安装方式选择：${NC}"
+    echo "1. Docker方式（推荐）"
+    echo "2. 原脚本方式"
+    read -p "请选择 [1-2, 默认: 1]: " vertex_choice
+    vertex_choice=${vertex_choice:-1}
+    
+    case $vertex_choice in
+        1)
+            echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
+            vertex_install_type="docker"
+            ;;
+        2)
+            echo -e "${GREEN}选择：原脚本方式安装Vertex${NC}"
+            vertex_install_type="script"
+            ;;
+        *)
+            echo -e "${YELLOW}无效选择，使用默认Docker方式${NC}"
+            vertex_install_type="docker"
+            ;;
+    esac
+    
+    echo
     echo -e "${BLUE}qBittorrent 4.3.8 安装参数配置：${NC}"
     echo
     
@@ -313,7 +358,7 @@ install_qb438_vt() {
     
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
-    echo -e "${WHITE}Vertex: Docker方式安装 (端口3333)${NC}"
+    echo -e "${WHITE}Vertex: $([ "$vertex_install_type" == "docker" ] && echo "Docker方式安装 (端口3333)" || echo "原脚本方式安装")${NC}"
     echo -e "${WHITE}qBittorrent 4.3.8:${NC}"
     echo -e "${WHITE}  - 用户名: ${username}${NC}"
     echo -e "${WHITE}  - 密码: ${password}${NC}"
@@ -331,13 +376,33 @@ install_qb438_vt() {
     
     # 步骤1: 安装Vertex
     echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
-    if install_vertex_docker; then
-        echo -e "${GREEN}Vertex安装成功${NC}"
+    
+    if [ "$vertex_install_type" == "docker" ]; then
+        # Docker方式安装Vertex
+        if install_vertex_docker; then
+            echo -e "${GREEN}Vertex Docker安装成功${NC}"
+        else
+            echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
     else
-        echo -e "${RED}Vertex安装失败，终止安装${NC}"
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
-        return
+        # 原脚本方式安装Vertex
+        echo -e "${YELLOW}使用原脚本方式安装Vertex...${NC}"
+        echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u admin -p adminadmin -v${NC}"
+        
+        if bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u admin -p adminadmin -v; then
+            echo -e "${GREEN}Vertex原脚本安装成功${NC}"
+            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+            echo -e "${GREEN}Vertex用户名: admin${NC}"
+            echo -e "${GREEN}Vertex密码: adminadmin${NC}"
+        else
+            echo -e "${RED}Vertex原脚本安装失败，终止安装${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
     fi
     
     echo
@@ -351,7 +416,15 @@ install_qb438_vt() {
         echo -e "${GREEN}================================================${NC}"
         echo -e "${GREEN}Vertex + qBittorrent 4.3.8 安装完成！${NC}"
         echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+        if [ "$vertex_install_type" == "docker" ]; then
+            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+            echo -e "${GREEN}Vertex用户名: admin${NC}"
+            echo -e "${GREEN}Vertex密码: 查看上方显示或执行 cat /opt/docker/vertex/data/password${NC}"
+        else
+            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+            echo -e "${GREEN}Vertex用户名: admin${NC}"
+            echo -e "${GREEN}Vertex密码: adminadmin${NC}"
+        fi
         echo -e "${GREEN}qBittorrent访问地址: http://你的服务器IP:${web_port}${NC}"
         echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
         echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
@@ -376,39 +449,69 @@ install_qb439_vt() {
     echo -e "${CYAN}正在安装 Vertex + qBittorrent 4.3.9${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.9${NC}"
-    echo -e "${YELLOW}Vertex: Docker方式安装${NC}"
+    echo -e "${YELLOW}此功能将安装Vertex和qBittorrent 4.3.9${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.9 作者：jerry048${NC}"
     echo
     
-    # 检查Docker
+    # 检查Docker（仅在选择Docker方式时需要）
+    docker_available=true
     if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
-        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-        read -r install_docker_choice
-        install_docker_choice=${install_docker_choice:-Y}
-        
-        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}正在安装Docker...${NC}"
-            install_docker_func
-            
-            # 检查Docker是否安装成功
-            if ! command -v docker &> /dev/null; then
-                echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
-                return
-            else
-                echo -e "${GREEN}Docker安装成功！${NC}"
-            fi
-        else
-            echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
-            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-            read -n 1
-            return
-        fi
+        docker_available=false
     fi
     
+    echo -e "${BLUE}Vertex安装方式选择：${NC}"
+    echo "1. Docker方式（推荐）"
+    echo "2. 原脚本方式"
+    if [ "$docker_available" = false ]; then
+        echo -e "${RED}注意：Docker未安装，选择1将自动安装Docker${NC}"
+    fi
+    read -p "请选择 [1-2, 默认: 1]: " vertex_choice
+    vertex_choice=${vertex_choice:-1}
+    
+    case $vertex_choice in
+        1)
+            echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
+            vertex_install_type="docker"
+            
+            # 检查并安装Docker
+            if [ "$docker_available" = false ]; then
+                echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
+                echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+                read -r install_docker_choice
+                install_docker_choice=${install_docker_choice:-Y}
+                
+                if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}正在安装Docker...${NC}"
+                    install_docker_func
+                    
+                    # 检查Docker是否安装成功
+                    if ! command -v docker &> /dev/null; then
+                        echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
+                        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                        read -n 1
+                        return
+                    else
+                        echo -e "${GREEN}Docker安装成功！${NC}"
+                    fi
+                else
+                    echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
+                    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                    read -n 1
+                    return
+                fi
+            fi
+            ;;
+        2)
+            echo -e "${GREEN}选择：原脚本方式安装Vertex${NC}"
+            vertex_install_type="script"
+            ;;
+        *)
+            echo -e "${YELLOW}无效选择，使用默认Docker方式${NC}"
+            vertex_install_type="docker"
+            ;;
+    esac
+    
+    echo
     echo -e "${BLUE}qBittorrent 4.3.9 安装参数配置：${NC}"
     echo
     
@@ -446,7 +549,7 @@ install_qb439_vt() {
     
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
-    echo -e "${WHITE}Vertex: Docker方式安装 (端口3333)${NC}"
+    echo -e "${WHITE}Vertex: $([ "$vertex_install_type" == "docker" ] && echo "Docker方式安装 (端口3333)" || echo "原脚本方式安装")${NC}"
     echo -e "${WHITE}qBittorrent 4.3.9:${NC}"
     echo -e "${WHITE}  - 用户名: ${username}${NC}"
     echo -e "${WHITE}  - 密码: ${password}${NC}"
@@ -465,48 +568,86 @@ install_qb439_vt() {
         return
     fi
     
-    # 步骤1: 安装Vertex
-    echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
-    if install_vertex_docker; then
-        echo -e "${GREEN}Vertex安装成功${NC}"
-    else
-        echo -e "${RED}Vertex安装失败，终止安装${NC}"
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
-        return
-    fi
-    
-    echo
-    echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
-    
-    # 构建安装命令
-    install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
-    
-    # 添加可选参数
-    [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
-    [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
-    [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
-    
-    echo -e "${BLUE}命令: $install_cmd${NC}"
-    echo
-    
-    # 步骤2: 安装qBittorrent 4.3.9
-    if eval "$install_cmd"; then
+    if [ "$vertex_install_type" == "docker" ]; then
+        # Docker方式：先安装Vertex，再安装qBittorrent
+        echo -e "${YELLOW}步骤1: 正在使用Docker安装Vertex...${NC}"
+        if install_vertex_docker; then
+            echo -e "${GREEN}Vertex Docker安装成功${NC}"
+        else
+            echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
+        
         echo
-        echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}Vertex + qBittorrent 4.3.9 安装完成！${NC}"
-        echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
-        echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
-        echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
-        echo -e "${GREEN}qBittorrent缓存大小: ${cache_size} MiB${NC}"
-        echo -e "${GREEN}================================================${NC}"
-    else
+        echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
+        
+        # 构建安装命令（不带-v参数，因为Vertex已经安装了）
+        install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
+        
+        # 添加可选参数
+        [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
+        [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
+        [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
+        
+        echo -e "${BLUE}命令: $install_cmd${NC}"
         echo
-        echo -e "${RED}================================================${NC}"
-        echo -e "${RED}qBittorrent 4.3.9 安装失败！${NC}"
-        echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
-        echo -e "${RED}================================================${NC}"
+        
+        if eval "$install_cmd"; then
+            echo
+            echo -e "${GREEN}================================================${NC}"
+            echo -e "${GREEN}Vertex + qBittorrent 4.3.9 安装完成！${NC}"
+            echo -e "${GREEN}================================================${NC}"
+            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+            echo -e "${GREEN}Vertex用户名: admin${NC}"
+            echo -e "${GREEN}Vertex密码: 查看上方显示或执行 cat /opt/docker/vertex/data/password${NC}"
+            echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
+            echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
+            echo -e "${GREEN}qBittorrent缓存大小: ${cache_size} MiB${NC}"
+            echo -e "${GREEN}================================================${NC}"
+        else
+            echo
+            echo -e "${RED}================================================${NC}"
+            echo -e "${RED}qBittorrent 4.3.9 安装失败！${NC}"
+            echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
+            echo -e "${RED}================================================${NC}"
+        fi
+        
+    else
+        # 原脚本方式：一次性安装Vertex和qBittorrent
+        echo -e "${YELLOW}正在使用原脚本方式安装Vertex + qBittorrent 4.3.9...${NC}"
+        
+        # 构建安装命令（带-v参数，同时安装Vertex和qBittorrent）
+        install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver -v"
+        
+        # 添加可选参数
+        [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
+        [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
+        [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
+        
+        echo -e "${BLUE}命令: $install_cmd${NC}"
+        echo
+        
+        if eval "$install_cmd"; then
+            echo
+            echo -e "${GREEN}================================================${NC}"
+            echo -e "${GREEN}Vertex + qBittorrent 4.3.9 安装完成！${NC}"
+            echo -e "${GREEN}================================================${NC}"
+            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+            echo -e "${GREEN}Vertex用户名: admin${NC}"
+            echo -e "${GREEN}Vertex密码: adminadmin${NC}"
+            echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
+            echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
+            echo -e "${GREEN}qBittorrent缓存大小: ${cache_size} MiB${NC}"
+            echo -e "${GREEN}================================================${NC}"
+        else
+            echo
+            echo -e "${RED}================================================${NC}"
+            echo -e "${RED}Vertex + qBittorrent 4.3.9 安装失败！${NC}"
+            echo -e "${RED}请检查网络连接和系统兼容性${NC}"
+            echo -e "${RED}================================================${NC}"
+        fi
     fi
     
     echo
