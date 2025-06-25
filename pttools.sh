@@ -48,23 +48,45 @@ check_system() {
     if [[ -f /etc/redhat-release ]]; then
         DISTRO="centos"
         PM="yum"
+        OS_VERSION=$(cat /etc/redhat-release)
     elif [[ -f /etc/debian_version ]]; then
         DISTRO="debian"
         PM="apt"
+        if [[ -f /etc/os-release ]]; then
+            OS_VERSION=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
+        else
+            OS_VERSION="Debian $(cat /etc/debian_version)"
+        fi
     else
         echo -e "${RED}不支持的系统类型${NC}"
+        echo -e "${YELLOW}当前支持的系统：${NC}"
+        echo -e "${WHITE}- Debian/Ubuntu 系列${NC}"
+        echo -e "${WHITE}- CentOS/RHEL 系列${NC}"
+        echo
+        echo -e "${YELLOW}当前系统信息：${NC}"
+        uname -a
         exit 1
     fi
     echo -e "${GREEN}系统类型: $DISTRO${NC}"
+    echo -e "${GREEN}系统版本: $OS_VERSION${NC}"
+    echo -e "${GREEN}包管理器: $PM${NC}"
 }
 
 # 更新系统
 update_system() {
     echo -e "${YELLOW}正在更新系统...${NC}"
     if [[ $DISTRO == "debian" ]]; then
-        apt update -y && apt upgrade -y
+        if apt update -y; then
+            echo -e "${GREEN}系统更新成功${NC}"
+        else
+            echo -e "${RED}系统更新失败，但继续安装${NC}"
+        fi
     elif [[ $DISTRO == "centos" ]]; then
-        yum update -y
+        if yum update -y; then
+            echo -e "${GREEN}系统更新成功${NC}"
+        else
+            echo -e "${RED}系统更新失败，但继续安装${NC}"
+        fi
     fi
 }
 
@@ -72,30 +94,77 @@ update_system() {
 install_base_tools() {
     echo -e "${YELLOW}正在安装基础工具...${NC}"
     if [[ $DISTRO == "debian" ]]; then
-        apt install -y curl wget git unzip
+        if apt install -y curl wget git unzip; then
+            echo -e "${GREEN}基础工具安装成功${NC}"
+        else
+            echo -e "${RED}基础工具安装失败${NC}"
+            return 1
+        fi
     elif [[ $DISTRO == "centos" ]]; then
-        yum install -y curl wget git unzip
+        if yum install -y curl wget git unzip; then
+            echo -e "${GREEN}基础工具安装成功${NC}"
+        else
+            echo -e "${RED}基础工具安装失败${NC}"
+            return 1
+        fi
     fi
+    
+    # 验证关键工具是否安装成功
+    for tool in curl wget; do
+        if ! command -v $tool &> /dev/null; then
+            echo -e "${RED}关键工具 $tool 安装失败${NC}"
+            return 1
+        fi
+    done
+    
+    echo -e "${GREEN}所有基础工具验证通过${NC}"
+    return 0
 }
 
 # 检查Docker是否安装
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？(y/n)${NC}"
+        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？[Y/n]: ${NC}"
         read -r install_docker
+        install_docker=${install_docker:-Y}
         if [[ $install_docker =~ ^[Yy]$ ]]; then
-            install_docker_func
+            if install_docker_func; then
+                echo -e "${GREEN}Docker安装成功${NC}"
+            else
+                echo -e "${RED}Docker安装失败，部分功能需要Docker支持${NC}"
+            fi
         else
             echo -e "${RED}部分功能需要Docker支持${NC}"
         fi
     else
         echo -e "${GREEN}Docker已安装${NC}"
+        docker --version
     fi
 }
 
 # 安装Docker
 install_docker_func() {
     echo -e "${YELLOW}正在安装Docker...${NC}"
+    
+    # 首先确保基础工具已安装
+    echo -e "${YELLOW}检查基础工具...${NC}"
+    if ! command -v curl &> /dev/null; then
+        echo -e "${YELLOW}curl未安装，正在安装基础工具...${NC}"
+        if [[ $DISTRO == "debian" ]]; then
+            apt update -y
+            apt install -y curl wget git unzip
+        elif [[ $DISTRO == "centos" ]]; then
+            yum update -y
+            yum install -y curl wget git unzip
+        fi
+        
+        # 再次检查curl是否安装成功
+        if ! command -v curl &> /dev/null; then
+            echo -e "${RED}基础工具安装失败，无法继续安装Docker${NC}"
+            return 1
+        fi
+    fi
+    
     echo -e "${YELLOW}选择安装源：${NC}"
     echo "1. 官方源（默认）"
     echo "2. 阿里云镜像源"
@@ -103,23 +172,70 @@ install_docker_func() {
     
     case $docker_source in
         2)
-            curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
+            echo -e "${YELLOW}使用阿里云镜像源安装Docker...${NC}"
+            if ! curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun; then
+                echo -e "${RED}Docker安装失败${NC}"
+                return 1
+            fi
             ;;
         *)
-            curl -fsSL https://get.docker.com | bash -s docker
+            echo -e "${YELLOW}使用官方源安装Docker...${NC}"
+            if ! curl -fsSL https://get.docker.com | bash -s docker; then
+                echo -e "${RED}Docker安装失败${NC}"
+                return 1
+            fi
             ;;
     esac
     
-    systemctl start docker
-    systemctl enable docker
-    
-    echo -e "${YELLOW}是否安装Docker Compose？(y/n)${NC}"
-    read -r install_compose
-    if [[ $install_compose =~ ^[Yy]$ ]]; then
-        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-        echo -e "${GREEN}Docker Compose安装完成${NC}"
+    # 启动Docker服务
+    echo -e "${YELLOW}启动Docker服务...${NC}"
+    if systemctl start docker; then
+        echo -e "${GREEN}Docker服务启动成功${NC}"
+    else
+        echo -e "${RED}Docker服务启动失败${NC}"
+        echo -e "${YELLOW}尝试手动启动Docker...${NC}"
+        service docker start
     fi
+    
+    if systemctl enable docker; then
+        echo -e "${GREEN}Docker开机自启设置成功${NC}"
+    else
+        echo -e "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
+    fi
+    
+    # 验证Docker是否安装成功
+    sleep 3
+    if command -v docker &> /dev/null && docker --version &> /dev/null; then
+        echo -e "${GREEN}Docker安装成功${NC}"
+        docker --version
+    else
+        echo -e "${RED}Docker安装验证失败${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}是否安装Docker Compose？[Y/n]: ${NC}"
+    read -r install_compose
+    install_compose=${install_compose:-Y}
+    if [[ $install_compose =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}正在安装Docker Compose...${NC}"
+        
+        # 获取最新版本号
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d'"' -f4)
+        if [ -z "$COMPOSE_VERSION" ]; then
+            COMPOSE_VERSION="v2.24.0"  # 备用版本
+            echo -e "${YELLOW}无法获取最新版本，使用备用版本 $COMPOSE_VERSION${NC}"
+        fi
+        
+        if curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose; then
+            chmod +x /usr/local/bin/docker-compose
+            echo -e "${GREEN}Docker Compose安装完成${NC}"
+            /usr/local/bin/docker-compose --version
+        else
+            echo -e "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
+        fi
+    fi
+    
+    return 0
 }
 
 # 创建必要目录
@@ -505,16 +621,17 @@ install_qb438_vt() {
         
         if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
             echo -e "${YELLOW}正在安装Docker...${NC}"
-            install_docker_func
-            
-            # 检查Docker是否安装成功
-            if ! command -v docker &> /dev/null; then
+            if install_docker_func; then
+                echo -e "${GREEN}Docker安装成功！${NC}"
+            else
                 echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
+                echo -e "${YELLOW}建议：${NC}"
+                echo -e "${WHITE}1. 检查网络连接${NC}"
+                echo -e "${WHITE}2. 确认系统源配置正确${NC}"
+                echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
                 echo -e "${YELLOW}按任意键返回主菜单...${NC}"
                 read -n 1
                 return
-            else
-                echo -e "${GREEN}Docker安装成功！${NC}"
             fi
         else
             echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
@@ -700,16 +817,17 @@ install_qb439_vt() {
                 
                 if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
                     echo -e "${YELLOW}正在安装Docker...${NC}"
-                    install_docker_func
-                    
-                    # 检查Docker是否安装成功
-                    if ! command -v docker &> /dev/null; then
+                    if install_docker_func; then
+                        echo -e "${GREEN}Docker安装成功！${NC}"
+                    else
                         echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
+                        echo -e "${YELLOW}建议：${NC}"
+                        echo -e "${WHITE}1. 检查网络连接${NC}"
+                        echo -e "${WHITE}2. 确认系统源配置正确${NC}"
+                        echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
                         echo -e "${YELLOW}按任意键返回主菜单...${NC}"
                         read -n 1
                         return
-                    else
-                        echo -e "${GREEN}Docker安装成功！${NC}"
                     fi
                 else
                     echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
@@ -1070,7 +1188,21 @@ main() {
 # 初始化环境
 echo -e "${YELLOW}正在初始化环境...${NC}"
 update_system
-install_base_tools
+
+if ! install_base_tools; then
+    echo -e "${RED}基础工具安装失败！${NC}"
+    echo -e "${YELLOW}请检查网络连接和系统源配置${NC}"
+    echo -e "${YELLOW}您可以手动执行以下命令安装基础工具：${NC}"
+    if [[ $DISTRO == "debian" ]]; then
+        echo -e "${WHITE}apt update && apt install -y curl wget git unzip${NC}"
+    elif [[ $DISTRO == "centos" ]]; then
+        echo -e "${WHITE}yum update && yum install -y curl wget git unzip${NC}"
+    fi
+    echo
+    echo -e "${YELLOW}安装完成后可重新运行此脚本${NC}"
+    exit 1
+fi
+
 check_docker
 create_directories
 
