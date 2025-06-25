@@ -234,32 +234,7 @@ install_qb439() {
     echo
     echo -e "${BLUE}可选功能配置：${NC}"
     
-    # Vertex安装方式选择
-    echo -e "${YELLOW}Vertex安装方式选择：${NC}"
-    echo "1. 使用Docker安装Vertex（推荐）"
-    echo "2. 使用原脚本安装Vertex"
-    echo "3. 不安装Vertex"
-    read -p "请选择 [1-3, 默认: 1]: " vertex_choice
-    vertex_choice=${vertex_choice:-1}
-    
-    vertex_flag=""
-    case $vertex_choice in
-        1)
-            echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
-            vertex_docker=true
-            ;;
-        2)
-            echo -e "${GREEN}选择：原脚本方式安装Vertex${NC}"
-            vertex_flag="-v"
-            vertex_docker=false
-            ;;
-        3)
-            echo -e "${GREEN}选择：不安装Vertex${NC}"
-            vertex_docker=false
-            ;;
-    esac
-    
-    # 其他可选功能
+    # 可选功能
     read -p "是否安装autobrr？[Y/n]: " install_autobrr
     install_autobrr=${install_autobrr:-Y}
     autobrr_flag=""
@@ -287,7 +262,6 @@ install_qb439() {
     echo -e "${WHITE}缓存大小: ${cache_size} MiB${NC}"
     echo -e "${WHITE}qBittorrent版本: 4.3.9${NC}"
     echo -e "${WHITE}libtorrent版本: ${libtorrent_ver}${NC}"
-    echo -e "${WHITE}Vertex安装: $([ "$vertex_choice" == "1" ] && echo "Docker方式" || ([ "$vertex_choice" == "2" ] && echo "原脚本方式" || echo "不安装"))${NC}"
     echo -e "${WHITE}autobrr: $([[ $install_autobrr =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
@@ -302,20 +276,11 @@ install_qb439() {
         return
     fi
     
-    # 如果选择Docker方式安装Vertex，先安装Vertex
-    if [[ "$vertex_choice" == "1" ]]; then
-        echo -e "${YELLOW}正在使用Docker安装Vertex...${NC}"
-        install_vertex_docker
-        echo -e "${GREEN}Vertex Docker安装完成${NC}"
-        echo
-    fi
-    
     # 构建安装命令
     install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
     
     # 添加可选参数
     [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
-    [[ -n "$vertex_flag" ]] && install_cmd="$install_cmd $vertex_flag"
     [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
     [[ -n "$bbr3_flag" ]] && install_cmd="$install_cmd $bbr3_flag"
     [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
@@ -333,9 +298,6 @@ install_qb439() {
         echo -e "${GREEN}用户名: ${username}${NC}"
         echo -e "${GREEN}密码: ${password}${NC}"
         echo -e "${GREEN}缓存大小: ${cache_size} MiB${NC}"
-        if [[ "$vertex_choice" == "1" ]]; then
-            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
-        fi
         echo -e "${GREEN}================================================${NC}"
     else
         echo
@@ -348,48 +310,6 @@ install_qb439() {
     echo
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
     read -n 1
-}
-
-# 使用Docker安装Vertex
-install_vertex_docker() {
-    echo -e "${YELLOW}正在创建Vertex目录...${NC}"
-    mkdir -p /opt/docker/vertex
-    
-    echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
-    cat > /tmp/vertex-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  vertex:
-    image: lswl/vertex:stable
-    container_name: vertex
-    environment:
-      - TZ=Asia/Shanghai
-    volumes:
-      - /opt/docker/vertex:/vertex
-    ports:
-      - 3333:3000
-    restart: unless-stopped
-EOF
-
-    echo -e "${YELLOW}正在启动Vertex容器...${NC}"
-    if command -v docker-compose &> /dev/null; then
-        docker-compose -f /tmp/vertex-compose.yml up -d
-    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker compose -f /tmp/vertex-compose.yml up -d
-    else
-        echo -e "${RED}Docker Compose未找到，使用docker run命令启动...${NC}"
-        docker run -d \
-            --name vertex \
-            --restart unless-stopped \
-            -p 3333:3000 \
-            -v /opt/docker/vertex:/vertex \
-            -e TZ=Asia/Shanghai \
-            lswl/vertex:stable
-    fi
-    
-    # 清理临时文件
-    rm -f /tmp/vertex-compose.yml
 }
 
 # 显示主菜单
@@ -428,192 +348,9 @@ main() {
             1)
                 install_qb438
                 ;;
-# 安装qBittorrent 4.3.9
-install_qb439() {
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${CYAN}正在安装 qBittorrent 4.3.9${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    echo
-    echo -e "${YELLOW}此功能将调用原作者脚本进行安装${NC}"
-    echo -e "${YELLOW}原作者：jerry048${NC}"
-    echo -e "${YELLOW}脚本来源：https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh${NC}"
-    echo
-    echo -e "${BLUE}安装参数配置：${NC}"
-    echo
-    
-    # 基础参数配置
-    read -p "请输入用户名 [默认: admin]: " username
-    username=${username:-admin}
-    
-    read -p "请输入密码 [默认: adminadmin]: " password
-    password=${password:-adminadmin}
-    
-    read -p "请输入缓存大小(MiB) [默认: 3072]: " cache_size
-    cache_size=${cache_size:-3072}
-    
-    read -p "请输入libtorrent版本 [默认: v1.2.20]: " libtorrent_ver
-    libtorrent_ver=${libtorrent_ver:-v1.2.20}
-    
-    echo
-    echo -e "${BLUE}可选功能配置：${NC}"
-    
-    # Vertex安装方式选择
-    echo -e "${YELLOW}Vertex安装方式选择：${NC}"
-    echo "1. 使用Docker安装Vertex（推荐）"
-    echo "2. 使用原脚本安装Vertex"
-    echo "3. 不安装Vertex"
-    read -p "请选择 [1-3, 默认: 1]: " vertex_choice
-    vertex_choice=${vertex_choice:-1}
-    
-    vertex_flag=""
-    case $vertex_choice in
-        1)
-            echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
-            vertex_docker=true
-            ;;
-        2)
-            echo -e "${GREEN}选择：原脚本方式安装Vertex${NC}"
-            vertex_flag="-v"
-            vertex_docker=false
-            ;;
-        3)
-            echo -e "${GREEN}选择：不安装Vertex${NC}"
-            vertex_docker=false
-            ;;
-    esac
-    
-    # 其他可选功能
-    read -p "是否安装autobrr？[Y/n]: " install_autobrr
-    install_autobrr=${install_autobrr:-Y}
-    autobrr_flag=""
-    [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
-    
-    read -p "是否安装autoremove-torrents？[Y/n]: " install_autoremove
-    install_autoremove=${install_autoremove:-Y}
-    autoremove_flag=""
-    [[ $install_autoremove =~ ^[Yy]$ ]] && autoremove_flag="-r"
-    
-    read -p "是否启用BBRx？[Y/n]: " enable_bbrx
-    enable_bbrx=${enable_bbrx:-Y}
-    bbrx_flag=""
-    [[ $enable_bbrx =~ ^[Yy]$ ]] && bbrx_flag="-x"
-    
-    read -p "是否启用BBR V3？[y/N]: " enable_bbr3
-    enable_bbr3=${enable_bbr3:-N}
-    bbr3_flag=""
-    [[ $enable_bbr3 =~ ^[Yy]$ ]] && bbr3_flag="-3"
-    
-    echo
-    echo -e "${GREEN}安装配置确认：${NC}"
-    echo -e "${WHITE}用户名: ${username}${NC}"
-    echo -e "${WHITE}密码: ${password}${NC}"
-    echo -e "${WHITE}缓存大小: ${cache_size} MiB${NC}"
-    echo -e "${WHITE}qBittorrent版本: 4.3.9${NC}"
-    echo -e "${WHITE}libtorrent版本: ${libtorrent_ver}${NC}"
-    echo -e "${WHITE}Vertex安装: $([ "$vertex_choice" == "1" ] && echo "Docker方式" || ([ "$vertex_choice" == "2" ] && echo "原脚本方式" || echo "不安装"))${NC}"
-    echo -e "${WHITE}autobrr: $([[ $install_autobrr =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
-    echo -e "${WHITE}autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
-    echo -e "${WHITE}BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
-    echo -e "${WHITE}BBR V3: $([[ $enable_bbr3 =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
-    echo
-    
-    read -p "确认安装？[Y/n]: " confirm
-    confirm=${confirm:-Y}
-    
-    if [[ ! $confirm =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}安装已取消${NC}"
-        return
-    fi
-    
-    # 如果选择Docker方式安装Vertex，先安装Vertex
-    if [[ "$vertex_choice" == "1" ]]; then
-        echo -e "${YELLOW}正在使用Docker安装Vertex...${NC}"
-        install_vertex_docker
-        echo -e "${GREEN}Vertex Docker安装完成${NC}"
-        echo
-    fi
-    
-    # 构建安装命令
-    install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
-    
-    # 添加可选参数
-    [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
-    [[ -n "$vertex_flag" ]] && install_cmd="$install_cmd $vertex_flag"
-    [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
-    [[ -n "$bbr3_flag" ]] && install_cmd="$install_cmd $bbr3_flag"
-    [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
-    
-    echo -e "${YELLOW}正在执行安装命令...${NC}"
-    echo -e "${BLUE}命令: $install_cmd${NC}"
-    echo
-    
-    # 执行安装
-    if eval "$install_cmd"; then
-        echo
-        echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}qBittorrent 4.3.9 安装完成！${NC}"
-        echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}用户名: ${username}${NC}"
-        echo -e "${GREEN}密码: ${password}${NC}"
-        echo -e "${GREEN}缓存大小: ${cache_size} MiB${NC}"
-        if [[ "$vertex_choice" == "1" ]]; then
-            echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
-        fi
-        echo -e "${GREEN}================================================${NC}"
-    else
-        echo
-        echo -e "${RED}================================================${NC}"
-        echo -e "${RED}qBittorrent 4.3.9 安装失败！${NC}"
-        echo -e "${RED}请检查网络连接和系统兼容性${NC}"
-        echo -e "${RED}================================================${NC}"
-    fi
-    
-    echo
-    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-    read -n 1
-}
-
-# 使用Docker安装Vertex
-install_vertex_docker() {
-    echo -e "${YELLOW}正在创建Vertex目录...${NC}"
-    mkdir -p /opt/docker/vertex
-    
-    echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
-    cat > /tmp/vertex-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  vertex:
-    image: lswl/vertex:stable
-    container_name: vertex
-    environment:
-      - TZ=Asia/Shanghai
-    volumes:
-      - /opt/docker/vertex:/vertex
-    ports:
-      - 3333:3000
-    restart: unless-stopped
-EOF
-
-    echo -e "${YELLOW}正在启动Vertex容器...${NC}"
-    if command -v docker-compose &> /dev/null; then
-        docker-compose -f /tmp/vertex-compose.yml up -d
-    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker compose -f /tmp/vertex-compose.yml up -d
-    else
-        echo -e "${RED}Docker Compose未找到，使用docker run命令启动...${NC}"
-        docker run -d \
-            --name vertex \
-            --restart unless-stopped \
-            -p 3333:3000 \
-            -v /opt/docker/vertex:/vertex \
-            -e TZ=Asia/Shanghai \
-            lswl/vertex:stable
-    fi
-    
-    # 清理临时文件
-    rm -f /tmp/vertex-compose.yml
-}
+            2)
+                install_qb439
+                ;;
             3)
                 echo -e "${YELLOW}Vertex + qBittorrent 4.3.8 功能开发中...${NC}"
                 echo -e "${YELLOW}按任意键返回主菜单...${NC}"
