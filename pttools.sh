@@ -141,9 +141,35 @@ install_qb438() {
     echo -e "${YELLOW}原作者：iniwex5${NC}"
     echo -e "${YELLOW}脚本来源：https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh${NC}"
     echo
-    echo -e "${RED}注意：安装过程中请按照原脚本提示进行操作${NC}"
+    echo -e "${BLUE}安装参数说明：${NC}"
+    echo -e "${WHITE}- 用户名：qBittorrent Web界面登录用户名${NC}"
+    echo -e "${WHITE}- 密码：qBittorrent Web界面登录密码${NC}"
+    echo -e "${WHITE}- Web端口：qBittorrent Web界面访问端口${NC}"
+    echo -e "${WHITE}- BT端口：qBittorrent BT下载监听端口${NC}"
     echo
-    read -p "是否继续安装？(y/n): " confirm
+    
+    # 获取用户输入参数
+    read -p "请输入用户名 [默认: admin]: " username
+    username=${username:-admin}
+    
+    read -p "请输入密码 [默认: adminadmin]: " password
+    password=${password:-adminadmin}
+    
+    read -p "请输入Web访问端口 [默认: 8080]: " web_port
+    web_port=${web_port:-8080}
+    
+    read -p "请输入BT监听端口 [默认: 23333]: " bt_port
+    bt_port=${bt_port:-23333}
+    
+    echo
+    echo -e "${GREEN}安装参数确认：${NC}"
+    echo -e "${WHITE}用户名: ${username}${NC}"
+    echo -e "${WHITE}密码: ${password}${NC}"
+    echo -e "${WHITE}Web端口: ${web_port}${NC}"
+    echo -e "${WHITE}BT端口: ${bt_port}${NC}"
+    echo
+    
+    read -p "确认安装？(y/n): " confirm
     
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
@@ -151,17 +177,25 @@ install_qb438() {
     fi
     
     echo -e "${YELLOW}正在下载并执行安装脚本...${NC}"
+    echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) $username $password $web_port $bt_port${NC}"
+    echo
     
-    # 下载并执行原作者脚本
-    if curl -fsSL https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh | bash; then
+    # 下载并执行原作者脚本，传递参数
+    if bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "$username" "$password" "$web_port" "$bt_port"; then
         echo
         echo -e "${GREEN}================================================${NC}"
         echo -e "${GREEN}qBittorrent 4.3.8 安装完成！${NC}"
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}访问地址: http://你的服务器IP:${web_port}${NC}"
+        echo -e "${GREEN}用户名: ${username}${NC}"
+        echo -e "${GREEN}密码: ${password}${NC}"
+        echo -e "${GREEN}BT端口: ${bt_port}${NC}"
         echo -e "${GREEN}================================================${NC}"
     else
         echo
         echo -e "${RED}================================================${NC}"
         echo -e "${RED}qBittorrent 4.3.8 安装失败！${NC}"
+        echo -e "${RED}请检查网络连接和系统兼容性${NC}"
         echo -e "${RED}================================================${NC}"
     fi
     
