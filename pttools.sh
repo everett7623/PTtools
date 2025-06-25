@@ -205,6 +205,275 @@ install_qb438() {
     read -n 1
 }
 
+# 使用Docker安装Vertex
+install_vertex_docker() {
+    echo -e "${YELLOW}正在创建Vertex目录...${NC}"
+    mkdir -p /opt/docker/vertex
+    
+    echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
+    cat > /tmp/vertex-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  vertex:
+    image: lswl/vertex:stable
+    container_name: vertex
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/vertex:/vertex
+    ports:
+      - 3333:3000
+    restart: unless-stopped
+EOF
+
+    echo -e "${YELLOW}正在启动Vertex容器...${NC}"
+    if command -v docker-compose &> /dev/null; then
+        docker-compose -f /tmp/vertex-compose.yml up -d
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        docker compose -f /tmp/vertex-compose.yml up -d
+    else
+        echo -e "${RED}Docker Compose未找到，使用docker run命令启动...${NC}"
+        docker run -d \
+            --name vertex \
+            --restart unless-stopped \
+            -p 3333:3000 \
+            -v /opt/docker/vertex:/vertex \
+            -e TZ=Asia/Shanghai \
+            lswl/vertex:stable
+    fi
+    
+    # 清理临时文件
+    rm -f /tmp/vertex-compose.yml
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Vertex Docker安装完成${NC}"
+        echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
+        return 0
+    else
+        echo -e "${RED}Vertex Docker安装失败${NC}"
+        return 1
+    fi
+}
+
+# 安装Vertex + qBittorrent 4.3.8
+install_qb438_vt() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}正在安装 Vertex + qBittorrent 4.3.8${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.8${NC}"
+    echo -e "${YELLOW}Vertex: Docker方式安装${NC}"
+    echo -e "${YELLOW}qBittorrent 4.3.8 作者：iniwex5${NC}"
+    echo
+    
+    # 检查Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}错误：未安装Docker，无法安装Vertex${NC}"
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo -e "${BLUE}qBittorrent 4.3.8 安装参数配置：${NC}"
+    echo
+    
+    # 获取用户输入参数
+    read -p "请输入用户名 [默认: admin]: " username
+    username=${username:-admin}
+    
+    read -p "请输入密码 [默认: adminadmin]: " password
+    password=${password:-adminadmin}
+    
+    read -p "请输入Web访问端口 [默认: 8080]: " web_port
+    web_port=${web_port:-8080}
+    
+    read -p "请输入BT监听端口 [默认: 23333]: " bt_port
+    bt_port=${bt_port:-23333}
+    
+    echo
+    echo -e "${GREEN}安装配置确认：${NC}"
+    echo -e "${WHITE}Vertex: Docker方式安装 (端口3333)${NC}"
+    echo -e "${WHITE}qBittorrent 4.3.8:${NC}"
+    echo -e "${WHITE}  - 用户名: ${username}${NC}"
+    echo -e "${WHITE}  - 密码: ${password}${NC}"
+    echo -e "${WHITE}  - Web端口: ${web_port}${NC}"
+    echo -e "${WHITE}  - BT端口: ${bt_port}${NC}"
+    echo
+    
+    read -p "确认安装？[Y/n]: " confirm
+    confirm=${confirm:-Y}
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}安装已取消${NC}"
+        return
+    fi
+    
+    # 步骤1: 安装Vertex
+    echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
+    if install_vertex_docker; then
+        echo -e "${GREEN}Vertex安装成功${NC}"
+    else
+        echo -e "${RED}Vertex安装失败，终止安装${NC}"
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo
+    echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.8...${NC}"
+    echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) $username $password $web_port $bt_port${NC}"
+    echo
+    
+    # 步骤2: 安装qBittorrent 4.3.8
+    if bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "$username" "$password" "$web_port" "$bt_port"; then
+        echo
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}Vertex + qBittorrent 4.3.8 安装完成！${NC}"
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+        echo -e "${GREEN}qBittorrent访问地址: http://你的服务器IP:${web_port}${NC}"
+        echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
+        echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
+        echo -e "${GREEN}qBittorrent BT端口: ${bt_port}${NC}"
+        echo -e "${GREEN}================================================${NC}"
+    else
+        echo
+        echo -e "${RED}================================================${NC}"
+        echo -e "${RED}qBittorrent 4.3.8 安装失败！${NC}"
+        echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
+        echo -e "${RED}================================================${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+    read -n 1
+}
+
+# 安装Vertex + qBittorrent 4.3.9
+install_qb439_vt() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}正在安装 Vertex + qBittorrent 4.3.9${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.9${NC}"
+    echo -e "${YELLOW}Vertex: Docker方式安装${NC}"
+    echo -e "${YELLOW}qBittorrent 4.3.9 作者：jerry048${NC}"
+    echo
+    
+    # 检查Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}错误：未安装Docker，无法安装Vertex${NC}"
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo -e "${BLUE}qBittorrent 4.3.9 安装参数配置：${NC}"
+    echo
+    
+    # 基础参数配置
+    read -p "请输入用户名 [默认: admin]: " username
+    username=${username:-admin}
+    
+    read -p "请输入密码 [默认: adminadmin]: " password
+    password=${password:-adminadmin}
+    
+    read -p "请输入缓存大小(MiB) [默认: 3072]: " cache_size
+    cache_size=${cache_size:-3072}
+    
+    read -p "请输入libtorrent版本 [默认: v1.2.20]: " libtorrent_ver
+    libtorrent_ver=${libtorrent_ver:-v1.2.20}
+    
+    echo
+    echo -e "${BLUE}可选功能配置：${NC}"
+    
+    # 可选功能
+    read -p "是否安装autobrr？[y/N]: " install_autobrr
+    install_autobrr=${install_autobrr:-N}
+    autobrr_flag=""
+    [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
+    
+    read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
+    install_autoremove=${install_autoremove:-N}
+    autoremove_flag=""
+    [[ $install_autoremove =~ ^[Yy]$ ]] && autoremove_flag="-r"
+    
+    read -p "是否启用BBRx？[y/N]: " enable_bbrx
+    enable_bbrx=${enable_bbrx:-N}
+    bbrx_flag=""
+    [[ $enable_bbrx =~ ^[Yy]$ ]] && bbrx_flag="-x"
+    
+    echo
+    echo -e "${GREEN}安装配置确认：${NC}"
+    echo -e "${WHITE}Vertex: Docker方式安装 (端口3333)${NC}"
+    echo -e "${WHITE}qBittorrent 4.3.9:${NC}"
+    echo -e "${WHITE}  - 用户名: ${username}${NC}"
+    echo -e "${WHITE}  - 密码: ${password}${NC}"
+    echo -e "${WHITE}  - 缓存大小: ${cache_size} MiB${NC}"
+    echo -e "${WHITE}  - libtorrent版本: ${libtorrent_ver}${NC}"
+    echo -e "${WHITE}  - autobrr: $([[ $install_autobrr =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
+    echo -e "${WHITE}  - autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
+    echo -e "${WHITE}  - BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
+    echo
+    
+    read -p "确认安装？[Y/n]: " confirm
+    confirm=${confirm:-Y}
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}安装已取消${NC}"
+        return
+    fi
+    
+    # 步骤1: 安装Vertex
+    echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
+    if install_vertex_docker; then
+        echo -e "${GREEN}Vertex安装成功${NC}"
+    else
+        echo -e "${RED}Vertex安装失败，终止安装${NC}"
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo
+    echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
+    
+    # 构建安装命令
+    install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
+    
+    # 添加可选参数
+    [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
+    [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
+    [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
+    
+    echo -e "${BLUE}命令: $install_cmd${NC}"
+    echo
+    
+    # 步骤2: 安装qBittorrent 4.3.9
+    if eval "$install_cmd"; then
+        echo
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}Vertex + qBittorrent 4.3.9 安装完成！${NC}"
+        echo -e "${GREEN}================================================${NC}"
+        echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
+        echo -e "${GREEN}qBittorrent用户名: ${username}${NC}"
+        echo -e "${GREEN}qBittorrent密码: ${password}${NC}"
+        echo -e "${GREEN}qBittorrent缓存大小: ${cache_size} MiB${NC}"
+        echo -e "${GREEN}================================================${NC}"
+    else
+        echo
+        echo -e "${RED}================================================${NC}"
+        echo -e "${RED}qBittorrent 4.3.9 安装失败！${NC}"
+        echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
+        echo -e "${RED}================================================${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+    read -n 1
+}
+
 # 安装qBittorrent 4.3.9
 install_qb439() {
     echo -e "${CYAN}================================================${NC}"
@@ -235,25 +504,20 @@ install_qb439() {
     echo -e "${BLUE}可选功能配置：${NC}"
     
     # 可选功能
-    read -p "是否安装autobrr？[Y/n]: " install_autobrr
-    install_autobrr=${install_autobrr:-Y}
+    read -p "是否安装autobrr？[y/N]: " install_autobrr
+    install_autobrr=${install_autobrr:-N}
     autobrr_flag=""
     [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
     
-    read -p "是否安装autoremove-torrents？[Y/n]: " install_autoremove
-    install_autoremove=${install_autoremove:-Y}
+    read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
+    install_autoremove=${install_autoremove:-N}
     autoremove_flag=""
     [[ $install_autoremove =~ ^[Yy]$ ]] && autoremove_flag="-r"
     
-    read -p "是否启用BBRx？[Y/n]: " enable_bbrx
-    enable_bbrx=${enable_bbrx:-Y}
+    read -p "是否启用BBRx？[y/N]: " enable_bbrx
+    enable_bbrx=${enable_bbrx:-N}
     bbrx_flag=""
     [[ $enable_bbrx =~ ^[Yy]$ ]] && bbrx_flag="-x"
-    
-    read -p "是否启用BBR V3？[y/N]: " enable_bbr3
-    enable_bbr3=${enable_bbr3:-N}
-    bbr3_flag=""
-    [[ $enable_bbr3 =~ ^[Yy]$ ]] && bbr3_flag="-3"
     
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
@@ -265,7 +529,6 @@ install_qb439() {
     echo -e "${WHITE}autobrr: $([[ $install_autobrr =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
-    echo -e "${WHITE}BBR V3: $([[ $enable_bbr3 =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo
     
     read -p "确认安装？[Y/n]: " confirm
@@ -282,7 +545,6 @@ install_qb439() {
     # 添加可选参数
     [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
     [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
-    [[ -n "$bbr3_flag" ]] && install_cmd="$install_cmd $bbr3_flag"
     [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
     
     echo -e "${YELLOW}正在执行安装命令...${NC}"
@@ -352,14 +614,10 @@ main() {
                 install_qb439
                 ;;
             3)
-                echo -e "${YELLOW}Vertex + qBittorrent 4.3.8 功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                install_qb438_vt
                 ;;
             4)
-                echo -e "${YELLOW}Vertex + qBittorrent 4.3.9 功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                install_qb439_vt
                 ;;
             5)
                 echo -e "${YELLOW}全套Docker应用安装功能开发中...${NC}"
