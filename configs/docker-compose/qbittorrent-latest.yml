@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent-latest
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8090
+    volumes:
+      - /opt/docker/qbittorrent-latest/config:/config
+      - /opt/downloads:/downloads
+    ports:
+      - 8090:8090
+      - 6882:6882
+      - 6882:6882/udp
+    restart: unless-stopped
