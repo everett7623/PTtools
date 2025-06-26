@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    hostname: netdata
+    environment:
+      - TZ=Asia/Shanghai
+      - PGID=0
+    volumes:
+      - /opt/docker/netdata/config:/etc/netdata
+      - /opt/docker/netdata/lib:/var/lib/netdata
+      - /opt/docker/netdata/cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - 19999:19999
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
