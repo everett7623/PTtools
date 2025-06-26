@@ -2784,7 +2784,9 @@ main() {
                 install_full_docker_suite
                 ;;
             6)
-                pt_docker_apps
+                echo -e "${YELLOW}PT Docker应用功能开发中...${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
                 ;;
             7)
                 echo -e "${YELLOW}系统优化功能开发中...${NC}"
