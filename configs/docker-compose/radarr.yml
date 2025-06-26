@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/radarr/config:/config
+      - /opt/downloads:/downloads
+      - /opt/downloads:/movies
+    ports:
+      - 7878:7878
+    restart: unless-stopped
