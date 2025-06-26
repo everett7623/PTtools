@@ -1068,10 +1068,6 @@ uninstall_qbittorrent_auto() {
     echo -e "${WHITE}• 清理用户和组${NC}"
     echo
     
-    read -p "是否备份配置文件？[Y/n]: " backup_config
-    backup_config=${backup_config:-Y}
-    
-    echo
     read -p "确认卸载qBittorrent？[y/N]: " confirm_uninstall
     if [[ ! $confirm_uninstall =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}卸载已取消${NC}"
@@ -1079,18 +1075,13 @@ uninstall_qbittorrent_auto() {
     fi
     
     echo
-    echo -e "${YELLOW}开始卸载qBittorrent...${NC}"
+    echo -e "${YELLOW}开始彻底卸载qBittorrent...${NC}"
     
-    # 备份配置文件
-    if [[ $backup_config =~ ^[Yy]$ ]]; then
-        backup_qb_config
-    fi
+    # 1. 暴力停止所有qBittorrent相关内容
+    force_stop_all_qbittorrent
     
-    # 1. 停止qBittorrent服务和进程
-    stop_qbittorrent_services
-    
-    # 2. 删除systemd服务文件
-    remove_qbittorrent_services
+    # 2. 彻底删除所有服务文件
+    force_remove_all_services
     
     # 3. 删除程序文件
     remove_qbittorrent_binaries
@@ -1104,6 +1095,9 @@ uninstall_qbittorrent_auto() {
     # 6. 清理其他残留
     cleanup_qbittorrent_misc
     
+    # 7. 最终清理
+    final_cleanup
+    
     echo
     echo -e "${GREEN}================================================${NC}"
     echo -e "${GREEN}qBittorrent卸载完成！${NC}"
@@ -1111,6 +1105,254 @@ uninstall_qbittorrent_auto() {
     
     # 验证卸载结果
     verify_qbittorrent_removal
+}
+
+# 暴力停止所有qBittorrent相关内容
+force_stop_all_qbittorrent() {
+    echo -e "${YELLOW}正在暴力停止所有qBittorrent相关内容...${NC}"
+    
+    # 1. 先停止所有可能的服务
+    echo -e "${YELLOW}停止所有qBittorrent服务...${NC}"
+    
+    # 获取所有qbittorrent相关服务
+    systemctl list-units --type=service --all | grep -i qbittorrent | awk '{print $1}' | while read -r service; do
+        if [[ -n "$service" ]]; then
+            echo -e "${GRAY}  停止服务: $service${NC}"
+            systemctl stop "$service" 2>/dev/null
+            systemctl disable "$service" 2>/dev/null
+            systemctl mask "$service" 2>/dev/null
+        fi
+    done
+    
+    # 停止常见服务名的所有可能实例
+    local service_patterns=("qbittorrent*" "qbittorrent-nox*")
+    for pattern in "${service_patterns[@]}"; do
+        systemctl stop "$pattern" 2>/dev/null
+        systemctl disable "$pattern" 2>/dev/null
+        systemctl mask "$pattern" 2>/dev/null
+    done
+    
+    # 2. 强制杀死所有qBittorrent进程
+    echo -e "${YELLOW}强制终止所有qBittorrent进程...${NC}"
+    
+    # 使用多种方式杀死进程
+    pkill -9 -f "qbittorrent" 2>/dev/null
+    pkill -9 "qbittorrent" 2>/dev/null  
+    pkill -9 "qbittorrent-nox" 2>/dev/null
+    killall -9 qbittorrent 2>/dev/null
+    killall -9 qbittorrent-nox 2>/dev/null
+    
+    # 等待进程彻底结束
+    sleep 2
+    
+    # 再次检查并强制杀死
+    if pgrep -f "qbittorrent" >/dev/null; then
+        echo -e "${RED}仍有顽固进程，使用kill -9强制终止...${NC}"
+        pgrep -f "qbittorrent" | xargs -r kill -9 2>/dev/null
+    fi
+    
+    echo -e "${GREEN}所有qBittorrent进程已终止${NC}"
+}
+
+# 彻底删除所有服务文件
+force_remove_all_services() {
+    echo -e "${YELLOW}正在彻底删除所有qBittorrent服务文件...${NC}"
+    
+    # 1. 删除systemd目录中的所有qbittorrent相关文件
+    local systemd_dirs=(
+        "/etc/systemd/system"
+        "/lib/systemd/system" 
+        "/usr/lib/systemd/system"
+        "/usr/local/lib/systemd/system"
+        "/run/systemd/system"
+        "/etc/systemd/user"
+        "/usr/lib/systemd/user"
+        "/usr/local/lib/systemd/user"
+    )
+    
+    for dir in "${systemd_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            # 查找所有qbittorrent相关文件
+            find "$dir" -name "*qbittorrent*" -type f 2>/dev/null | while read -r file; do
+                echo -e "${GREEN}删除服务文件: $file${NC}"
+                rm -f "$file"
+            done
+            
+            # 查找所有qbittorrent相关链接
+            find "$dir" -name "*qbittorrent*" -type l 2>/dev/null | while read -r link; do
+                echo -e "${GREEN}删除服务链接: $link${NC}"
+                rm -f "$link"
+            done
+            
+            # 删除目标文件夹中的qbittorrent相关内容
+            find "$dir" -type d -name "*qbittorrent*" 2>/dev/null | while read -r qb_dir; do
+                echo -e "${GREEN}删除服务目录: $qb_dir${NC}"
+                rm -rf "$qb_dir"
+            done
+        fi
+    done
+    
+    # 2. 删除用户目录中的服务文件
+    find /home -name ".config" -type d 2>/dev/null | while read -r config_dir; do
+        local user_systemd="$config_dir/systemd/user"
+        if [[ -d "$user_systemd" ]]; then
+            find "$user_systemd" -name "*qbittorrent*" 2>/dev/null | while read -r file; do
+                echo -e "${GREEN}删除用户服务文件: $file${NC}"
+                rm -rf "$file"
+            done
+        fi
+    done
+    
+    # 3. 重置所有systemd状态
+    echo -e "${YELLOW}重置systemd状态...${NC}"
+    systemctl daemon-reload
+    systemctl reset-failed 2>/dev/null
+    
+    # 4. 尝试停止可能遗漏的服务
+    for service in qbittorrent qbittorrent-nox qbittorrent@admin qbittorrent-nox@admin; do
+        systemctl stop "$service" 2>/dev/null
+        systemctl disable "$service" 2>/dev/null
+        systemctl mask "$service" 2>/dev/null
+    done
+    
+    echo -e "${GREEN}所有systemd服务文件已清理${NC}"
+}
+
+# 最终清理
+final_cleanup() {
+    echo -e "${YELLOW}正在进行最终清理...${NC}"
+    
+    # 1. 清理所有可能的systemctl残留
+    systemctl daemon-reload
+    systemctl reset-failed 2>/dev/null
+    
+    # 2. 强制删除任何遗留的qbittorrent服务定义
+    systemctl list-units --type=service --all | grep -i qbittorrent | awk '{print $1}' | while read -r service; do
+        if [[ -n "$service" ]]; then
+            echo -e "${YELLOW}强制清理服务: $service${NC}"
+            systemctl stop "$service" 2>/dev/null
+            systemctl disable "$service" 2>/dev/null
+            systemctl mask "$service" 2>/dev/null
+        fi
+    done
+    
+    # 3. 删除所有可能的二进制文件路径
+    local all_possible_paths=(
+        "/usr/local/bin/qbittorrent*"
+        "/usr/bin/qbittorrent*"
+        "/opt/qbittorrent*"
+        "/usr/local/qbittorrent*"
+        "/home/*/qbittorrent*"
+        "/root/qbittorrent*"
+    )
+    
+    for path_pattern in "${all_possible_paths[@]}"; do
+        for path in $path_pattern; do
+            if [[ -e "$path" ]]; then
+                echo -e "${GREEN}删除: $path${NC}"
+                rm -rf "$path"
+            fi
+        done
+    done
+    
+    # 4. 强制清理systemd缓存
+    systemctl daemon-reexec 2>/dev/null
+    
+    echo -e "${GREEN}最终清理完成${NC}"
+}
+
+# 验证卸载结果
+verify_qbittorrent_removal() {
+    echo -e "${BLUE}验证卸载结果：${NC}"
+    
+    local issues=()
+    local all_clean=true
+    
+    # 1. 检查进程
+    if pgrep -f "qbittorrent" >/dev/null; then
+        local process_count=$(pgrep -f "qbittorrent" | wc -l)
+        issues+=("仍有 $process_count 个qBittorrent进程运行")
+        echo -e "${RED}✗ 仍有qBittorrent进程运行${NC}"
+        ps aux | grep qbittorrent | grep -v grep | awk '{print "    PID: " $2 " CMD: " $11}'
+        all_clean=false
+    else
+        echo -e "${GREEN}✓ 无qBittorrent进程${NC}"
+    fi
+    
+    # 2. 检查服务（最严格的检查）
+    local remaining_services=()
+    while IFS= read -r service; do
+        if [[ -n "$service" ]]; then
+            remaining_services+=("$service")
+        fi
+    done < <(systemctl list-units --type=service --all 2>/dev/null | grep -i qbittorrent | awk '{print $1}' | sed 's/[●*]//')
+    
+    if [[ ${#remaining_services[@]} -gt 0 ]]; then
+        issues+=("仍有 ${#remaining_services[@]} 个qBittorrent服务")
+        echo -e "${RED}✗ 仍有qBittorrent服务存在${NC}"
+        for service in "${remaining_services[@]}"; do
+            echo -e "${RED}    $service${NC}"
+        done
+        all_clean=false
+    else
+        echo -e "${GREEN}✓ 无qBittorrent服务${NC}"
+    fi
+    
+    # 3. 检查二进制文件
+    local found_binaries=()
+    for binary in qbittorrent qbittorrent-nox; do
+        if command -v "$binary" >/dev/null 2>&1; then
+            found_binaries+=("$binary")
+        fi
+    done
+    
+    if [[ ${#found_binaries[@]} -gt 0 ]]; then
+        issues+=("仍可找到qBittorrent程序")
+        echo -e "${RED}✗ 仍可找到qBittorrent程序${NC}"
+        for binary in "${found_binaries[@]}"; do
+            echo -e "${RED}    $binary -> $(which "$binary")${NC}"
+        done
+        all_clean=false
+    else
+        echo -e "${GREEN}✓ qBittorrent程序已删除${NC}"
+    fi
+    
+    # 4. 检查配置文件
+    local config_check=(
+        "/home/qbittorrent"
+        "/root/.config/qBittorrent"
+        "/etc/qbittorrent"
+    )
+    
+    local found_configs=()
+    for config in "${config_check[@]}"; do
+        if [[ -e "$config" ]]; then
+            found_configs+=("$config")
+        fi
+    done
+    
+    if [[ ${#found_configs[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}! 发现残留配置${NC}"
+        for config in "${found_configs[@]}"; do
+            echo -e "${YELLOW}    $config${NC}"
+        done
+    else
+        echo -e "${GREEN}✓ 配置文件已清理${NC}"
+    fi
+    
+    echo
+    if [[ "$all_clean" == true ]]; then
+        echo -e "${GREEN}🎉 qBittorrent已完全卸载！无任何残留！${NC}"
+        echo -e "${GREEN}如果之前有残留问题，现在应该已经解决了。${NC}"
+    else
+        echo -e "${RED}⚠️  仍有残留，但已尽最大努力清理${NC}"
+        echo -e "${YELLOW}如果仍有问题，建议重启系统${NC}"
+        echo
+        echo -e "${BLUE}手动清理命令：${NC}"
+        echo -e "${GRAY}systemctl daemon-reload${NC}"
+        echo -e "${GRAY}systemctl reset-failed${NC}"
+        echo -e "${GRAY}reboot${NC}"
+    fi
 }
 
 # 备份qBittorrent配置
