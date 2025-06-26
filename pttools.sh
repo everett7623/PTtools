@@ -322,6 +322,670 @@ install_qb438() {
     read -n 1
 }
 
+# PT Docker应用管理
+pt_docker_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}PT Docker应用 - 分类选择安装${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    # 检查Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${YELLOW}检测到未安装Docker，大部分应用需要Docker支持${NC}"
+        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+        read -r install_docker_choice
+        install_docker_choice=${install_docker_choice:-Y}
+        
+        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}正在安装Docker...${NC}"
+            if install_docker_func; then
+                echo -e "${GREEN}Docker安装成功！${NC}"
+            else
+                echo -e "${RED}Docker安装失败，部分功能可能无法使用${NC}"
+            fi
+        fi
+    fi
+    
+    while true; do
+        show_pt_apps_menu
+        read -p "请输入选项: " choice
+        
+        case $choice in
+            0)
+                return
+                ;;
+            *)
+                handle_pt_app_selection "$choice"
+                ;;
+        esac
+    done
+}
+
+# 显示PT应用菜单
+show_pt_apps_menu() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}PT Docker应用 - 应用列表${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 下载管理${NC}"
+    echo -e "${WHITE} 1. qBittorrent 4.3.8 (原作者脚本)${NC}"
+    echo -e "${WHITE} 2. qBittorrent 4.3.9 (原作者脚本)${NC}"
+    echo -e "${WHITE} 3. qBittorrent 4.6.7 (Docker)${NC}"
+    echo -e "${WHITE} 4. qBittorrent Latest (Docker)${NC}"
+    echo -e "${WHITE} 5. Transmission 4.0.5 (Docker)${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 自动化管理${NC}"
+    echo -e "${WHITE} 6. IYUUPlus - PT站点自动化管理${NC}"
+    echo -e "${WHITE} 7. MoviePilot - 电影自动下载管理${NC}"
+    echo -e "${WHITE} 8. Vertex - 媒体管理工具${NC}"
+    echo -e "${WHITE} 9. Cross-Seed - 交叉做种工具${NC}"
+    echo -e "${WHITE}10. ReseedPuppy - 自动补种工具${NC}"
+    echo -e "${WHITE}11. Sonarr - 电视剧自动化管理${NC}"
+    echo -e "${WHITE}12. Radarr - 电影自动化管理${NC}"
+    echo -e "${WHITE}13. Lidarr - 音乐自动化管理${NC}"
+    echo -e "${WHITE}14. Prowlarr - 索引器管理${NC}"
+    echo -e "${WHITE}15. AutoBRR - 自动抓取工具${NC}"
+    echo -e "${WHITE}16. Bazarr - 字幕自动化管理${NC}"
+    echo -e "${WHITE}17. NASTools - NAS自动化工具${NC}"
+    echo -e "${WHITE}18. Ani-RSS - 动漫RSS订阅${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 搜索工具${NC}"
+    echo -e "${WHITE}19. Jackett - BT磁力搜索聚合${NC}"
+    echo -e "${WHITE}20. CloudSaver - TG网盘频道搜索${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 媒体服务器${NC}"
+    echo -e "${WHITE}21. Emby - 媒体服务器${NC}"
+    echo -e "${WHITE}22. Jellyfin - 开源媒体服务器${NC}"
+    echo -e "${WHITE}23. Plex - 媒体服务器${NC}"
+    echo -e "${WHITE}24. Tautulli - Plex监控统计工具${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 音频相关${NC}"
+    echo -e "${WHITE}25. Navidrome - 自建音乐库服务器${NC}"
+    echo -e "${WHITE}26. Airsonic - 音乐流媒体服务器${NC}"
+    echo -e "${WHITE}27. AudioBookshelf - 有声书管理${NC}"
+    echo -e "${WHITE}28. Music-Tag - 音乐标签编辑${NC}"
+    echo -e "${WHITE}29. MusicTab - 音乐刮削工具${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 电子书管理${NC}"
+    echo -e "${WHITE}30. Calibre-Web - 电子书管理${NC}"
+    echo -e "${WHITE}31. Komga - 漫画书籍管理${NC}"
+    echo -e "${WHITE}32. Mango - 漫画服务器${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 文件管理与同步${NC}"
+    echo -e "${WHITE}33. FileBrowser - 网页文件管理器${NC}"
+    echo -e "${WHITE}34. AList - 网盘文件列表${NC}"
+    echo -e "${WHITE}35. CloudDrive2 - 云盘挂载工具${NC}"
+    echo -e "${WHITE}36. NextCloud - 私有云存储${NC}"
+    echo -e "${WHITE}37. SyncThing - 文件同步工具${NC}"
+    echo -e "${WHITE}38. RClone - 云存储同步工具${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 字幕工具${NC}"
+    echo -e "${WHITE}39. ChineseSubFinder - 中文字幕自动下载${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 网络工具${NC}"
+    echo -e "${WHITE}40. FRP - 内网穿透${NC}"
+    echo -e "${WHITE}41. Sakura - 内网穿透${NC}"
+    echo -e "${WHITE}42. V2rayA - 代理工具${NC}"
+    echo -e "${WHITE}43. Lucky - DDNS和反向代理${NC}"
+    echo -e "${WHITE}44. Nginx - 反向代理服务器${NC}"
+    echo -e "${WHITE}45. WireGuard - VPN工具${NC}"
+    echo -e "${WHITE}46. DuckDNS - 动态DNS服务${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ Web管理面板${NC}"
+    echo -e "${WHITE}47. Homepage - 个人主页面板${NC}"
+    echo -e "${WHITE}48. Organizr - 服务整合面板${NC}"
+    echo -e "${WHITE}49. Webmin - 系统管理界面${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 系统管理与监控${NC}"
+    echo -e "${WHITE}50. Watchtower - Docker容器自动更新${NC}"
+    echo -e "${WHITE}51. DockerCopilot - Docker管理工具${NC}"
+    echo -e "${WHITE}52. NetData - 系统监控${NC}"
+    echo -e "${WHITE}53. LibreSpeed - 网速测试${NC}"
+    echo -e "${WHITE}54. Quota - 磁盘配额管理${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 个人服务${NC}"
+    echo -e "${WHITE}55. Vaultwarden - 自建密码管理器${NC}"
+    echo -e "${WHITE}56. Memos - 自建笔记服务${NC}"
+    echo -e "${WHITE}57. Qiandao - 自动签到工具${NC}"
+    echo -e "${WHITE}58. CookieCloud - Cookie同步工具${NC}"
+    echo -e "${WHITE}59. Harvest - 系统监控工具${NC}"
+    echo -e "${WHITE}60. Ombi - 媒体请求管理${NC}"
+    echo -e "${WHITE}61. AllInOne - 多功能集成工具${NC}"
+    echo
+    
+    echo -e "${GREEN}▶ 9kg专区${NC}"
+    echo -e "${WHITE}62. MetaTube - 视频元数据管理${NC}"
+    echo -e "${WHITE}63. Byte-Muse - 数据分析工具${NC}"
+    echo -e "${WHITE}64. Ikaros - 刮削小姐姐${NC}"
+    echo
+    
+    echo -e "${BLUE}特殊选项：${NC}"
+    echo -e "${YELLOW}88. 批量安装 (输入多个序号)${NC}"
+    echo -e "${YELLOW}99. 显示已安装应用${NC}"
+    echo -e "${WHITE} 0. 返回主菜单${NC}"
+    echo
+    echo -e "${GRAY}提示: 输入应用序号安装单个应用，或选择88进行批量安装${NC}"
+    echo
+}
+
+# 处理PT应用选择
+handle_pt_app_selection() {
+    local choice="$1"
+    
+    case $choice in
+        1)
+            install_qb438
+            ;;
+        2)
+            install_qb439
+            ;;
+        3)
+            install_pt_docker_app "qbittorrent" "qBittorrent 4.6.7"
+            ;;
+        4)
+            install_pt_docker_app "qbittorrent-latest" "qBittorrent Latest"
+            ;;
+        5)
+            install_pt_docker_app "transmission" "Transmission 4.0.5"
+            ;;
+        6)
+            install_pt_docker_app "iyuuplus" "IYUUPlus"
+            ;;
+        7)
+            install_pt_docker_app "moviepilot" "MoviePilot"
+            ;;
+        8)
+            install_pt_docker_app "vertex" "Vertex"
+            ;;
+        9)
+            install_pt_docker_app "cross-seed" "Cross-Seed"
+            ;;
+        10)
+            install_pt_docker_app "reseedpuppy" "ReseedPuppy"
+            ;;
+        11)
+            install_pt_docker_app "sonarr" "Sonarr"
+            ;;
+        12)
+            install_pt_docker_app "radarr" "Radarr"
+            ;;
+        13)
+            install_pt_docker_app "lidarr" "Lidarr"
+            ;;
+        14)
+            install_pt_docker_app "prowlarr" "Prowlarr"
+            ;;
+        15)
+            install_pt_docker_app "autobrr" "AutoBRR"
+            ;;
+        16)
+            install_pt_docker_app "bazarr" "Bazarr"
+            ;;
+        17)
+            install_pt_docker_app "nastools" "NASTools"
+            ;;
+        18)
+            install_pt_docker_app "ani-rss" "Ani-RSS"
+            ;;
+        19)
+            install_pt_docker_app "jackett" "Jackett"
+            ;;
+        20)
+            install_pt_docker_app "cloudsaver" "CloudSaver"
+            ;;
+        21)
+            install_pt_docker_app "emby" "Emby"
+            ;;
+        22)
+            install_pt_docker_app "jellyfin" "Jellyfin"
+            ;;
+        23)
+            install_pt_docker_app "plex" "Plex"
+            ;;
+        24)
+            install_pt_docker_app "tautulli" "Tautulli"
+            ;;
+        25)
+            install_pt_docker_app "navidrome" "Navidrome"
+            ;;
+        26)
+            install_pt_docker_app "airsonic" "Airsonic"
+            ;;
+        27)
+            install_pt_docker_app "audiobookshelf" "AudioBookshelf"
+            ;;
+        28)
+            install_pt_docker_app "music-tag" "Music-Tag"
+            ;;
+        29)
+            install_pt_docker_app "musictab" "MusicTab"
+            ;;
+        30)
+            install_pt_docker_app "calibre-web" "Calibre-Web"
+            ;;
+        31)
+            install_pt_docker_app "komga" "Komga"
+            ;;
+        32)
+            install_pt_docker_app "mango" "Mango"
+            ;;
+        33)
+            install_pt_docker_app "filebrowser" "FileBrowser"
+            ;;
+        34)
+            install_pt_docker_app "alist" "AList"
+            ;;
+        35)
+            install_pt_docker_app "clouddrive2" "CloudDrive2"
+            ;;
+        36)
+            install_pt_docker_app "nextcloud" "NextCloud"
+            ;;
+        37)
+            install_pt_docker_app "syncthing" "SyncThing"
+            ;;
+        38)
+            install_pt_docker_app "rclone" "RClone"
+            ;;
+        39)
+            install_pt_docker_app "chinesesubfinder" "ChineseSubFinder"
+            ;;
+        40)
+            install_pt_docker_app "frp" "FRP"
+            ;;
+        41)
+            install_pt_docker_app "sakura" "Sakura"
+            ;;
+        42)
+            install_pt_docker_app "v2raya" "V2rayA"
+            ;;
+        43)
+            install_pt_docker_app "lucky" "Lucky"
+            ;;
+        44)
+            install_pt_docker_app "nginx" "Nginx"
+            ;;
+        45)
+            install_pt_docker_app "wireguard" "WireGuard"
+            ;;
+        46)
+            install_pt_docker_app "duckdns" "DuckDNS"
+            ;;
+        47)
+            install_pt_docker_app "homepage" "Homepage"
+            ;;
+        48)
+            install_pt_docker_app "organizr" "Organizr"
+            ;;
+        49)
+            install_pt_docker_app "webmin" "Webmin"
+            ;;
+        50)
+            install_pt_docker_app "watchtower" "Watchtower"
+            ;;
+        51)
+            install_pt_docker_app "dockercopilot" "DockerCopilot"
+            ;;
+        52)
+            install_pt_docker_app "netdata" "NetData"
+            ;;
+        53)
+            install_pt_docker_app "librespeed" "LibreSpeed"
+            ;;
+        54)
+            install_pt_docker_app "quota" "Quota"
+            ;;
+        55)
+            install_pt_docker_app "vaultwarden" "Vaultwarden"
+            ;;
+        56)
+            install_pt_docker_app "memos" "Memos"
+            ;;
+        57)
+            install_pt_docker_app "qiandao" "Qiandao"
+            ;;
+        58)
+            install_pt_docker_app "cookiecloud" "CookieCloud"
+            ;;
+        59)
+            install_pt_docker_app "harvest" "Harvest"
+            ;;
+        60)
+            install_pt_docker_app "ombi" "Ombi"
+            ;;
+        61)
+            install_pt_docker_app "allinone" "AllInOne"
+            ;;
+        62)
+            install_pt_docker_app "metatube" "MetaTube"
+            ;;
+        63)
+            install_pt_docker_app "byte-muse" "Byte-Muse"
+            ;;
+        64)
+            install_pt_docker_app "ikaros" "Ikaros"
+            ;;
+        88)
+            batch_install_apps
+            ;;
+        99)
+            show_installed_apps
+            ;;
+        *)
+            echo -e "${RED}无效选项，请重新选择${NC}"
+            echo -e "${YELLOW}按任意键继续...${NC}"
+            read -n 1
+            ;;
+    esac
+}
+
+# 安装单个PT Docker应用
+install_pt_docker_app() {
+    local app_name="$1"
+    local app_display_name="$2"
+    
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}正在安装 $app_display_name${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    # 检查Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}错误：Docker未安装，无法安装Docker应用${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return 1
+    fi
+    
+    # 检查是否已安装
+    if docker ps -a --format "table {{.Names}}" | grep -q "^${app_name}$"; then
+        echo -e "${YELLOW}检测到 $app_display_name 已安装${NC}"
+        read -p "是否重新安装？[y/N]: " reinstall
+        if [[ ! $reinstall =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}安装已取消${NC}"
+            echo -e "${YELLOW}按任意键返回...${NC}"
+            read -n 1
+            return
+        fi
+        
+        # 停止并删除现有容器
+        echo -e "${YELLOW}正在移除现有容器...${NC}"
+        docker stop "$app_name" 2>/dev/null
+        docker rm "$app_name" 2>/dev/null
+    fi
+    
+    # 创建应用目录
+    echo -e "${YELLOW}正在创建应用目录...${NC}"
+    mkdir -p "/opt/docker/$app_name"
+    
+    # 下载配置文件
+    if download_compose_file "$app_name"; then
+        echo -e "${GREEN}配置文件下载成功${NC}"
+    else
+        echo -e "${RED}配置文件下载失败，无法安装 $app_display_name${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return 1
+    fi
+    
+    # 启动应用
+    echo -e "${YELLOW}正在启动 $app_display_name...${NC}"
+    if start_docker_app "$app_name"; then
+        echo -e "${YELLOW}等待应用启动...${NC}"
+        sleep 5
+        
+        # 检查应用状态
+        if docker ps --format "table {{.Names}}" | grep -q "^${app_name}$"; then
+            echo -e "${GREEN}================================================${NC}"
+            echo -e "${GREEN}$app_display_name 安装成功！${NC}"
+            echo -e "${GREEN}================================================${NC}"
+            
+            # 显示访问信息
+            show_app_access_info "$app_name" "$app_display_name"
+        else
+            echo -e "${RED}$app_display_name 启动失败${NC}"
+            echo -e "${YELLOW}请检查日志: docker logs $app_name${NC}"
+        fi
+    else
+        echo -e "${RED}$app_display_name 安装失败${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
+# 显示应用访问信息
+show_app_access_info() {
+    local app_name="$1"
+    local app_display_name="$2"
+    
+    # 获取端口信息
+    local ports=$(docker port "$app_name" 2>/dev/null | head -5)
+    
+    if [[ -n "$ports" ]]; then
+        echo -e "${BLUE}访问信息：${NC}"
+        while IFS= read -r port_line; do
+            if [[ -n "$port_line" ]]; then
+                local port=$(echo "$port_line" | awk -F'->' '{print $2}' | awk -F':' '{print $2}')
+                if [[ -n "$port" ]]; then
+                    echo -e "${WHITE}• 访问地址: http://你的服务器IP:$port${NC}"
+                fi
+            fi
+        done <<< "$ports"
+    fi
+    
+    echo -e "${BLUE}管理命令：${NC}"
+    echo -e "${WHITE}• 查看日志: docker logs $app_name${NC}"
+    echo -e "${WHITE}• 重启应用: docker restart $app_name${NC}"
+    echo -e "${WHITE}• 停止应用: docker stop $app_name${NC}"
+    echo -e "${WHITE}• 删除应用: docker stop $app_name && docker rm $app_name${NC}"
+}
+
+# 批量安装应用
+batch_install_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}批量安装PT Docker应用${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    echo -e "${YELLOW}请输入要安装的应用序号（用空格或逗号分隔）：${NC}"
+    echo -e "${GRAY}例如: 3 5 8 或 3,5,8 或 3-10${NC}"
+    echo -e "${GRAY}输入 'all' 安装所有Docker应用${NC}"
+    echo
+    
+    read -p "应用序号: " app_numbers
+    
+    if [[ -z "$app_numbers" ]]; then
+        echo -e "${YELLOW}未输入任何序号，返回菜单${NC}"
+        return
+    fi
+    
+    # 处理输入
+    local app_list=()
+    
+    if [[ "$app_numbers" == "all" ]]; then
+        # 安装所有Docker应用（3-64）
+        for i in {3..64}; do
+            app_list+=("$i")
+        done
+    else
+        # 解析输入的序号
+        app_numbers=$(echo "$app_numbers" | tr ',' ' ')
+        
+        for num in $app_numbers; do
+            if [[ "$num" =~ ^[0-9]+-[0-9]+$ ]]; then
+                # 处理范围输入 如 3-10
+                local start=$(echo "$num" | cut -d'-' -f1)
+                local end=$(echo "$num" | cut -d'-' -f2)
+                for ((i=start; i<=end; i++)); do
+                    app_list+=("$i")
+                done
+            elif [[ "$num" =~ ^[0-9]+$ ]]; then
+                app_list+=("$num")
+            fi
+        done
+    fi
+    
+    if [[ ${#app_list[@]} -eq 0 ]]; then
+        echo -e "${RED}未找到有效的应用序号${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return
+    fi
+    
+    echo -e "${GREEN}准备安装 ${#app_list[@]} 个应用${NC}"
+    echo -e "${YELLOW}确认批量安装？[Y/n]: ${NC}"
+    read -r confirm
+    confirm=${confirm:-Y}
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}批量安装已取消${NC}"
+        return
+    fi
+    
+    echo -e "${YELLOW}开始批量安装...${NC}"
+    local success_count=0
+    local failed_count=0
+    local failed_apps=()
+    
+    for app_num in "${app_list[@]}"; do
+        if [[ $app_num -ge 1 && $app_num -le 2 ]]; then
+            echo -e "${YELLOW}跳过原作者脚本应用 (序号 $app_num)${NC}"
+            continue
+        elif [[ $app_num -ge 3 && $app_num -le 64 ]]; then
+            echo -e "${CYAN}正在安装应用 $app_num...${NC}"
+            if handle_pt_app_selection "$app_num" >/dev/null 2>&1; then
+                ((success_count++))
+            else
+                ((failed_count++))
+                failed_apps+=("$app_num")
+            fi
+        fi
+    done
+    
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "${GREEN}批量安装完成！${NC}"
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "${GREEN}成功安装: $success_count 个应用${NC}"
+    if [[ $failed_count -gt 0 ]]; then
+        echo -e "${RED}安装失败: $failed_count 个应用${NC}"
+        echo -e "${RED}失败的应用序号: ${failed_apps[*]}${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
+# 显示已安装应用
+show_installed_apps() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}已安装的Docker应用${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}Docker未安装${NC}"
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return
+    fi
+    
+    # 应用名称映射
+    declare -A app_names=(
+        ["qbittorrent"]="qBittorrent"
+        ["transmission"]="Transmission"
+        ["vertex"]="Vertex"
+        ["emby"]="Emby"
+        ["jellyfin"]="Jellyfin"
+        ["plex"]="Plex"
+        ["iyuuplus"]="IYUUPlus"
+        ["moviepilot"]="MoviePilot"
+        ["sonarr"]="Sonarr"
+        ["radarr"]="Radarr"
+        ["lidarr"]="Lidarr"
+        ["prowlarr"]="Prowlarr"
+        ["jackett"]="Jackett"
+        ["filebrowser"]="FileBrowser"
+        ["alist"]="AList"
+        ["nextcloud"]="NextCloud"
+    )
+    
+    echo -e "${BLUE}正在检查已安装的容器...${NC}"
+    echo
+    
+    local found_apps=false
+    local running_count=0
+    local stopped_count=0
+    
+    # 检查运行中的容器
+    echo -e "${GREEN}运行中的应用：${NC}"
+    while IFS= read -r container; do
+        if [[ -n "$container" ]]; then
+            local container_name=$(echo "$container" | awk '{print $1}')
+            local status=$(echo "$container" | awk '{print $2}')
+            local ports=$(echo "$container" | awk '{print $3}')
+            
+            local display_name="${app_names[$container_name]:-$container_name}"
+            echo -e "${GREEN}  ✓ $display_name${NC}"
+            if [[ "$ports" != "-" ]]; then
+                echo -e "${GRAY}    端口: $ports${NC}"
+            fi
+            ((running_count++))
+            found_apps=true
+        fi
+    done < <(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -v "NAMES" | head -20)
+    
+    if [[ $running_count -eq 0 ]]; then
+        echo -e "${GRAY}  无运行中的应用${NC}"
+    fi
+    
+    echo
+    # 检查已停止的容器
+    echo -e "${YELLOW}已停止的应用：${NC}"
+    while IFS= read -r container; do
+        if [[ -n "$container" ]]; then
+            local container_name=$(echo "$container" | awk '{print $1}')
+            local display_name="${app_names[$container_name]:-$container_name}"
+            echo -e "${YELLOW}  ⚠ $display_name (已停止)${NC}"
+            ((stopped_count++))
+            found_apps=true
+        fi
+    done < <(docker ps -a --filter "status=exited" --format "table {{.Names}}" | grep -v "NAMES" | head -10)
+    
+    if [[ $stopped_count -eq 0 ]]; then
+        echo -e "${GRAY}  无已停止的应用${NC}"
+    fi
+    
+    echo
+    echo -e "${BLUE}统计信息：${NC}"
+    echo -e "${GREEN}运行中: $running_count 个${NC}"
+    echo -e "${YELLOW}已停止: $stopped_count 个${NC}"
+    echo -e "${WHITE}总计: $((running_count + stopped_count)) 个应用${NC}"
+    
+    if [[ "$found_apps" == false ]]; then
+        echo -e "${GRAY}未发现任何Docker应用${NC}"
+    fi
+    
+    echo
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
 # 检查端口冲突
 check_port_conflicts() {
     local ports=(8080 9091 8096 8780 3000 6881 51413 8920 3001)
@@ -2120,9 +2784,7 @@ main() {
                 install_full_docker_suite
                 ;;
             6)
-                echo -e "${YELLOW}PT Docker应用功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                pt_docker_apps
                 ;;
             7)
                 echo -e "${YELLOW}系统优化功能开发中...${NC}"
