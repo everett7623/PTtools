@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  bazarr:
+    image: linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/bazarr/config:/config
+      - /opt/downloads:/downloads
+      - /opt/downloads:/movies
+      - /opt/downloads:/tv
+    ports:
+      - 6767:6767
+    restart: unless-stopped
