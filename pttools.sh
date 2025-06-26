@@ -322,6 +322,457 @@ install_qb438() {
     read -n 1
 }
 
+# 检查端口冲突
+check_port_conflicts() {
+    local ports=(8080 9091 8096 8780 3000 6881 51413 8920 3001)
+    local port_names=("qBittorrent" "Transmission" "Emby" "IYUUPlus" "MoviePilot" "qBittorrent-BT" "Transmission-BT" "Emby-HTTPS" "MoviePilot-Backend")
+    local conflicts=()
+    
+    for i in "${!ports[@]}"; do
+        local port="${ports[$i]}"
+        local name="${port_names[$i]}"
+        
+        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+            conflicts+=("$name (端口 $port)")
+        fi
+    done
+    
+    if [[ ${#conflicts[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}检测到端口冲突：${NC}"
+        for conflict in "${conflicts[@]}"; do
+            echo -e "${RED}  ✗ $conflict${NC}"
+        done
+        echo
+        echo -e "${YELLOW}建议：${NC}"
+        echo -e "${WHITE}1. 停止占用端口的服务${NC}"
+        echo -e "${WHITE}2. 或者修改应用配置使用其他端口${NC}"
+        echo
+        read -p "是否继续安装？可能会导致部分应用无法访问 [y/N]: " continue_install
+        if [[ ! $continue_install =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}安装已取消${NC}"
+            return 1
+        fi
+    else
+        echo -e "${GREEN}端口检查通过，无冲突${NC}"
+    fi
+    
+    return 0
+}
+
+# 安装全套Docker应用
+install_full_docker_suite() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}安装全套Docker应用${NC}"
+    echo -e "${CYAN}qBittorrent 4.6.7 + Transmission 4.0.5 + Emby + IYUUPlus + MoviePilot${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    # 检查Docker
+    if ! command -v docker &> /dev/null; then
+        echo -e "${YELLOW}检测到未安装Docker，全套应用需要Docker支持${NC}"
+        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+        read -r install_docker_choice
+        install_docker_choice=${install_docker_choice:-Y}
+        
+        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}正在安装Docker...${NC}"
+            if install_docker_func; then
+                echo -e "${GREEN}Docker安装成功！${NC}"
+            else
+                echo -e "${RED}Docker安装失败，无法继续安装${NC}"
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            fi
+        else
+            echo -e "${RED}用户取消Docker安装，无法安装全套应用${NC}"
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1
+            return
+        fi
+    fi
+    
+    echo -e "${BLUE}应用配置说明：${NC}"
+    echo -e "${WHITE}本功能将安装以下应用：${NC}"
+    echo -e "${WHITE}• qBittorrent 4.6.7 (端口: 8080)${NC}"
+    echo -e "${WHITE}• Transmission 4.0.5 (端口: 9091, 用户名: admin, 密码: adminadmin)${NC}"
+    echo -e "${WHITE}• Emby (端口: 8096)${NC}"
+    echo -e "${WHITE}• IYUUPlus (端口: 8780)${NC}"
+    echo -e "${WHITE}• MoviePilot (端口: 3000)${NC}"
+    echo
+    echo -e "${YELLOW}注意：所有应用将使用Docker安装，数据目录为 /opt/docker，下载目录为 /opt/downloads${NC}"
+    echo
+    
+    read -p "确认安装全套Docker应用？[Y/n]: " confirm
+    confirm=${confirm:-Y}
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}安装已取消${NC}"
+        return
+    fi
+    
+    # 检查端口冲突
+    echo -e "${YELLOW}正在检查端口占用情况...${NC}"
+    if ! check_port_conflicts; then
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
+    fi
+    
+    # 创建所有必要目录
+    echo -e "${YELLOW}正在创建应用目录...${NC}"
+    create_app_directories
+    
+    # 安装应用
+    local failed_apps=()
+    local success_apps=()
+    
+    # 1. 安装 qBittorrent
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}步骤 1/5: 安装 qBittorrent 4.6.7${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    if install_single_app "qbittorrent" "create_qbittorrent_compose"; then
+        success_apps+=("qBittorrent")
+    else
+        failed_apps+=("qBittorrent")
+    fi
+    
+    # 2. 安装 Transmission
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}步骤 2/5: 安装 Transmission 4.0.5${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    if install_single_app "transmission" "create_transmission_compose"; then
+        success_apps+=("Transmission")
+    else
+        failed_apps+=("Transmission")
+    fi
+    
+    # 3. 安装 Emby
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}步骤 3/5: 安装 Emby${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    if install_single_app "emby" "create_emby_compose"; then
+        success_apps+=("Emby")
+    else
+        failed_apps+=("Emby")
+    fi
+    
+    # 4. 安装 IYUUPlus
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}步骤 4/5: 安装 IYUUPlus${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    if install_single_app "iyuuplus" "create_iyuuplus_compose"; then
+        success_apps+=("IYUUPlus")
+    else
+        failed_apps+=("IYUUPlus")
+    fi
+    
+    # 5. 安装 MoviePilot
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}步骤 5/5: 安装 MoviePilot${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    if install_single_app "moviepilot-v2" "create_moviepilot_compose"; then
+        success_apps+=("MoviePilot")
+    else
+        failed_apps+=("MoviePilot")
+    fi
+    
+    # 显示安装结果
+    show_full_suite_results
+    
+    echo
+    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+    read -n 1
+}
+
+# 创建应用目录
+create_app_directories() {
+    local directories=(
+        "/opt/docker/qbittorrent/config"
+        "/opt/docker/transmission/config"
+        "/opt/docker/emby/config"
+        "/opt/docker/iyuuplus/iyuu"
+        "/opt/docker/iyuuplus/data"
+        "/opt/docker/moviepilot/config"
+        "/opt/docker/moviepilot/core"
+        "/opt/downloads"
+    )
+    
+    for dir in "${directories[@]}"; do
+        if mkdir -p "$dir"; then
+            echo -e "${GREEN}创建目录: $dir${NC}"
+        else
+            echo -e "${RED}创建目录失败: $dir${NC}"
+        fi
+    done
+}
+
+# 安装单个应用
+install_single_app() {
+    local app_name="$1"
+    local compose_function="$2"
+    
+    echo -e "${YELLOW}正在安装 $app_name...${NC}"
+    
+    # 创建compose文件
+    if ! $compose_function; then
+        echo -e "${RED}创建 $app_name compose文件失败${NC}"
+        return 1
+    fi
+    
+    # 启动容器
+    if start_docker_app "$app_name"; then
+        echo -e "${YELLOW}等待 $app_name 启动...${NC}"
+        sleep 5
+        
+        # 检查容器是否启动成功
+        local container_name="$app_name"
+        if [[ "$app_name" == "moviepilot-v2" ]]; then
+            container_name="moviepilot-v2"
+        fi
+        
+        if docker ps --format "table {{.Names}}" | grep -q "^${container_name}$"; then
+            echo -e "${GREEN}$app_name 安装并启动成功${NC}"
+            return 0
+        else
+            echo -e "${RED}$app_name 启动失败，请检查日志: docker logs $container_name${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}$app_name 安装失败${NC}"
+        return 1
+    fi
+}
+
+# 启动Docker应用
+start_docker_app() {
+    local app_name="$1"
+    # 处理特殊情况：moviepilot-v2的compose文件名是moviepilot
+    local compose_name="$app_name"
+    if [[ "$app_name" == "moviepilot-v2" ]]; then
+        compose_name="moviepilot"
+    fi
+    
+    local compose_file="/tmp/${compose_name}-compose.yml"
+    
+    if command -v docker-compose &> /dev/null; then
+        docker-compose -f "$compose_file" up -d
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        docker compose -f "$compose_file" up -d
+    else
+        echo -e "${RED}Docker Compose未找到${NC}"
+        return 1
+    fi
+    
+    local result=$?
+    rm -f "$compose_file"
+    return $result
+}
+
+# 创建qBittorrent compose文件
+create_qbittorrent_compose() {
+    cat > /tmp/qbittorrent-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  qbittorrent:
+    image: linuxserver/qbittorrent:4.6.7
+    container_name: qbittorrent
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8080
+    volumes:
+      - /opt/docker/qbittorrent/config:/config
+      - /opt/downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+EOF
+    return $?
+}
+
+# 创建Transmission compose文件
+create_transmission_compose() {
+    cat > /tmp/transmission-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  transmission:
+    image: linuxserver/transmission:4.0.5
+    container_name: transmission
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+      - TRANSMISSION_WEB_HOME=/config/webui/trguing-zh
+      - USER=admin
+      - PASS=adminadmin
+    volumes:
+      - /opt/docker/transmission/config:/config
+      - /opt/downloads:/downloads
+    ports:
+      - 9091:9091
+      - 51413:51413
+      - 51413:51413/udp
+    restart: unless-stopped
+EOF
+    return $?
+}
+
+# 创建Emby compose文件
+create_emby_compose() {
+    cat > /tmp/emby-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  emby:
+    image: emby/embyserver
+    container_name: emby
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/emby/config:/config
+      - /opt/downloads:/media
+    ports:
+      - 8096:8096
+      - 8920:8920
+    devices:
+      - /dev/dri:/dev/dri
+    privileged: true
+    restart: unless-stopped
+EOF
+    return $?
+}
+
+# 创建IYUUPlus compose文件
+create_iyuuplus_compose() {
+    cat > /tmp/iyuuplus-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  iyuuplus:
+    image: iyuucn/iyuuplus-dev:latest
+    container_name: iyuuplus
+    stdin_open: true
+    tty: true
+    volumes:
+      - /opt/docker/iyuuplus/iyuu:/iyuu
+      - /opt/docker/iyuuplus/data:/data
+      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
+      - /opt/docker/transmission/config/torrents:/tr
+    ports:
+      - 8780:8780
+    restart: always
+EOF
+    return $?
+}
+
+# 创建MoviePilot compose文件
+create_moviepilot_compose() {
+    cat > /tmp/moviepilot-compose.yml << 'EOF'
+version: '3.8'
+
+services:
+  moviepilot:
+    image: jxxghp/moviepilot-v2:latest
+    container_name: moviepilot-v2
+    hostname: moviepilot-v2
+    stdin_open: true
+    tty: true
+    network_mode: host
+    volumes:
+      - /opt/downloads:/media
+      - /opt/docker/moviepilot/config:/config
+      - /opt/docker/moviepilot/core:/moviepilot/.cache/ms-playwright
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
+      - /opt/docker/transmission/config/torrents:/tr
+    environment:
+      - NGINX_PORT=3000
+      - PORT=3001
+      - PUID=0
+      - PGID=0
+      - UMASK=000
+      - TZ=Asia/Shanghai
+      - SUPERUSER=admin
+    restart: always
+EOF
+    return $?
+}
+
+# 显示全套安装结果
+show_full_suite_results() {
+    echo
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "${GREEN}全套Docker应用安装完成！${NC}"
+    echo -e "${GREEN}================================================${NC}"
+    
+    # 检查每个应用的安装状态
+    local apps=("qBittorrent" "Transmission" "Emby" "IYUUPlus" "MoviePilot")
+    local containers=("qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot-v2")
+    local success_count=0
+    local failed_count=0
+    
+    echo -e "${BLUE}应用状态检查：${NC}"
+    
+    for i in "${!apps[@]}"; do
+        local app="${apps[$i]}"
+        local container="${containers[$i]}"
+        
+        if docker ps --format "table {{.Names}}" | grep -q "^${container}$"; then
+            case $app in
+                "qBittorrent")
+                    echo -e "${GREEN}✓ qBittorrent 4.6.7: http://你的服务器IP:8080${NC}"
+                    echo -e "${WHITE}  默认用户名/密码: admin/adminadmin${NC}"
+                    ;;
+                "Transmission")
+                    echo -e "${GREEN}✓ Transmission 4.0.5: http://你的服务器IP:9091${NC}"
+                    echo -e "${WHITE}  用户名/密码: admin/adminadmin${NC}"
+                    ;;
+                "Emby")
+                    echo -e "${GREEN}✓ Emby: http://你的服务器IP:8096${NC}"
+                    echo -e "${WHITE}  首次访问需要配置管理员账户${NC}"
+                    ;;
+                "IYUUPlus")
+                    echo -e "${GREEN}✓ IYUUPlus: http://你的服务器IP:8780${NC}"
+                    echo -e "${WHITE}  自动辅种工具${NC}"
+                    ;;
+                "MoviePilot")
+                    echo -e "${GREEN}✓ MoviePilot: http://你的服务器IP:3000${NC}"
+                    echo -e "${WHITE}  影视自动化管理工具${NC}"
+                    ;;
+            esac
+            ((success_count++))
+        else
+            echo -e "${RED}✗ $app (容器未运行)${NC}"
+            ((failed_count++))
+        fi
+    done
+    
+    echo
+    echo -e "${BLUE}安装统计：${NC}"
+    echo -e "${GREEN}成功: $success_count 个应用${NC}"
+    if [[ $failed_count -gt 0 ]]; then
+        echo -e "${RED}失败: $failed_count 个应用${NC}"
+        echo -e "${YELLOW}建议查看Docker日志排查问题：docker logs <容器名>${NC}"
+    fi
+    
+    echo
+    echo -e "${BLUE}重要信息：${NC}"
+    echo -e "${WHITE}• 数据目录: /opt/docker${NC}"
+    echo -e "${WHITE}• 下载目录: /opt/downloads${NC}"
+    echo -e "${WHITE}• IYUUPlus和MoviePilot已自动关联qBittorrent和Transmission${NC}"
+    echo -e "${WHITE}• 查看容器状态: docker ps${NC}"
+    echo -e "${WHITE}• 查看容器日志: docker logs <容器名>${NC}"
+    echo -e "${GREEN}================================================${NC}"
+}
+
 # 卸载应用
 uninstall_apps() {
     echo -e "${CYAN}================================================${NC}"
@@ -1149,9 +1600,7 @@ main() {
                 install_qb439_vt
                 ;;
             5)
-                echo -e "${YELLOW}全套Docker应用安装功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                install_full_docker_suite
                 ;;
             6)
                 echo -e "${YELLOW}PT Docker应用功能开发中...${NC}"
