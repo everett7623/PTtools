@@ -5,8 +5,8 @@
 # 脚本描述: PT工具一键安装脚本，支持qBittorrent、Transmission、Emby等应用的快捷安装
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
 # 使用方法: wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh && chmod +x pttools.sh && ./pttools.sh
-# 作者: everett7623
-# 更新时间: 2025-06-25
+# 作者: Jensfrank
+# 更新时间: 2025-06-27
 
 # 颜色定义
 RED='\033[0;31m'
@@ -2784,9 +2784,7 @@ main() {
                 install_full_docker_suite
                 ;;
             6)
-                echo -e "${YELLOW}PT Docker应用功能开发中...${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
+                pt_docker_apps
                 ;;
             7)
                 echo -e "${YELLOW}系统优化功能开发中...${NC}"
