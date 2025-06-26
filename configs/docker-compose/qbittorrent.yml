@@ -25,9 +25,3 @@ services:
       - 6881:6881
       - 6881:6881/udp
     restart: unless-stopped
-    networks:
-      - pttools
-
-networks:
-  pttools:
-    driver: bridge
