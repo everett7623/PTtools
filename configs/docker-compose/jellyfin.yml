@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/jellyfin/config:/config
+      - /opt/docker/jellyfin/cache:/cache
+      - /opt/downloads:/media
+    ports:
+      - 8097:8096
+      - 8921:8920
+      - 7359:7359/udp
+      - 1901:1900/udp
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
