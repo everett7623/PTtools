@@ -26,9 +26,3 @@ services:
       - /dev/dri:/dev/dri
     privileged: true
     restart: unless-stopped
-    networks:
-      - pttools
-
-networks:
-  pttools:
-    driver: bridge
