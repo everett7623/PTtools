@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/filebrowser/config:/config
+      - /opt/docker/filebrowser/database:/database
+      - /opt:/srv
+    ports:
+      - 8888:80
+    restart: unless-stopped
+    command: --database /database/filebrowser.db --config /config/settings.json
