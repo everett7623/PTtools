@@ -957,48 +957,409 @@ uninstall_script_apps() {
     echo -e "${CYAN}================================================${NC}"
     echo
     
-    echo -e "${YELLOW}注意：原作者脚本安装的应用卸载需要手动操作${NC}"
-    echo
-    echo -e "${BLUE}常见卸载方法：${NC}"
-    echo -e "${WHITE}1. qBittorrent (原生安装):${NC}"
-    echo -e "${WHITE}   systemctl stop qbittorrent${NC}"
-    echo -e "${WHITE}   systemctl disable qbittorrent${NC}"
-    echo -e "${WHITE}   apt remove qbittorrent (Debian/Ubuntu)${NC}"
-    echo -e "${WHITE}   yum remove qbittorrent (CentOS/RHEL)${NC}"
-    echo
-    echo -e "${WHITE}2. Vertex (原生安装):${NC}"
-    echo -e "${WHITE}   需要查看jerry048脚本的具体安装方式${NC}"
-    echo -e "${WHITE}   通常涉及停止服务和删除相关文件${NC}"
-    echo
-    echo -e "${WHITE}3. 其他组件:${NC}"
-    echo -e "${WHITE}   autobrr、autoremove-torrents等${NC}"
-    echo -e "${WHITE}   需要根据具体安装方式进行卸载${NC}"
-    echo
+    # 检测原作者脚本安装的qBittorrent
+    echo -e "${YELLOW}正在检测原作者脚本安装的应用...${NC}"
     
-    echo -e "${RED}建议：${NC}"
-    echo -e "${WHITE}1. 查看系统服务：systemctl list-units --type=service${NC}"
-    echo -e "${WHITE}2. 查看安装的软件包${NC}"
-    echo -e "${WHITE}3. 查看相关进程：ps aux | grep qbittorrent${NC}"
-    echo -e "${WHITE}4. 查看开机启动项${NC}"
-    echo
+    local qb_detected=false
+    local qb_services=()
+    local qb_processes=()
+    local other_services=()
     
-    echo -e "${YELLOW}是否要显示当前运行的相关服务？[Y/n]: ${NC}"
-    read -r show_services
-    show_services=${show_services:-Y}
+    # 检测qBittorrent相关服务
+    if systemctl list-units --type=service --all | grep -q "qbittorrent"; then
+        while IFS= read -r service; do
+            if [[ -n "$service" ]]; then
+                qb_services+=("$service")
+                qb_detected=true
+            fi
+        done < <(systemctl list-units --type=service --all | grep "qbittorrent" | awk '{print $1}')
+    fi
     
-    if [[ $show_services =~ ^[Yy]$ ]]; then
-        echo
-        echo -e "${BLUE}当前运行的相关服务：${NC}"
-        systemctl list-units --type=service --state=running | grep -E "(qbittorrent|transmission|emby|vertex)" || echo -e "${GRAY}未找到相关服务${NC}"
+    # 检测qBittorrent进程
+    if pgrep -f "qbittorrent" >/dev/null; then
+        while IFS= read -r process; do
+            if [[ -n "$process" ]]; then
+                qb_processes+=("$process")
+                qb_detected=true
+            fi
+        done < <(ps aux | grep qbittorrent | grep -v grep | awk '{print $2 " " $11}')
+    fi
+    
+    # 检测其他相关服务
+    for service in vertex autobrr autoremove-torrents; do
+        if systemctl list-units --type=service --all | grep -q "$service"; then
+            other_services+=("$service")
+        fi
+    done
+    
+    if [[ "$qb_detected" == true ]]; then
+        echo -e "${GREEN}检测到原作者脚本安装的qBittorrent：${NC}"
+        
+        if [[ ${#qb_services[@]} -gt 0 ]]; then
+            echo -e "${WHITE}服务：${NC}"
+            for service in "${qb_services[@]}"; do
+                local status=$(systemctl is-active "$service" 2>/dev/null || echo "inactive")
+                echo -e "${WHITE}  • $service ($status)${NC}"
+            done
+        fi
+        
+        if [[ ${#qb_processes[@]} -gt 0 ]]; then
+            echo -e "${WHITE}进程：${NC}"
+            for process in "${qb_processes[@]}"; do
+                echo -e "${WHITE}  • $process${NC}"
+            done
+        fi
         
         echo
-        echo -e "${BLUE}相关进程：${NC}"
-        ps aux | grep -E "(qbittorrent|transmission|emby|vertex)" | grep -v grep || echo -e "${GRAY}未找到相关进程${NC}"
+        echo -e "${GREEN}选择qBittorrent卸载方式：${NC}"
+        echo "1. 自动卸载qBittorrent（推荐）"
+        echo "2. 手动卸载指导"
+        echo "3. 返回上级菜单"
+        
+        read -p "请选择 [1-3]: " qb_choice
+        
+        case $qb_choice in
+            1)
+                uninstall_qbittorrent_auto
+                ;;
+            2)
+                show_manual_uninstall_guide
+                ;;
+            3)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效选择${NC}"
+                ;;
+        esac
+    else
+        echo -e "${GRAY}未检测到原作者脚本安装的qBittorrent${NC}"
+        echo
+        
+        if [[ ${#other_services[@]} -gt 0 ]]; then
+            echo -e "${YELLOW}检测到其他相关服务：${NC}"
+            for service in "${other_services[@]}"; do
+                echo -e "${WHITE}  • $service${NC}"
+            done
+            echo
+        fi
+        
+        echo -e "${BLUE}提供手动卸载指导：${NC}"
+        show_manual_uninstall_guide
+    fi
+    
+    echo -e "${YELLOW}按任意键返回...${NC}"
+    read -n 1
+}
+
+# 自动卸载qBittorrent
+uninstall_qbittorrent_auto() {
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${CYAN}自动卸载qBittorrent${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo
+    
+    echo -e "${RED}警告：此操作将完全删除qBittorrent及其配置！${NC}"
+    echo -e "${YELLOW}包括：${NC}"
+    echo -e "${WHITE}• 停止所有qBittorrent服务和进程${NC}"
+    echo -e "${WHITE}• 删除systemd服务文件${NC}"
+    echo -e "${WHITE}• 删除程序文件${NC}"
+    echo -e "${WHITE}• 删除配置文件和数据${NC}"
+    echo -e "${WHITE}• 清理用户和组${NC}"
+    echo
+    
+    read -p "是否备份配置文件？[Y/n]: " backup_config
+    backup_config=${backup_config:-Y}
+    
+    echo
+    read -p "确认卸载qBittorrent？[y/N]: " confirm_uninstall
+    if [[ ! $confirm_uninstall =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}卸载已取消${NC}"
+        return
     fi
     
     echo
-    echo -e "${YELLOW}按任意键返回...${NC}"
-    read -n 1
+    echo -e "${YELLOW}开始卸载qBittorrent...${NC}"
+    
+    # 备份配置文件
+    if [[ $backup_config =~ ^[Yy]$ ]]; then
+        backup_qb_config
+    fi
+    
+    # 1. 停止qBittorrent服务和进程
+    stop_qbittorrent_services
+    
+    # 2. 删除systemd服务文件
+    remove_qbittorrent_services
+    
+    # 3. 删除程序文件
+    remove_qbittorrent_binaries
+    
+    # 4. 删除配置文件
+    remove_qbittorrent_configs
+    
+    # 5. 清理用户和组
+    cleanup_qbittorrent_user
+    
+    # 6. 清理其他残留
+    cleanup_qbittorrent_misc
+    
+    echo
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "${GREEN}qBittorrent卸载完成！${NC}"
+    echo -e "${GREEN}================================================${NC}"
+    
+    # 验证卸载结果
+    verify_qbittorrent_removal
+}
+
+# 备份qBittorrent配置
+backup_qb_config() {
+    echo -e "${YELLOW}正在备份配置文件...${NC}"
+    
+    local backup_dir="/root/qbittorrent_backup_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_dir"
+    
+    # 常见配置路径
+    local config_paths=(
+        "/home/qbittorrent/.config/qBittorrent"
+        "/root/.config/qBittorrent"
+        "/etc/qbittorrent"
+        "/opt/qbittorrent"
+        "/usr/local/etc/qbittorrent"
+    )
+    
+    local backed_up=false
+    for path in "${config_paths[@]}"; do
+        if [[ -d "$path" ]]; then
+            echo -e "${GREEN}备份: $path${NC}"
+            cp -r "$path" "$backup_dir/" 2>/dev/null
+            backed_up=true
+        fi
+    done
+    
+    if [[ "$backed_up" == true ]]; then
+        echo -e "${GREEN}配置文件已备份到: $backup_dir${NC}"
+    else
+        echo -e "${YELLOW}未找到配置文件，跳过备份${NC}"
+        rmdir "$backup_dir" 2>/dev/null
+    fi
+}
+
+# 停止qBittorrent服务和进程
+stop_qbittorrent_services() {
+    echo -e "${YELLOW}正在停止qBittorrent服务和进程...${NC}"
+    
+    # 停止systemd服务
+    for service in qbittorrent qbittorrent-nox qbittorrent@qbittorrent; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            echo -e "${YELLOW}停止服务: $service${NC}"
+            systemctl stop "$service"
+            systemctl disable "$service" 2>/dev/null
+        fi
+    done
+    
+    # 杀死qBittorrent进程
+    if pgrep -f "qbittorrent" >/dev/null; then
+        echo -e "${YELLOW}终止qBittorrent进程...${NC}"
+        pkill -f "qbittorrent"
+        sleep 2
+        
+        # 强制杀死顽固进程
+        if pgrep -f "qbittorrent" >/dev/null; then
+            echo -e "${YELLOW}强制终止qBittorrent进程...${NC}"
+            pkill -9 -f "qbittorrent"
+        fi
+    fi
+    
+    echo -e "${GREEN}qBittorrent服务和进程已停止${NC}"
+}
+
+# 删除systemd服务文件
+remove_qbittorrent_services() {
+    echo -e "${YELLOW}正在删除systemd服务文件...${NC}"
+    
+    local service_paths=(
+        "/etc/systemd/system/qbittorrent.service"
+        "/etc/systemd/system/qbittorrent-nox.service"
+        "/etc/systemd/system/qbittorrent@.service"
+        "/lib/systemd/system/qbittorrent.service"
+        "/usr/lib/systemd/system/qbittorrent.service"
+    )
+    
+    for service_file in "${service_paths[@]}"; do
+        if [[ -f "$service_file" ]]; then
+            echo -e "${GREEN}删除服务文件: $service_file${NC}"
+            rm -f "$service_file"
+        fi
+    done
+    
+    # 重新加载systemd
+    systemctl daemon-reload
+    echo -e "${GREEN}systemd服务文件已清理${NC}"
+}
+
+# 删除程序文件
+remove_qbittorrent_binaries() {
+    echo -e "${YELLOW}正在删除程序文件...${NC}"
+    
+    # 常见安装路径
+    local binary_paths=(
+        "/usr/local/bin/qbittorrent"
+        "/usr/local/bin/qbittorrent-nox"
+        "/usr/bin/qbittorrent"
+        "/usr/bin/qbittorrent-nox"
+        "/opt/qbittorrent"
+        "/usr/local/qbittorrent"
+    )
+    
+    for path in "${binary_paths[@]}"; do
+        if [[ -e "$path" ]]; then
+            echo -e "${GREEN}删除: $path${NC}"
+            rm -rf "$path"
+        fi
+    done
+    
+    # 删除可能的符号链接
+    find /usr/local/bin /usr/bin -name "*qbittorrent*" -type l 2>/dev/null | while read -r link; do
+        echo -e "${GREEN}删除链接: $link${NC}"
+        rm -f "$link"
+    done
+    
+    echo -e "${GREEN}程序文件已删除${NC}"
+}
+
+# 删除配置文件
+remove_qbittorrent_configs() {
+    echo -e "${YELLOW}正在删除配置文件...${NC}"
+    
+    local config_paths=(
+        "/home/qbittorrent"
+        "/root/.config/qBittorrent"
+        "/etc/qbittorrent"
+        "/opt/qbittorrent"
+        "/usr/local/etc/qbittorrent"
+        "/var/lib/qbittorrent"
+        "/tmp/qbittorrent*"
+    )
+    
+    for path in "${config_paths[@]}"; do
+        if [[ -e "$path" ]]; then
+            echo -e "${GREEN}删除配置: $path${NC}"
+            rm -rf "$path"
+        fi
+    done
+    
+    echo -e "${GREEN}配置文件已删除${NC}"
+}
+
+# 清理用户和组
+cleanup_qbittorrent_user() {
+    echo -e "${YELLOW}正在清理用户和组...${NC}"
+    
+    # 删除qbittorrent用户
+    if id "qbittorrent" &>/dev/null; then
+        echo -e "${GREEN}删除用户: qbittorrent${NC}"
+        userdel -r qbittorrent 2>/dev/null
+    fi
+    
+    # 删除qbittorrent组
+    if getent group qbittorrent &>/dev/null; then
+        echo -e "${GREEN}删除组: qbittorrent${NC}"
+        groupdel qbittorrent 2>/dev/null
+    fi
+    
+    echo -e "${GREEN}用户和组已清理${NC}"
+}
+
+# 清理其他残留
+cleanup_qbittorrent_misc() {
+    echo -e "${YELLOW}正在清理其他残留文件...${NC}"
+    
+    # 清理日志文件
+    find /var/log -name "*qbittorrent*" -type f 2>/dev/null | while read -r log_file; do
+        echo -e "${GREEN}删除日志: $log_file${NC}"
+        rm -f "$log_file"
+    done
+    
+    # 清理临时文件
+    find /tmp -name "*qbittorrent*" 2>/dev/null | while read -r temp_file; do
+        echo -e "${GREEN}删除临时文件: $temp_file${NC}"
+        rm -rf "$temp_file"
+    done
+    
+    # 清理cron任务
+    if crontab -l 2>/dev/null | grep -q "qbittorrent"; then
+        echo -e "${YELLOW}检测到qBittorrent相关的cron任务，请手动检查${NC}"
+        echo -e "${WHITE}执行: crontab -e${NC}"
+    fi
+    
+    echo -e "${GREEN}其他残留文件已清理${NC}"
+}
+
+# 验证卸载结果
+verify_qbittorrent_removal() {
+    echo -e "${BLUE}验证卸载结果：${NC}"
+    
+    local issues=()
+    
+    # 检查进程
+    if pgrep -f "qbittorrent" >/dev/null; then
+        issues+=("仍有qBittorrent进程运行")
+    else
+        echo -e "${GREEN}✓ 无qBittorrent进程${NC}"
+    fi
+    
+    # 检查服务
+    if systemctl list-units --type=service --all | grep -q "qbittorrent"; then
+        issues+=("仍有qBittorrent服务存在")
+    else
+        echo -e "${GREEN}✓ 无qBittorrent服务${NC}"
+    fi
+    
+    # 检查常见二进制文件
+    if command -v qbittorrent >/dev/null || command -v qbittorrent-nox >/dev/null; then
+        issues+=("仍可找到qBittorrent程序")
+    else
+        echo -e "${GREEN}✓ qBittorrent程序已删除${NC}"
+    fi
+    
+    if [[ ${#issues[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}需要手动处理的问题：${NC}"
+        for issue in "${issues[@]}"; do
+            echo -e "${RED}  • $issue${NC}"
+        done
+    else
+        echo -e "${GREEN}✓ qBittorrent已完全卸载${NC}"
+    fi
+}
+
+# 显示手动卸载指导
+show_manual_uninstall_guide() {
+    echo -e "${BLUE}手动卸载指导：${NC}"
+    echo
+    echo -e "${WHITE}1. 停止qBittorrent服务：${NC}"
+    echo -e "${GRAY}   systemctl stop qbittorrent${NC}"
+    echo -e "${GRAY}   systemctl disable qbittorrent${NC}"
+    echo
+    echo -e "${WHITE}2. 删除服务文件：${NC}"
+    echo -e "${GRAY}   rm -f /etc/systemd/system/qbittorrent*.service${NC}"
+    echo -e "${GRAY}   systemctl daemon-reload${NC}"
+    echo
+    echo -e "${WHITE}3. 删除程序文件：${NC}"
+    echo -e "${GRAY}   rm -rf /usr/local/bin/qbittorrent*${NC}"
+    echo -e "${GRAY}   rm -rf /opt/qbittorrent${NC}"
+    echo
+    echo -e "${WHITE}4. 删除配置文件：${NC}"
+    echo -e "${GRAY}   rm -rf /home/qbittorrent${NC}"
+    echo -e "${GRAY}   rm -rf /root/.config/qBittorrent${NC}"
+    echo
+    echo -e "${WHITE}5. 删除用户：${NC}"
+    echo -e "${GRAY}   userdel -r qbittorrent${NC}"
+    echo
+    echo -e "${WHITE}6. 检查进程：${NC}"
+    echo -e "${GRAY}   ps aux | grep qbittorrent${NC}"
+    echo -e "${GRAY}   pkill -f qbittorrent${NC}"
 }
 
 # 使用Docker安装Vertex
