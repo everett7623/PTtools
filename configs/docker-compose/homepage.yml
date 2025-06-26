@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/homepage/config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt:/mnt/storage:ro
+    ports:
+      - 3001:3000
+    restart: unless-stopped
