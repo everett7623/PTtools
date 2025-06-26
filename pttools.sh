@@ -569,141 +569,46 @@ start_docker_app() {
     return $result
 }
 
+# 下载并创建compose文件
+download_compose_file() {
+    local app_name="$1"
+    local compose_file="/tmp/${app_name}-compose.yml"
+    local github_url="$GITHUB_RAW/configs/docker-compose/${app_name}.yml"
+    
+    echo -e "${YELLOW}正在下载 ${app_name} 配置文件...${NC}"
+    
+    if curl -fsSL "$github_url" -o "$compose_file"; then
+        echo -e "${GREEN}${app_name} 配置文件下载成功${NC}"
+        return 0
+    else
+        echo -e "${RED}${app_name} 配置文件下载失败${NC}"
+        return 1
+    fi
+}
+
 # 创建qBittorrent compose文件
 create_qbittorrent_compose() {
-    cat > /tmp/qbittorrent-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  qbittorrent:
-    image: linuxserver/qbittorrent:4.6.7
-    container_name: qbittorrent
-    environment:
-      - PUID=0
-      - PGID=0
-      - TZ=Asia/Shanghai
-      - WEBUI_PORT=8080
-    volumes:
-      - /opt/docker/qbittorrent/config:/config
-      - /opt/downloads:/downloads
-    ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
-    restart: unless-stopped
-EOF
-    return $?
+    download_compose_file "qbittorrent"
 }
 
 # 创建Transmission compose文件
 create_transmission_compose() {
-    cat > /tmp/transmission-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  transmission:
-    image: linuxserver/transmission:4.0.5
-    container_name: transmission
-    environment:
-      - PUID=0
-      - PGID=0
-      - TZ=Asia/Shanghai
-      - TRANSMISSION_WEB_HOME=/config/webui/trguing-zh
-      - USER=admin
-      - PASS=adminadmin
-    volumes:
-      - /opt/docker/transmission/config:/config
-      - /opt/downloads:/downloads
-    ports:
-      - 9091:9091
-      - 51413:51413
-      - 51413:51413/udp
-    restart: unless-stopped
-EOF
-    return $?
+    download_compose_file "transmission"
 }
 
 # 创建Emby compose文件
 create_emby_compose() {
-    cat > /tmp/emby-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  emby:
-    image: emby/embyserver
-    container_name: emby
-    environment:
-      - PUID=0
-      - PGID=0
-      - TZ=Asia/Shanghai
-    volumes:
-      - /opt/docker/emby/config:/config
-      - /opt/downloads:/media
-    ports:
-      - 8096:8096
-      - 8920:8920
-    devices:
-      - /dev/dri:/dev/dri
-    privileged: true
-    restart: unless-stopped
-EOF
-    return $?
+    download_compose_file "emby"
 }
 
 # 创建IYUUPlus compose文件
 create_iyuuplus_compose() {
-    cat > /tmp/iyuuplus-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  iyuuplus:
-    image: iyuucn/iyuuplus-dev:latest
-    container_name: iyuuplus
-    stdin_open: true
-    tty: true
-    volumes:
-      - /opt/docker/iyuuplus/iyuu:/iyuu
-      - /opt/docker/iyuuplus/data:/data
-      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
-      - /opt/docker/transmission/config/torrents:/tr
-    ports:
-      - 8780:8780
-    restart: always
-EOF
-    return $?
+    download_compose_file "iyuuplus"
 }
 
 # 创建MoviePilot compose文件
 create_moviepilot_compose() {
-    cat > /tmp/moviepilot-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  moviepilot:
-    image: jxxghp/moviepilot-v2:latest
-    container_name: moviepilot-v2
-    hostname: moviepilot-v2
-    stdin_open: true
-    tty: true
-    network_mode: host
-    volumes:
-      - /opt/downloads:/media
-      - /opt/docker/moviepilot/config:/config
-      - /opt/docker/moviepilot/core:/moviepilot/.cache/ms-playwright
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /opt/docker/qbittorrent/config/qBittorrent/BT_backup:/qb
-      - /opt/docker/transmission/config/torrents:/tr
-    environment:
-      - NGINX_PORT=3000
-      - PORT=3001
-      - PUID=0
-      - PGID=0
-      - UMASK=000
-      - TZ=Asia/Shanghai
-      - SUPERUSER=admin
-    restart: always
-EOF
-    return $?
+    download_compose_file "moviepilot"
 }
 
 # 显示全套安装结果
@@ -1610,7 +1515,15 @@ install_vertex_docker() {
     mkdir -p /opt/docker/vertex
     
     echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
-    cat > /tmp/vertex-compose.yml << 'EOF'
+    local compose_file="/tmp/vertex-compose.yml"
+    local github_url="$GITHUB_RAW/configs/docker-compose/vertex.yml"
+    
+    if curl -fsSL "$github_url" -o "$compose_file"; then
+        echo -e "${GREEN}Vertex配置文件下载成功${NC}"
+    else
+        echo -e "${RED}Vertex配置文件下载失败，使用内置配置${NC}"
+        # 备用配置
+        cat > "$compose_file" << 'EOF'
 version: '3.8'
 
 services:
@@ -1625,12 +1538,13 @@ services:
       - 3333:3000
     restart: unless-stopped
 EOF
+    fi
 
     echo -e "${YELLOW}正在启动Vertex容器...${NC}"
     if command -v docker-compose &> /dev/null; then
-        docker-compose -f /tmp/vertex-compose.yml up -d
+        docker-compose -f "$compose_file" up -d
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker compose -f /tmp/vertex-compose.yml up -d
+        docker compose -f "$compose_file" up -d
     else
         echo -e "${RED}Docker Compose未找到，使用docker run命令启动...${NC}"
         docker run -d \
@@ -1643,7 +1557,7 @@ EOF
     fi
     
     # 清理临时文件
-    rm -f /tmp/vertex-compose.yml
+    rm -f "$compose_file"
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
