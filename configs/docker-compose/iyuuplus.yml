@@ -22,9 +22,3 @@ services:
     ports:
       - 8780:8780
     restart: always
-    networks:
-      - pttools
-
-networks:
-  pttools:
-    driver: bridge
