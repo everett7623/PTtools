@@ -5,7 +5,6 @@
 # 脚本描述: PT相关Docker应用的安装和管理工具
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/configs/ptdocker.sh
 # 作者: Jensfrank
-# Github: everett7623
 # 项目: PTtools
 # 更新时间: 2025-06-27
 
@@ -40,56 +39,39 @@ show_menu() {
     clear
     show_title
     
-    # 使用多列布局展示分类菜单
-    printf "${WHITE}%-25s %-25s %-25s${NC}\n" "🔽 下载管理" "🤖 自动化管理" "🔍 搜索工具"
-    printf "%-25s %-25s %-25s\n" "1. qBittorrent 4.3.8" "7. IyuuPlus🔥" "20. Jackett"
-    printf "%-25s %-25s %-25s\n" "2. qBittorrent 4.3.9" "8. MoviePilot🔥" "21. CloudSaver🔖"
-    printf "%-25s %-25s %-25s\n" "3. qBittorrent 4.6.7" "9. Vertex🔥" ""
-    printf "%-25s %-25s %-25s\n" "4. qBittorrent 5.0.2🔖" "10. Cross-seed" ""
-    printf "%-25s %-25s %-25s\n" "5. qBittorrent Latest🔖" "11. ReseedPuppy" ""
-    printf "%-25s %-25s %-25s\n" "6. Transmission 4.0.5" "12. Sonarr" ""
-    printf "%-25s %-25s %-25s\n" "" "13. Radarr" ""
-    printf "%-25s %-25s %-25s\n" "" "14. Lidarr" ""
-    printf "%-25s %-25s %-25s\n" "" "15. Prowlarr" ""
-    printf "%-25s %-25s %-25s\n" "" "16. AutoBrr" ""
-    printf "%-25s %-25s %-25s\n" "" "17. Bazarr" ""
-    printf "%-25s %-25s %-25s\n" "" "18. NasTools" ""
-    printf "%-25s %-25s %-25s\n" "" "19. Ani-RSS🔖" ""
-    echo
-    
-    printf "${WHITE}%-25s %-25s %-25s${NC}\n" "📺 媒体服务器" "🎵 音频相关" "📚 电子书管理"
-    printf "%-25s %-25s %-25s\n" "22. Emby🔥" "27. Navidrome" "32. Calibre-Web"
-    printf "%-25s %-25s %-25s\n" "23. Jellyfin🔥" "28. Airsonic" "33. Komga"
-    printf "%-25s %-25s %-25s\n" "24. Plex" "29. AudioBookShelf🔖" "34. Mango"
-    printf "%-25s %-25s %-25s\n" "25. Tautulli" "30. Music-Tag🔖" ""
-    printf "%-25s %-25s %-25s\n" "26. DDNS-GO🔖" "31. MusicTab🔖" ""
-    echo
-    
-    printf "${WHITE}%-25s %-25s %-25s${NC}\n" "📁 文件管理与同步" "📑 字幕工具" "🌐 网络工具"
-    printf "%-25s %-25s %-25s\n" "35. FileBrowser" "40. ChineseSubFinder" "42. FRPS"
-    printf "%-25s %-25s %-25s\n" "36. CloudDrive2🔥" "41. Bazarr" "43. FRPC"
-    printf "%-25s %-25s %-25s\n" "37. NextCloud" "" "44. Sakura🔖"
-    printf "%-25s %-25s %-25s\n" "38. Syncthing" "" "45. V2rayA"
-    printf "%-25s %-25s %-25s\n" "39. Rclone" "" "46. Lucky🔥"
-    printf "%-25s %-25s %-25s\n" "" "" "47. Nginx"
-    printf "%-25s %-25s %-25s\n" "" "" "48. WireGuard"
-    printf "%-25s %-25s %-25s\n" "" "" "49. DuckDNS"
-    echo
-    
-    printf "${WHITE}%-25s %-25s %-25s${NC}\n" "🎛️ Web管理面板" "⚙️ 系统管理与监控" "👤 个人服务"
-    printf "%-25s %-25s %-25s\n" "50. HomePage🔥" "53. Watchtower🔥" "58. Vaultwarden🔥"
-    printf "%-25s %-25s %-25s\n" "51. Organizr" "54. DockerCopilot🔖" "59. Memos🔖"
-    printf "%-25s %-25s %-25s\n" "52. Webmin" "55. NetData" "60. Qiandao"
-    printf "%-25s %-25s %-25s\n" "" "56. LibreSpeed" "61. CookieCloud🔖"
-    printf "%-25s %-25s %-25s\n" "" "57. Quota🔖" "62. Harvest🔖"
-    printf "%-25s %-25s %-25s\n" "" "" "63. Ombi"
-    printf "%-25s %-25s %-25s\n" "" "" "64. AllInOne🔖"
-    echo
-    
-    printf "${WHITE}%-25s${NC}\n" "🔥 9kg专区"
-    printf "%-25s\n" "65. MetaTube🔥"
-    printf "%-25s\n" "66. Byte-Muse🔖"
-    printf "%-25s\n" "67. Ikaros🔖"
+    # 紧凑型三列布局，充分利用空间
+    printf "%-28s %-28s %-28s\n" "${YELLOW}🔽 下载管理${NC}" "${YELLOW}🤖 自动化管理${NC}" "${YELLOW}📺 媒体服务器${NC}"
+    printf "%-28s %-28s %-28s\n" "1. qBittorrent 4.3.8" "7. IyuuPlus🔥" "22. Emby🔥"
+    printf "%-28s %-28s %-28s\n" "2. qBittorrent 4.3.9" "8. MoviePilot🔥" "23. Jellyfin🔥"
+    printf "%-28s %-28s %-28s\n" "3. qBittorrent 4.6.7" "9. Vertex🔥" "24. Plex"
+    printf "%-28s %-28s %-28s\n" "4. qBittorrent 5.0.2🔖" "10. Cross-seed" "25. Tautulli"
+    printf "%-28s %-28s %-28s\n" "5. qBittorrent Latest🔖" "11. ReseedPuppy" "26. DDNS-GO🔖"
+    printf "%-28s %-28s %-28s\n" "6. Transmission 4.0.5" "12. Sonarr" ""
+    printf "%-28s %-28s %-28s\n" "" "13. Radarr" "${YELLOW}🎵 音频相关${NC}"
+    printf "%-28s %-28s %-28s\n" "${YELLOW}🔍 搜索工具${NC}" "14. Lidarr" "27. Navidrome"
+    printf "%-28s %-28s %-28s\n" "20. Jackett" "15. Prowlarr" "28. Airsonic"
+    printf "%-28s %-28s %-28s\n" "21. CloudSaver🔖" "16. AutoBrr" "29. AudioBookShelf🔖"
+    printf "%-28s %-28s %-28s\n" "" "17. Bazarr" "30. Music-Tag🔖"
+    printf "%-28s %-28s %-28s\n" "${YELLOW}📚 电子书管理${NC}" "18. NasTools" "31. MusicTab🔖"
+    printf "%-28s %-28s %-28s\n" "32. Calibre-Web" "19. Ani-RSS🔖" ""
+    printf "%-28s %-28s %-28s\n" "33. Komga" "" "${YELLOW}📁 文件管理${NC}"
+    printf "%-28s %-28s %-28s\n" "34. Mango" "${YELLOW}📑 字幕工具${NC}" "35. FileBrowser"
+    printf "%-28s %-28s %-28s\n" "" "40. ChineseSubFinder" "36. CloudDrive2🔥"
+    printf "%-28s %-28s %-28s\n" "${YELLOW}🌐 网络工具${NC}" "41. Bazarr" "37. NextCloud"
+    printf "%-28s %-28s %-28s\n" "42. FRPS" "" "38. Syncthing"
+    printf "%-28s %-28s %-28s\n" "43. FRPC" "${YELLOW}🎛️ Web管理面板${NC}" "39. Rclone"
+    printf "%-28s %-28s %-28s\n" "44. Sakura🔖" "50. HomePage🔥" ""
+    printf "%-28s %-28s %-28s\n" "45. V2rayA" "51. Organizr" "${YELLOW}⚙️ 系统监控${NC}"
+    printf "%-28s %-28s %-28s\n" "46. Lucky🔥" "52. Webmin" "53. Watchtower🔥"
+    printf "%-28s %-28s %-28s\n" "47. Nginx" "" "54. DockerCopilot🔖"
+    printf "%-28s %-28s %-28s\n" "48. WireGuard" "${YELLOW}👤 个人服务${NC}" "55. NetData"
+    printf "%-28s %-28s %-28s\n" "49. DuckDNS" "58. Vaultwarden🔥" "56. LibreSpeed"
+    printf "%-28s %-28s %-28s\n" "" "59. Memos🔖" "57. Quota🔖"
+    printf "%-28s %-28s %-28s\n" "${YELLOW}🔥 9kg专区${NC}" "60. Qiandao" ""
+    printf "%-28s %-28s %-28s\n" "65. MetaTube🔥" "61. CookieCloud🔖" ""
+    printf "%-28s %-28s %-28s\n" "66. Byte-Muse🔖" "62. Harvest🔖" ""
+    printf "%-28s %-28s %-28s\n" "67. Ikaros🔖" "63. Ombi" ""
+    printf "%-28s %-28s %-28s\n" "" "64. AllInOne🔖" ""
     echo
     
     echo -e "${CYAN}=================================================${NC}"
