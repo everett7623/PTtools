@@ -1,291 +1,185 @@
 #!/bin/bash
 
-# PTtools Docker应用管理脚本
+# PTtools Docker应用菜单
 # 脚本名称: ptdocker.sh
-# 脚本描述: PT Docker应用的分类选择安装管理
+# 脚本描述: PT Docker应用一键安装管理脚本
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/configs/ptdocker.sh
-# 使用方法: bash ptdocker.sh
-# 作者: everett7623
-# 更新时间: 2025-06-25
+# 作者: Jensfrank
+# Github: https://github.com/everett7623/PTtools
+# 更新时间: 2025-06-27
+
+show_pt_docker_menu() {
+    clear
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}           PT Docker 应用管理          ${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${CYAN}📖 使用说明：${NC}"
+    echo -e "   • 输入序号安装单个应用: ${YELLOW}1${NC}"
+    echo -e "   • 多选安装用空格分隔: ${YELLOW}1 2 3${NC}"
+    echo -e "   • 输入 ${YELLOW}0${NC} 返回主菜单"
+    echo ""
+    
+    # 下载管理类别
+    echo -e "${GREEN}🔽 下载管理${NC}"
+    echo -e "   ${YELLOW}1.${NC}  qBittorrent 4.3.8 ${RED}🔥${NC}    ${YELLOW}2.${NC}  qBittorrent 4.3.9 ${RED}🔥${NC}    ${YELLOW}3.${NC}  qBittorrent 4.6.7"
+    echo -e "   ${YELLOW}4.${NC}  qBittorrent 5.0.2 ${GREEN}🔖${NC}    ${YELLOW}5.${NC}  qBittorrent 最新版       ${YELLOW}6.${NC}  Transmission 4.0.5"
+    echo ""
+    
+    # 自动化管理类别
+    echo -e "${GREEN}🤖 自动化管理${NC}"
+    echo -e "   ${YELLOW}7.${NC}  IYUU Plus ${RED}🔥${NC}           ${YELLOW}8.${NC}  MoviePilot ${RED}🔥${NC}           ${YELLOW}9.${NC}  Vertex ${RED}🔥${NC}"
+    echo -e "   ${YELLOW}10.${NC} Cross-seed               ${YELLOW}11.${NC} Reseed Puppy             ${YELLOW}12.${NC} Sonarr"
+    echo -e "   ${YELLOW}13.${NC} Radarr                   ${YELLOW}14.${NC} Lidarr                   ${YELLOW}15.${NC} Prowlarr"
+    echo -e "   ${YELLOW}16.${NC} AutoBRR                  ${YELLOW}17.${NC} Bazarr                   ${YELLOW}18.${NC} NasTools"
+    echo -e "   ${YELLOW}19.${NC} Ani-RSS ${GREEN}🔖${NC}"
+    echo ""
+    
+    # 搜索工具类别
+    echo -e "${GREEN}🔍 搜索工具${NC}"
+    echo -e "   ${YELLOW}20.${NC} Jackett ${RED}🔥${NC}             ${YELLOW}21.${NC} CloudSaver ${GREEN}🔖${NC}"
+    echo ""
+    
+    # 媒体服务器类别
+    echo -e "${GREEN}📺 媒体服务器${NC}"
+    echo -e "   ${YELLOW}22.${NC} Emby ${RED}🔥${NC}               ${YELLOW}23.${NC} Jellyfin ${RED}🔥${NC}            ${YELLOW}24.${NC} Plex"
+    echo -e "   ${YELLOW}25.${NC} Tautulli"
+    echo ""
+    
+    # 音频相关类别
+    echo -e "${GREEN}🎵 音频相关${NC}"
+    echo -e "   ${YELLOW}26.${NC} Navidrome              ${YELLOW}27.${NC} Airsonic                ${YELLOW}28.${NC} AudioBookshelf"
+    echo -e "   ${YELLOW}29.${NC} Music-Tag               ${YELLOW}30.${NC} MusicTab ${GREEN}🔖${NC}"
+    echo ""
+    
+    # 电子书管理类别
+    echo -e "${GREEN}📚 电子书管理${NC}"
+    echo -e "   ${YELLOW}31.${NC} Calibre-Web ${RED}🔥${NC}       ${YELLOW}32.${NC} Komga                   ${YELLOW}33.${NC} Mango"
+    echo ""
+    
+    # 文件管理类别
+    echo -e "${GREEN}📁 文件管理${NC}"
+    echo -e "   ${YELLOW}34.${NC} FileBrowser ${RED}🔥${NC}       ${YELLOW}35.${NC} CloudDrive2 ${GREEN}🔖${NC}        ${YELLOW}36.${NC} NextCloud"
+    echo -e "   ${YELLOW}37.${NC} Syncthing               ${YELLOW}38.${NC} Rclone"
+    echo ""
+    
+    # 字幕工具类别
+    echo -e "${GREEN}📝 字幕工具${NC}"
+    echo -e "   ${YELLOW}39.${NC} ChineseSubFinder ${RED}🔥${NC}  ${YELLOW}40.${NC} Bazarr (字幕版)"
+    echo ""
+    
+    # 网络工具类别
+    echo -e "${GREEN}🌐 网络工具${NC}"
+    echo -e "   ${YELLOW}41.${NC} FRP Server              ${YELLOW}42.${NC} FRP Client              ${YELLOW}43.${NC} Sakura FRP"
+    echo -e "   ${YELLOW}44.${NC} V2rayA                  ${YELLOW}45.${NC} Lucky ${GREEN}🔖${NC}                ${YELLOW}46.${NC} Nginx"
+    echo -e "   ${YELLOW}47.${NC} WireGuard               ${YELLOW}48.${NC} DuckDNS"
+    echo ""
+    
+    # Web管理面板类别
+    echo -e "${GREEN}🖥️ Web管理面板${NC}"
+    echo -e "   ${YELLOW}49.${NC} Homepage ${RED}🔥${NC}           ${YELLOW}50.${NC} Organizr                ${YELLOW}51.${NC} Webmin"
+    echo ""
+    
+    # 系统监控类别
+    echo -e "${GREEN}⚙️ 系统监控${NC}"
+    echo -e "   ${YELLOW}52.${NC} Watchtower ${RED}🔥${NC}        ${YELLOW}53.${NC} Docker Copilot ${GREEN}🔖${NC}     ${YELLOW}54.${NC} NetData"
+    echo -e "   ${YELLOW}55.${NC} LibreSpeed              ${YELLOW}56.${NC} Quota Monitor"
+    echo ""
+    
+    # 个人服务类别
+    echo -e "${GREEN}👤 个人服务${NC}"
+    echo -e "   ${YELLOW}57.${NC} Vaultwarden ${RED}🔥${NC}       ${YELLOW}58.${NC} Memos ${GREEN}🔖${NC}              ${YELLOW}59.${NC} Qiandao"
+    echo -e "   ${YELLOW}60.${NC} CookieCloud             ${YELLOW}61.${NC} Harvest                 ${YELLOW}62.${NC} Ombi"
+    echo -e "   ${YELLOW}63.${NC} AllInOne ${GREEN}🔖${NC}"
+    echo ""
+    
+    # 9kg专区类别
+    echo -e "${GREEN}🔥 9kg专区${NC}"
+    echo -e "   ${YELLOW}64.${NC} MetaTube ${GREEN}🔖${NC}          ${YELLOW}65.${NC} Byte-Muse ${GREEN}🔖${NC}           ${YELLOW}66.${NC} Ikaros ${GREEN}🔖${NC}"
+    echo ""
+    
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${CYAN}💡 提示: 🔥=热门推荐 🔖=新增应用${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    
+    echo -e -n "${GREEN}请输入要安装的应用序号 (多选用空格分隔，0返回): ${NC}"
+}
+
+# 应用映射数组
+declare -A APP_MAP=(
+    ["1"]="qbittorrent_4.3.8"
+    ["2"]="qbittorrent_4.3.9"
+    ["3"]="qbittorrent_4.6.7"
+    ["4"]="qbittorrent_5.0.2"
+    ["5"]="qbittorrent_latest"
+    ["6"]="transmission"
+    ["7"]="iyuuplus"
+    ["8"]="moviepilot"
+    ["9"]="vertex"
+    ["10"]="cross-seed"
+    ["11"]="reseed-puppy"
+    ["12"]="sonarr"
+    ["13"]="radarr"
+    ["14"]="lidarr"
+    ["15"]="prowlarr"
+    ["16"]="autobrr"
+    ["17"]="bazarr"
+    ["18"]="nastools"
+    ["19"]="ani-rss"
+    ["20"]="jackett"
+    ["21"]="cloudsaver"
+    ["22"]="emby"
+    ["23"]="jellyfin"
+    ["24"]="plex"
+    ["25"]="tautulli"
+    ["26"]="navidrome"
+    ["27"]="airsonic"
+    ["28"]="audiobookshelf"
+    ["29"]="music-tag"
+    ["30"]="musictab"
+    ["31"]="calibre-web"
+    ["32"]="komga"
+    ["33"]="mango"
+    ["34"]="filebrowser"
+    ["35"]="clouddrive2"
+    ["36"]="nextcloud"
+    ["37"]="syncthing"
+    ["38"]="rclone"
+    ["39"]="chinesesubfinder"
+    ["40"]="bazarr-subtitle"
+    ["41"]="frps"
+    ["42"]="frpc"
+    ["43"]="sakura-frp"
+    ["44"]="v2raya"
+    ["45"]="lucky"
+    ["46"]="nginx"
+    ["47"]="wireguard"
+    ["48"]="duckdns"
+    ["49"]="homepage"
+    ["50"]="organizr"
+    ["51"]="webmin"
+    ["52"]="watchtower"
+    ["53"]="dockercopilot"
+    ["54"]="netdata"
+    ["55"]="librespeed"
+    ["56"]="quota-monitor"
+    ["57"]="vaultwarden"
+    ["58"]="memos"
+    ["59"]="qiandao"
+    ["60"]="cookiecloud"
+    ["61"]="harvest"
+    ["62"]="ombi"
+    ["63"]="allinone"
+    ["64"]="metatube"
+    ["65"]="byte-muse"
+    ["66"]="ikaros"
+)
 
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
-WHITE='\033[0;37m'
-GRAY='\033[0;90m'
-NC='\033[0m'
-
-# 全局变量
-DOCKER_DIR="/opt/docker"
-DOWNLOADS_DIR="/opt/downloads"
-GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
-
-# 显示横幅
-show_banner() {
-    clear
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                            🐳 PT Docker 应用管理中心                          ║${NC}"
-    echo -e "${CYAN}║                                                                              ║${NC}"
-    echo -e "${CYAN}║                     🎯 64+ 应用 | 🚀 一键安装 | 📊 分类管理                    ║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
-    echo
-}
-
-# 显示PT应用菜单
-show_pt_apps_menu() {
-    show_banner
-    
-    # 使用多列布局显示应用
-    echo -e "${GREEN}╭─────────────────────────────────── 📥 下载管理 ────────────────────────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "1." "qBittorrent 4.3.8" "(原作者脚本)" \
-           "2." "qBittorrent 4.3.9" "(原作者脚本)"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "3." "qBittorrent 4.6.7" "(Docker)🔥" \
-           "4." "qBittorrent Latest" "(Docker)🆕"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} %-36s ${WHITE}│${NC}\n" \
-           "5." "Transmission 4.0.5" "(Docker)" ""
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GREEN}╭─────────────────────────────────── 🤖 自动化管理 ───────────────────────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "6." "IYUUPlus🔥" "PT站点管理" \
-           "7." "MoviePilot🔥" "影视自动化"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "8." "Vertex" "媒体管理" \
-           "9." "Cross-Seed" "交叉做种"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "10." "ReseedPuppy🆕" "自动补种" \
-           "11." "Sonarr🔥" "电视剧管理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "12." "Radarr🔥" "电影管理" \
-           "13." "Lidarr" "音乐管理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "14." "Prowlarr🔥" "索引器管理" \
-           "15." "AutoBRR" "自动抓取"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "16." "Bazarr" "字幕管理" \
-           "17." "NASTools" "NAS工具"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} %-36s ${WHITE}│${NC}\n" \
-           "18." "Ani-RSS🆕" "动漫RSS" ""
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GREEN}╭─────────────────────────────────── 🔍 搜索 & 📺 媒体服务器 ──────────────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "19." "Jackett🔥" "BT搜索聚合" \
-           "20." "CloudSaver🆕" "TG网盘搜索"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "21." "Emby🔥" "媒体服务器" \
-           "22." "Jellyfin🔥" "开源媒体服务器"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "23." "Plex" "媒体服务器" \
-           "24." "Tautulli" "Plex监控"
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GREEN}╭─────────────────────── 🎵 音频 & 📚 电子书 & 📁 文件管理 ───────────────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "25." "Navidrome🔥" "音乐服务器" \
-           "26." "Airsonic" "音乐流媒体"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "27." "AudioBookshelf" "有声书管理" \
-           "28." "Music-Tag" "音乐标签"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "29." "MusicTab🆕" "音乐刮削" \
-           "30." "Calibre-Web🔥" "电子书管理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "31." "Komga" "漫画管理" \
-           "32." "Mango" "漫画服务器"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "33." "FileBrowser🔥" "文件管理器" \
-           "34." "AList🔥" "网盘列表"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "35." "CloudDrive2🆕" "云盘挂载" \
-           "36." "NextCloud" "私有云"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "37." "SyncThing" "文件同步" \
-           "38." "RClone" "云存储同步"
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GREEN}╭────────────────────── 💬 字幕 & 🌐 网络 & 🎛️ 管理面板 ─────────────────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "39." "ChineseSubFinder🔥" "中文字幕" \
-           "40." "FRP" "内网穿透"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "41." "Sakura🆕" "内网穿透" \
-           "42." "V2rayA" "代理工具"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "43." "Lucky🆕" "DDNS反代" \
-           "44." "Nginx" "反向代理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "45." "WireGuard" "VPN工具" \
-           "46." "DuckDNS" "动态DNS"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "47." "Homepage🔥" "个人主页" \
-           "48." "Organizr" "服务整合"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} %-36s ${WHITE}│${NC}\n" \
-           "49." "Webmin" "系统管理" ""
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GREEN}╭───────────── ⚙️ 系统监控 & 👤 个人服务 & 🔥 9kg专区 ──────────────╮${NC}"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "50." "Watchtower🔥" "容器更新" \
-           "51." "DockerCopilot🆕" "Docker管理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "52." "NetData🔥" "系统监控" \
-           "53." "LibreSpeed" "网速测试"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "54." "Quota" "磁盘配额" \
-           "55." "Vaultwarden🔥" "密码管理"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "56." "Memos🆕" "笔记服务" \
-           "57." "Qiandao" "自动签到"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "58." "CookieCloud🆕" "Cookie同步" \
-           "59." "Harvest" "系统监控"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "60." "Ombi" "媒体请求" \
-           "61." "AllInOne🆕" "多功能集成"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC}\n" \
-           "62." "MetaTube🔥" "元数据管理" \
-           "63." "Byte-Muse🆕" "数据分析"
-    printf "${WHITE}│${NC} ${BLUE}%-2s${NC} %-18s ${GRAY}%-15s${NC} ${WHITE}│${NC} %-36s ${WHITE}│${NC}\n" \
-           "64." "Ikaros🔥" "刮削小姐姐" ""
-    echo -e "${GREEN}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${YELLOW}╭─────────────────────────────── 🚀 快捷操作 ───────────────────────────────╮${NC}"
-    printf "${YELLOW}│${NC} ${PURPLE}%-3s${NC} %-25s ${YELLOW}│${NC} ${PURPLE}%-3s${NC} %-25s ${YELLOW}│${NC}\n" \
-           "88." "🎯 批量安装 (1 2 3 4)" \
-           "99." "📊 查看已安装应用"
-    printf "${YELLOW}│${NC} ${PURPLE}%-3s${NC} %-25s ${YELLOW}│${NC} ${WHITE}%-29s${NC} ${YELLOW}│${NC}\n" \
-           "0." "🏠 返回主菜单" ""
-    echo -e "${YELLOW}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${BLUE}💡 使用说明：${NC}"
-    echo -e "${GRAY}   🔥 = 热门推荐  🆕 = 新增应用  📦 = Docker应用  ⚡ = 原作者脚本${NC}"
-    echo -e "${GRAY}   单选: 输入序号 (如: 21)  批量: 空格分隔 (如: 21 22 25)  范围: 连字符 (如: 21-25)${NC}"
-    echo
-}
-
-# PT Docker应用管理主循环
-main() {
-    # 检查Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到未安装Docker，大部分应用需要Docker支持${NC}"
-        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-        read -r install_docker_choice
-        install_docker_choice=${install_docker_choice:-Y}
-        
-        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}正在安装Docker...${NC}"
-            install_docker_func
-        fi
-    fi
-    
-    while true; do
-        show_pt_apps_menu
-        read -p "请输入选项: " choice
-        
-        case $choice in
-            0)
-                echo -e "${GREEN}返回主菜单...${NC}"
-                exit 0
-                ;;
-            88)
-                batch_install_apps
-                ;;
-            99)
-                show_installed_apps
-                ;;
-            *)
-                if [[ "$choice" =~ ^[0-9]+$ ]] && [[ $choice -ge 1 && $choice -le 64 ]]; then
-                    handle_single_app "$choice"
-                else
-                    echo -e "${RED}❌ 无效选项，请输入1-64的数字或特殊选项${NC}"
-                    echo -e "${YELLOW}按任意键继续...${NC}"
-                    read -n 1
-                fi
-                ;;
-        esac
-    done
-}
-
-# 处理单个应用安装
-handle_single_app() {
-    local choice="$1"
-    echo -e "${CYAN}正在处理应用 $choice...${NC}"
-    echo -e "${YELLOW}功能开发中，请等待后续更新${NC}"
-    echo -e "${YELLOW}按任意键返回...${NC}"
-    read -n 1
-}
-
-# 批量安装应用
-batch_install_apps() {
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                              🎯 批量安装PT应用                               ║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
-    echo
-    
-    echo -e "${YELLOW}📝 请输入要安装的应用序号：${NC}"
-    echo -e "${BLUE}   支持格式：${NC}"
-    echo -e "${WHITE}   • 空格分隔: ${GREEN}21 22 25 33${NC} (安装Emby、Jellyfin、Navidrome、FileBrowser)"
-    echo -e "${WHITE}   • 连续范围: ${GREEN}21-25${NC} (安装序号21到25的所有应用)"
-    echo -e "${WHITE}   • 混合格式: ${GREEN}21 22 30-35 50${NC} (混合使用)"
-    echo -e "${WHITE}   • 全部安装: ${GREEN}all${NC} (安装所有Docker应用 3-64)"
-    echo
-    echo -e "${GRAY}   💡 提示: 序号1-2为原作者脚本，建议单独安装${NC}"
-    echo
-    
-    read -p "应用序号: " app_numbers
-    
-    if [[ -z "$app_numbers" ]]; then
-        echo -e "${YELLOW}❌ 未输入任何序号${NC}"
-        echo -e "${YELLOW}按任意键返回...${NC}"
-        read -n 1
-        return
-    fi
-    
-    echo -e "${BLUE}📊 正在解析输入...${NC}"
-    echo -e "${YELLOW}批量安装功能开发中${NC}"
-    echo -e "${YELLOW}按任意键返回...${NC}"
-    read -n 1
-}
-
-# 显示已安装应用
-show_installed_apps() {
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║                              📊 已安装应用状态                               ║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
-    echo
-    
-    if ! command -v docker &> /dev/null; then
-        echo -e "${RED}❌ Docker未安装，无法检查Docker应用${NC}"
-        echo -e "${YELLOW}按任意键返回...${NC}"
-        read -n 1
-        return
-    fi
-    
-    echo -e "${YELLOW}检查已安装应用功能开发中${NC}"
-    echo -e "${YELLOW}按任意键返回...${NC}"
-    read -n 1
-}
-
-# 安装Docker（简化版本）
-install_docker_func() {
-    echo -e "${YELLOW}Docker安装功能请返回主菜单使用${NC}"
-    echo -e "${YELLOW}按任意键继续...${NC}"
-    read -n 1
-}
-
-# 运行主程序
-main
+NC='\033[0m' # No Color
