@@ -1,16 +1,30 @@
+# 脚本名称: autobrr.yml
+# 脚本描述: Autobrr自动抓取工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/autobrr.yml
+# 使用方法: docker-compose -f autobrr.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   autobrr:
     image: ghcr.io/autobrr/autobrr:latest
     container_name: autobrr
+    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
       - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
     volumes:
       - /opt/docker/autobrr/config:/config
       - /opt/downloads:/downloads
     ports:
-      - 7474:7474
-    restart: unless-stopped
+      - "7474:7474"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
