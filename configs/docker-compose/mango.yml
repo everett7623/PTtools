@@ -1,0 +1,31 @@
+# 脚本名称: mango.yml
+# 脚本描述: Mango漫画服务器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/mango.yml
+# 使用方法: docker-compose -f mango.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  mango:
+    image: hkalexling/mango:latest
+    container_name: mango
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/mango/config:/root/.config/mango
+      - /opt/docker/mango/data:/root/mango
+      - /opt/docker/mango/library:/root/mango/library
+    ports:
+      - "9001:9000"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
