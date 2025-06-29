@@ -1,0 +1,34 @@
+# 脚本名称: syncthing.yml
+# 脚本描述: Syncthing文件同步工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/syncthing.yml
+# 使用方法: docker-compose -f syncthing.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  syncthing:
+    image: linuxserver/syncthing:latest
+    container_name: syncthing
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/syncthing/config:/config
+      - /opt/docker/syncthing/data:/data
+      - /opt/docker/syncthing/sync:/sync
+    ports:
+      - "8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      - "21027:21027/udp"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
