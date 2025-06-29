@@ -1,0 +1,32 @@
+# 脚本名称: allinone.yml
+# 脚本描述: AllInOne多功能集成工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/allinone.yml
+# 使用方法: docker-compose -f allinone.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  allinone:
+    image: aliascraft/allinone:latest
+    container_name: allinone
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/allinone/config:/config
+      - /opt/docker/allinone/data:/data
+      - /opt/docker:/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8899:8899"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
