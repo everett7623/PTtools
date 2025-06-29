@@ -1,0 +1,32 @@
+# 脚本名称: cross-seed.yml
+# 脚本描述: Cross-seed交叉做种工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/cross-seed.yml
+# 使用方法: docker-compose -f cross-seed.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  cross-seed:
+    image: crossseed/cross-seed:latest
+    container_name: cross-seed
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/cross-seed/config:/config
+      - /opt/docker/cross-seed/data:/app/data
+      - /opt/downloads:/downloads
+      - /opt/docker/cross-seed/torrents:/torrents
+    ports:
+      - "2468:2468"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
