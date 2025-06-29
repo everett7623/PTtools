@@ -1,0 +1,31 @@
+# 脚本名称: music-tag.yml
+# 脚本描述: Music-Tag音乐标签编辑工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/music-tag.yml
+# 使用方法: docker-compose -f music-tag.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  music-tag:
+    image: linuxserver/beets:latest
+    container_name: music-tag
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/music-tag/config:/config
+      - /opt/docker/lidarr/music:/music
+      - /opt/downloads:/downloads
+    ports:
+      - "8337:8337"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
