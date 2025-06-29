@@ -1,14 +1,30 @@
+# 脚本名称: watchtower.yml
+# 脚本描述: Watchtower Docker容器自动更新工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/watchtower.yml
+# 使用方法: docker-compose -f watchtower.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   watchtower:
     image: containrrr/watchtower:latest
     container_name: watchtower
+    restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
       - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400
+      - WATCHTOWER_POLL_INTERVAL=3600
       - WATCHTOWER_INCLUDE_RESTARTING=true
+      - WATCHTOWER_ROLLING_RESTART=true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
+      - /opt/docker/watchtower/config:/config
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
