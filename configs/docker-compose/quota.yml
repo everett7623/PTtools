@@ -1,0 +1,32 @@
+# 脚本名称: quota.yml
+# 脚本描述: Quota磁盘配额管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/quota.yml
+# 使用方法: docker-compose -f quota.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  quota:
+    image: linuxserver/diskover:latest
+    container_name: quota
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/quota/config:/config
+      - /opt/docker/quota/data:/data
+      - /:/rootfs:ro
+      - /opt:/opt:ro
+    ports:
+      - "9181:80"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
