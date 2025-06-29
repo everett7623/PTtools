@@ -1,17 +1,31 @@
+# 脚本名称: radarr.yml
+# 脚本描述: Radarr电影自动化管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/radarr.yml
+# 使用方法: docker-compose -f radarr.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   radarr:
     image: linuxserver/radarr:latest
     container_name: radarr
+    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
       - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
     volumes:
       - /opt/docker/radarr/config:/config
       - /opt/downloads:/downloads
-      - /opt/downloads:/movies
+      - /opt/docker/radarr/movies:/movies
     ports:
-      - 7878:7878
-    restart: unless-stopped
+      - "7878:7878"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
