@@ -1,0 +1,32 @@
+# 脚本名称: ikaros.yml
+# 脚本描述: Ikaros刮削小姐姐媒体刮削工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/ikaros.yml
+# 使用方法: docker-compose -f ikaros.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  ikaros:
+    image: ikarosrun/ikaros:latest
+    container_name: ikaros
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - SPRING_PROFILES_ACTIVE=h2
+    volumes:
+      - /opt/docker/ikaros/config:/opt/ikaros/config
+      - /opt/docker/ikaros/data:/opt/ikaros/data
+      - /opt/docker/ikaros/media:/opt/ikaros/media
+    ports:
+      - "9999:9999"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
