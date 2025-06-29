@@ -1,13 +1,20 @@
+# 脚本名称: netdata.yml
+# 脚本描述: Netdata系统监控工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/netdata.yml
+# 使用方法: docker-compose -f netdata.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   netdata:
     image: netdata/netdata:latest
     container_name: netdata
-    hostname: netdata
+    restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
-      - PGID=0
+      - PGID=999
     volumes:
       - /opt/docker/netdata/config:/etc/netdata
       - /opt/docker/netdata/lib:/var/lib/netdata
@@ -19,10 +26,15 @@ services:
       - /etc/os-release:/host/etc/os-release:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - 19999:19999
-    restart: unless-stopped
-    privileged: true
+      - "19999:19999"
     cap_add:
       - SYS_PTRACE
     security_opt:
       - apparmor:unconfined
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
