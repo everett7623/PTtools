@@ -1,0 +1,33 @@
+# 脚本名称: airsonic.yml
+# 脚本描述: Airsonic音乐流媒体服务器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/airsonic.yml
+# 使用方法: docker-compose -f airsonic.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  airsonic:
+    image: linuxserver/airsonic-advanced:latest
+    container_name: airsonic
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - CONTEXT_PATH=
+    volumes:
+      - /opt/docker/airsonic/config:/config
+      - /opt/docker/airsonic/playlists:/playlists
+      - /opt/docker/airsonic/podcasts:/podcasts
+      - /opt/docker/lidarr/music:/music:ro
+    ports:
+      - "4040:4040"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
