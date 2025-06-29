@@ -1,0 +1,31 @@
+# 脚本名称: ani-rss.yml
+# 脚本描述: Ani-RSS动漫RSS订阅工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/ani-rss.yml
+# 使用方法: docker-compose -f ani-rss.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2024-12-29
+
+version: '3.8'
+
+services:
+  ani-rss:
+    image: wushuo894/ani-rss:latest
+    container_name: ani-rss
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/ani-rss/config:/config
+      - /opt/docker/ani-rss/data:/data
+      - /opt/downloads:/downloads
+    ports:
+      - "7789:7789"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
