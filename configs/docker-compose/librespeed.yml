@@ -1,0 +1,33 @@
+# 脚本名称: librespeed.yml
+# 脚本描述: LibreSpeed网速测试工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/librespeed.yml
+# 使用方法: docker-compose -f librespeed.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  librespeed:
+    image: linuxserver/librespeed:latest
+    container_name: librespeed
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD=admin123
+      - CUSTOM_RESULTS=true
+      - DB_TYPE=sqlite
+      - DB_NAME=/config/database/speedtest.db
+    volumes:
+      - /opt/docker/librespeed/config:/config
+    ports:
+      - "8765:80"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
