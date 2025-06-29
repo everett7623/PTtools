@@ -1,0 +1,28 @@
+# 脚本名称: sakura.yml
+# 脚本描述: Sakura内网穿透工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/sakura.yml
+# 使用方法: docker-compose -f sakura.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  sakura:
+    image: natfrp/frpc:latest
+    container_name: sakura
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/sakura/config:/frpc
+      - /opt/docker/sakura/logs:/logs
+    network_mode: host
+    command: ["-f", "/frpc/frpc.ini"]
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
