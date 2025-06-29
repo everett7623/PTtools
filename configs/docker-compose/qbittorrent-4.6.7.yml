@@ -1,0 +1,33 @@
+# 脚本名称: qbittorrent-4.6.7.yml
+# 脚本描述: qBittorrent 4.6.7 BT下载客户端的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/qbittorrent-4.6.7.yml
+# 使用方法: docker-compose -f qbittorrent-4.6.7.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2024-12-29
+
+version: '3.8'
+
+services:
+  qbittorrent:
+    image: linuxserver/qbittorrent:4.6.7
+    container_name: qbittorrent-4.6.7
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8080
+    volumes:
+      - /opt/docker/qbittorrent/config:/config
+      - /opt/downloads:/downloads
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
