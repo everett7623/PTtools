@@ -1,0 +1,33 @@
+# 脚本名称: harvest.yml
+# 脚本描述: Harvest系统监控工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/harvest.yml
+# 使用方法: docker-compose -f harvest.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  harvest:
+    image: ghcr.io/harvest-projects/harvest:latest
+    container_name: harvest
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/harvest/config:/config
+      - /opt/docker/harvest/data:/data
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8866:8866"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
