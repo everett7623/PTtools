@@ -1,0 +1,21 @@
+# 脚本名称: frpc.yml
+# 脚本描述: FRP客户端内网穿透工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/frpc.yml
+# 使用方法: docker-compose -f frpc.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  frpc:
+    image: snowdreamtech/frpc:latest
+    container_name: frpc
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/frpc/config:/etc/frp
+      - /opt/docker/frpc/logs:/var/log/frpc
+    network_mode: host
+    command: ["-c", "/etc/frp/frpc.ini"]
