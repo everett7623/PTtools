@@ -1,16 +1,30 @@
+# 脚本名称: alist.yml
+# 脚本描述: AList网盘文件列表工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/alist.yml
+# 使用方法: docker-compose -f alist.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   alist:
     image: xhofe/alist:latest
     container_name: alist
-    environment:
-      - PUID=0
-      - PGID=0
-      - TZ=Asia/Shanghai
-    volumes:
-      - /opt/docker/alist/config:/opt/alist/data
-      - /opt:/mnt
-    ports:
-      - 5244:5244
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/alist/data:/opt/alist/data
+      - /opt/docker/alist/config:/opt/alist/config
+    ports:
+      - "5244:5244"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
