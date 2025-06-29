@@ -1,18 +1,31 @@
+# 脚本名称: filebrowser.yml
+# 脚本描述: FileBrowser网页文件管理器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/filebrowser.yml
+# 使用方法: docker-compose -f filebrowser.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
 version: '3.8'
 
 services:
   filebrowser:
     image: filebrowser/filebrowser:latest
     container_name: filebrowser
+    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
       - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
     volumes:
       - /opt/docker/filebrowser/config:/config
-      - /opt/docker/filebrowser/database:/database
-      - /opt:/srv
+      - /opt/docker/filebrowser/database.db:/database.db
+      - /:/srv
     ports:
-      - 8888:80
-    restart: unless-stopped
-    command: --database /database/filebrowser.db --config /config/settings.json
+      - "8082:80"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
