@@ -1,0 +1,34 @@
+# 脚本名称: chinesesubfinder.yml
+# 脚本描述: ChineseSubFinder中文字幕自动下载工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/chinesesubfinder.yml
+# 使用方法: docker-compose -f chinesesubfinder.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  chinesesubfinder:
+    image: allanpk716/chinesesubfinder:latest
+    container_name: chinesesubfinder
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - PERMS=true
+    volumes:
+      - /opt/docker/chinesesubfinder/config:/config
+      - /opt/docker/chinesesubfinder/cache:/app/cache
+      - /opt/docker/radarr/movies:/movies
+      - /opt/docker/sonarr/tv:/tv
+    ports:
+      - "19035:19035"
+      - "19037:19037"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
