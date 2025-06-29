@@ -1,0 +1,31 @@
+# 脚本名称: komga.yml
+# 脚本描述: Komga漫画书籍管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/komga.yml
+# 使用方法: docker-compose -f komga.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - JAVA_TOOL_OPTIONS=-Xmx1g
+    volumes:
+      - /opt/docker/komga/config:/config
+      - /opt/docker/komga/data:/data
+      - /opt/docker/komga/books:/books
+      - /opt/docker/komga/comics:/comics
+    ports:
+      - "25600:25600"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
