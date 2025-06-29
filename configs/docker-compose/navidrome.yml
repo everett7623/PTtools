@@ -1,0 +1,32 @@
+# 脚本名称: navidrome.yml
+# 脚本描述: Navidrome自建音乐库服务器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/navidrome.yml
+# 使用方法: docker-compose -f navidrome.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - ND_MUSICFOLDER=/music
+      - ND_SCANSCHEDULE=1h
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=24h
+    volumes:
+      - /opt/docker/navidrome/data:/data
+      - /opt/docker/lidarr/music:/music:ro
+    ports:
+      - "4533:4533"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
