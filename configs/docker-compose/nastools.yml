@@ -1,0 +1,32 @@
+# 脚本名称: nastools.yml
+# 脚本描述: NasTools NAS自动化工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/nastools.yml
+# 使用方法: docker-compose -f nastools.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  nastools:
+    image: nastool/nas-tools:latest
+    container_name: nastools
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - UMASK=022
+    volumes:
+      - /opt/docker/nastools/config:/config
+      - /opt/downloads:/downloads
+      - /opt/docker/nastools/media:/media
+    ports:
+      - "3001:3000"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
