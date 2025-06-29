@@ -1,0 +1,31 @@
+# 脚本名称: lidarr.yml
+# 脚本描述: Lidarr音乐自动化管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/lidarr.yml
+# 使用方法: docker-compose -f lidarr.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  lidarr:
+    image: linuxserver/lidarr:latest
+    container_name: lidarr
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/lidarr/config:/config
+      - /opt/downloads:/downloads
+      - /opt/docker/lidarr/music:/music
+    ports:
+      - "8686:8686"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
