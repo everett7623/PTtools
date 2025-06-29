@@ -1,0 +1,31 @@
+# 脚本名称: byte-muse.yml
+# 脚本描述: Byte-Muse媒体管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/byte-muse.yml
+# 使用方法: docker-compose -f byte-muse.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  byte-muse:
+    image: ghcr.io/byte-muse/byte-muse:latest
+    container_name: byte-muse
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/byte-muse/config:/config
+      - /opt/docker/byte-muse/data:/data
+      - /opt/docker/byte-muse/media:/media
+    ports:
+      - "8300:8300"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
