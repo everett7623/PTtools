@@ -1,0 +1,37 @@
+# 脚本名称: vaultwarden.yml
+# 脚本描述: Vaultwarden自建密码管理器的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/vaultwarden.yml
+# 使用方法: docker-compose -f vaultwarden.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - WEBSOCKET_ENABLED=true
+      - SIGNUPS_ALLOWED=true
+      - ADMIN_TOKEN=your_admin_token_here
+      - SMTP_HOST=
+      - SMTP_FROM=
+      - SMTP_PORT=587
+      - SMTP_SECURITY=starttls
+      - SMTP_USERNAME=
+      - SMTP_PASSWORD=
+    volumes:
+      - /opt/docker/vaultwarden/data:/data
+    ports:
+      - "8780:80"
+      - "3012:3012"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
