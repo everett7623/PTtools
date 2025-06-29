@@ -1,0 +1,35 @@
+# 脚本名称: clouddrive2.yml
+# 脚本描述: CloudDrive2云盘挂载工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/clouddrive2.yml
+# 使用方法: docker-compose -f clouddrive2.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  clouddrive2:
+    image: cloudnas/clouddrive2:latest
+    container_name: clouddrive2
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/clouddrive2/config:/config
+      - /opt/docker/clouddrive2/data:/data
+      - /opt/docker/clouddrive2/media:/media
+      - /mnt/clouddrive:/mnt/clouddrive:shared
+    ports:
+      - "19798:19798"
+    devices:
+      - /dev/fuse:/dev/fuse
+    privileged: true
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
