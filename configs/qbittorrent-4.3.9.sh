@@ -1,0 +1,20 @@
+# qBittorrent 4.3.9 安装提示
+# 当在ptdocker.sh中选择此选项时显示的提示信息
+
+echo "=================================================="
+echo "          qBittorrent 4.3.9 安装提示"
+echo "=================================================="
+echo ""
+echo "qBittorrent 4.3.9 需要使用原作者脚本安装"
+echo "请退出当前Docker安装脚本，回到主脚本进行安装"
+echo ""
+echo "安装步骤："
+echo "1. 按 Ctrl+C 退出当前脚本"
+echo "2. 回到 pttools.sh 主脚本"
+echo "3. 选择 '2. qbittorrent 4.3.9' 进行安装"
+echo ""
+echo "主脚本运行命令："
+echo "bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh)"
+echo ""
+echo "=================================================="
+read -p "按回车键返回菜单..."
