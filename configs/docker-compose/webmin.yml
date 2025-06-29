@@ -1,0 +1,31 @@
+# 脚本名称: webmin.yml
+# 脚本描述: Webmin系统管理界面的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/webmin.yml
+# 使用方法: docker-compose -f webmin.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  webmin:
+    image: linuxserver/webmin:latest
+    container_name: webmin
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/webmin/config:/config
+      - /:/rootfs:ro
+    ports:
+      - "10000:10000"
+    privileged: true
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
