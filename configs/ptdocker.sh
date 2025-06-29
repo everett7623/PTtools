@@ -246,7 +246,7 @@ handle_choice() {
             44) install_app "sakura" "sakura.yml" ;;
             45) install_app "v2raya" "v2raya.yml" ;;
             46) install_app "lucky" "lucky.yml" ;;
-            47) install_app "nginx" "nginx.yml" ;;
+            47) install_app "npm" "npm.yml" ;;
             48) install_app "wireguard" "wireguard.yml" ;;
             49) install_app "duckdns" "duckdns.yml" ;;
             
