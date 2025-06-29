@@ -1,0 +1,31 @@
+# 脚本名称: duckdns.yml
+# 脚本描述: DuckDNS动态DNS服务的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/duckdns.yml
+# 使用方法: docker-compose -f duckdns.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  duckdns:
+    image: linuxserver/duckdns:latest
+    container_name: duckdns
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - SUBDOMAINS=your-subdomain
+      - TOKEN=your-duckdns-token
+      - UPDATE_IP=ipv4
+      - LOG_FILE=false
+    volumes:
+      - /opt/docker/duckdns/config:/config
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
