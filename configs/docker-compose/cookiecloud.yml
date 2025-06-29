@@ -1,0 +1,30 @@
+# 脚本名称: cookiecloud.yml
+# 脚本描述: CookieCloud Cookie同步工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/cookiecloud.yml
+# 使用方法: docker-compose -f cookiecloud.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  cookiecloud:
+    image: easychen/cookiecloud:latest
+    container_name: cookiecloud
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/cookiecloud/data:/data
+      - /opt/docker/cookiecloud/config:/app/config
+    ports:
+      - "8088:8088"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
