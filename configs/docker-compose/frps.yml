@@ -1,0 +1,32 @@
+# 脚本名称: frps.yml
+# 脚本描述: FRP服务端内网穿透工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/frps.yml
+# 使用方法: docker-compose -f frps.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  frps:
+    image: snowdreamtech/frps:latest
+    container_name: frps
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /opt/docker/frps/config:/etc/frp
+      - /opt/docker/frps/logs:/var/log/frps
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7500:7500"
+      - "6000-6010:6000-6010"
+    networks:
+      - pttools
+    command: ["-c", "/etc/frp/frps.ini"]
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
