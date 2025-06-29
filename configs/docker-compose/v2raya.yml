@@ -1,0 +1,34 @@
+# 脚本名称: v2raya.yml
+# 脚本描述: V2rayA代理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/v2raya.yml
+# 使用方法: docker-compose -f v2raya.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  v2raya:
+    image: mzz2017/v2raya:latest
+    container_name: v2raya
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - V2RAYA_ADDRESS=0.0.0.0:2017
+      - V2RAYA_LOG_LEVEL=info
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /etc/resolv.conf:/etc/resolv.conf:ro
+      - /opt/docker/v2raya/config:/etc/v2raya
+    ports:
+      - "2017:2017"
+      - "20170-20172:20170-20172"
+    privileged: true
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
