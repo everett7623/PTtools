@@ -1,0 +1,31 @@
+# 脚本名称: musictab.yml
+# 脚本描述: MusicTab音乐刮削工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/musictab.yml
+# 使用方法: docker-compose -f musictab.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  musictab:
+    image: ghcr.io/jerryberry13/musictab:latest
+    container_name: musictab
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/musictab/config:/config
+      - /opt/docker/musictab/data:/data
+      - /opt/docker/lidarr/music:/music
+    ports:
+      - "8338:8338"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
