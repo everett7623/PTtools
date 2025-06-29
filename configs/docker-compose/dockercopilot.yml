@@ -1,0 +1,31 @@
+# 脚本名称: dockercopilot.yml
+# 脚本描述: DockerCopilot Docker管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/dockercopilot.yml
+# 使用方法: docker-compose -f dockercopilot.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  dockercopilot:
+    image: ghcr.io/dockercopilot/dockercopilot:latest
+    container_name: dockercopilot
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/dockercopilot/config:/config
+      - /opt/docker/dockercopilot/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8899:8899"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
