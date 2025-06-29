@@ -1,0 +1,52 @@
+# 脚本名称: npm.yml
+# 脚本描述: Nginx Proxy Manager反向代理管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/npm.yml
+# 使用方法: docker-compose -f npm.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  npm-db:
+    image: mariadb:latest
+    container_name: npm-db
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=npm_root_password
+      - MYSQL_DATABASE=npm
+      - MYSQL_USER=npm
+      - MYSQL_PASSWORD=npm_password
+    volumes:
+      - /opt/docker/npm/db:/var/lib/mysql
+    networks:
+      - pttools
+
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: npm
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - DB_MYSQL_HOST=npm-db
+      - DB_MYSQL_PORT=3306
+      - DB_MYSQL_USER=npm
+      - DB_MYSQL_PASSWORD=npm_password
+      - DB_MYSQL_NAME=npm
+    volumes:
+      - /opt/docker/npm/data:/data
+      - /opt/docker/npm/letsencrypt:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    depends_on:
+      - npm-db
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
