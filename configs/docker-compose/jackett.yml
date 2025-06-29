@@ -1,17 +1,31 @@
+# 脚本名称: jackett.yml
+# 脚本描述: Jackett BT磁力搜索聚合工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/jackett.yml
+# 使用方法: docker-compose -f jackett.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2024-12-29
+
 version: '3.8'
 
 services:
   jackett:
     image: linuxserver/jackett:latest
     container_name: jackett
+    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
       - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
       - AUTO_UPDATE=true
     volumes:
       - /opt/docker/jackett/config:/config
       - /opt/downloads:/downloads
     ports:
-      - 9117:9117
-    restart: unless-stopped
+      - "9117:9117"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
