@@ -1,0 +1,29 @@
+# 脚本名称: memos.yml
+# 脚本描述: Memos自建笔记服务的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/memos.yml
+# 使用方法: docker-compose -f memos.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  memos:
+    image: neosmemo/memos:latest
+    container_name: memos
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - MEMOS_MODE=prod
+      - MEMOS_PORT=5230
+    volumes:
+      - /opt/docker/memos/data:/var/opt/memos
+    ports:
+      - "5230:5230"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
