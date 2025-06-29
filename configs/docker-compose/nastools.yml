@@ -22,7 +22,7 @@ services:
       - /opt/downloads:/downloads
       - /opt/docker/nastools/media:/media
     ports:
-      - "3001:3000"
+      - "3002:3000"
     networks:
       - pttools
 
