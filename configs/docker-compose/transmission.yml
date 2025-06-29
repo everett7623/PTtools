@@ -1,10 +1,9 @@
-# Transmission Docker Compose配置文件
 # 脚本名称: transmission.yml
-# 脚本描述: Transmission应用的Docker Compose配置
+# 脚本描述: Transmission 4.0.5 BT下载客户端的Docker Compose配置
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/transmission.yml
 # 使用方法: docker-compose -f transmission.yml up -d
-# 作者: everett7623
-# 更新时间: 2025-06-25
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
 
 version: '3.8'
 
@@ -12,18 +11,26 @@ services:
   transmission:
     image: linuxserver/transmission:4.0.5
     container_name: transmission
+    restart: unless-stopped
     environment:
-      - PUID=0
-      - PGID=0
+      - PUID=1000
+      - PGID=1000
       - TZ=Asia/Shanghai
-      - TRANSMISSION_WEB_HOME=/config/webui/trguing-zh
+      - TRANSMISSION_WEB_HOME=/transmission-web-control/
       - USER=admin
-      - PASS=adminadmin
+      - PASS=admin123
     volumes:
       - /opt/docker/transmission/config:/config
       - /opt/downloads:/downloads
+      - /opt/downloads/watch:/watch
     ports:
-      - 9091:9091
-      - 51413:51413
-      - 51413:51413/udp
-    restart: unless-stopped
+      - "9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
