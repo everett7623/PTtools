@@ -1,0 +1,50 @@
+# 脚本名称: nextcloud.yml
+# 脚本描述: NextCloud私有云存储的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/nextcloud.yml
+# 使用方法: docker-compose -f nextcloud.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  nextcloud-db:
+    image: mariadb:latest
+    container_name: nextcloud-db
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=nextcloud_root_password
+      - MYSQL_PASSWORD=nextcloud_password
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+    volumes:
+      - /opt/docker/nextcloud/db:/var/lib/mysql
+    networks:
+      - pttools
+
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_HOST=nextcloud-db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=nextcloud_password
+    volumes:
+      - /opt/docker/nextcloud/data:/var/www/html
+      - /opt/docker/nextcloud/config:/var/www/html/config
+      - /opt/docker/nextcloud/storage:/var/www/html/data
+    ports:
+      - "8888:80"
+    depends_on:
+      - nextcloud-db
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
