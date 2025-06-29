@@ -1,0 +1,32 @@
+# 脚本名称: reseedpuppy.yml
+# 脚本描述: ReseedPuppy自动补种工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/reseedpuppy.yml
+# 使用方法: docker-compose -f reseedpuppy.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2024-12-29
+
+version: '3.8'
+
+services:
+  reseedpuppy:
+    image: hotio/reseedpuppy:latest
+    container_name: reseedpuppy
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+    volumes:
+      - /opt/docker/reseedpuppy/config:/config
+      - /opt/downloads:/downloads
+      - /opt/docker/reseedpuppy/torrents:/torrents
+    ports:
+      - "8095:8095"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
