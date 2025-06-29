@@ -1,0 +1,32 @@
+# 脚本名称: audiobookshelf.yml
+# 脚本描述: AudioBookShelf有声书管理工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/audiobookshelf.yml
+# 使用方法: docker-compose -f audiobookshelf.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - AUDIOBOOKSHELF_UID=1000
+      - AUDIOBOOKSHELF_GID=1000
+    volumes:
+      - /opt/docker/audiobookshelf/config:/config
+      - /opt/docker/audiobookshelf/metadata:/metadata
+      - /opt/docker/audiobookshelf/audiobooks:/audiobooks
+      - /opt/docker/audiobookshelf/podcasts:/podcasts
+    ports:
+      - "13378:80"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
