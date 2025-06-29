@@ -1,0 +1,36 @@
+# 脚本名称: rclone.yml
+# 脚本描述: Rclone云存储同步工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/rclone.yml
+# 使用方法: docker-compose -f rclone.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/rclone/config:/config/rclone
+      - /opt/docker/rclone/data:/data
+      - /opt/downloads:/downloads
+      - /mnt/rclone:/mnt/rclone:shared
+    ports:
+      - "5572:5572"
+    command: ["rcd", "--rc-web-gui", "--rc-addr", "0.0.0.0:5572", "--rc-user", "admin", "--rc-pass", "admin123"]
+    devices:
+      - /dev/fuse:/dev/fuse
+    privileged: true
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
