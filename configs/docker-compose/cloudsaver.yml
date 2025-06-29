@@ -1,0 +1,31 @@
+# 脚本名称: cloudsaver.yml
+# 脚本描述: CloudSaver TG网盘频道搜索工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/cloudsaver.yml
+# 使用方法: docker-compose -f cloudsaver.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2024-12-29
+
+version: '3.8'
+
+services:
+  cloudsaver:
+    image: cloudnas/cloudsaver:latest
+    container_name: cloudsaver
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/cloudsaver/config:/config
+      - /opt/docker/cloudsaver/data:/data
+      - /opt/downloads:/downloads
+    ports:
+      - "8765:8765"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
