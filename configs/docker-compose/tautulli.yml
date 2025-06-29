@@ -1,0 +1,30 @@
+# 脚本名称: tautulli.yml
+# 脚本描述: Tautulli Plex监控统计工具的Docker Compose配置
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/tautulli.yml
+# 使用方法: docker-compose -f tautulli.yml up -d
+# 作者: Jensfrank
+# 更新时间: 2025-06-29
+
+version: '3.8'
+
+services:
+  tautulli:
+    image: linuxserver/tautulli:latest
+    container_name: tautulli
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /opt/docker/tautulli/config:/config
+      - /opt/docker/plex/config/Library/Application Support/Plex Media Server/Logs:/logs:ro
+    ports:
+      - "8181:8181"
+    networks:
+      - pttools
+
+networks:
+  pttools:
+    driver: bridge
+    name: pttools
