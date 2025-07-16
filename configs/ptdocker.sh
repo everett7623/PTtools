@@ -3,7 +3,7 @@
 # PT Docker应用管理脚本
 # 脚本名称: ptdocker.sh
 # 脚本描述: PT相关Docker应用的安装和管理工具
-# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/ptdocker.sh
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/configs/ptdocker.sh
 # 作者: Jensfrank
 # 项目: PTtools
 # 更新时间: 2025-06-29
@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 # Docker 应用安装目录
 DOCKER_DIR="/opt/docker"
 DOWNLOADS_DIR="/opt/downloads"
-CONFIG_DIR="/root/PTtools/config/docker-compose"
+CONFIG_DIR="/root/PTtools/configs/docker-compose"
 
 # 显示标题
 show_title() {
@@ -130,7 +130,7 @@ install_app() {
     
     # 下载Docker Compose配置文件
     if wget -O "${DOCKER_DIR}/${app_name}/docker-compose.yml" \
-        "https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/${compose_file}"; then
+        "https://raw.githubusercontent.com/everett7623/PTtools/main/configs/docker-compose/${compose_file}"; then
         
         # 进入应用目录并启动
         cd "${DOCKER_DIR}/${app_name}" || exit
