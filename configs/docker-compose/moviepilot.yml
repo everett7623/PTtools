@@ -1,7 +1,7 @@
 # MoviePilot Docker Compose配置文件
 # 脚本名称: moviepilot.yml
 # 脚本描述: MoviePilot自动化影视库管理工具的Docker Compose配置
-# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/config/docker-compose/moviepilot.yml
+# 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/configs/docker-compose/moviepilot.yml
 # 使用方法: docker-compose -f moviepilot.yml up -d
 # 作者: everett7623
 # 更新时间: 2025-06-25
@@ -11,10 +11,10 @@ version: '3.8'
 services:
   moviepilot:
     image: jxxghp/moviepilot-v2:latest
-    container_name: moviepilot-v2
-    hostname: moviepilot-v2
     stdin_open: true
     tty: true
+    container_name: moviepilot-v2
+    hostname: moviepilot-v2
     network_mode: host
     volumes:
       - /opt/downloads:/media
