@@ -5,7 +5,7 @@
 # 脚本名称: pttools.sh
 # 脚本描述: PT工具一键安装脚本，支持qBittorrent、Transmission、Emby等应用的快捷安装
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
-# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh) 
+# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh)
 # 作者: Jensfrank
 # 更新时间: 2025-09-17
 ===================================================================================================
@@ -110,7 +110,7 @@ install_base_tools() {
             return 1
         fi
     fi
-    
+
     # 验证关键工具是否安装成功
     for tool in curl wget; do
         if ! command -v $tool &> /dev/null; then
@@ -118,36 +118,25 @@ install_base_tools() {
             return 1
         fi
     done
-    
+
     echo -e "${GREEN}所有基础工具验证通过${NC}"
     return 0
 }
 
-# 检查Docker是否安装
-check_docker() {
-    if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？[y/N]: ${NC}" # 默认不安装Docker，修改了提示和默认值
-        read -r install_docker
-        install_docker=${install_docker:-N} # 默认不安装
-        if [[ $install_docker =~ ^[Yy]$ ]]; then
-            if install_docker_func; then
-                echo -e "${GREEN}Docker安装成功${NC}"
-            else
-                echo -e "${RED}Docker安装失败，部分功能需要Docker支持${NC}"
-            fi
-        else
-            echo -e "${RED}部分功能需要Docker支持${NC}"
-        fi
-    else
-        echo -e "${GREEN}Docker已安装${NC}"
+# [修改] 检查并静默报告Docker状态 (仅在启动时调用)
+check_docker_status() {
+    if command -v docker &> /dev/null; then
+        echo -e "${GREEN}Docker状态: 已安装${NC}"
         docker --version
+    else
+        echo -e "${YELLOW}Docker状态: 未安装 (部分功能需要Docker支持)${NC}"
     fi
 }
 
-# 安装Docker
+# 安装Docker (内部函数)
 install_docker_func() {
     echo -e "${YELLOW}正在安装Docker...${NC}"
-    
+
     # 首先确保基础工具已安装
     echo -e "${YELLOW}检查基础工具...${NC}"
     if ! command -v curl &> /dev/null; then
@@ -159,19 +148,19 @@ install_docker_func() {
             yum update -y
             yum install -y curl wget git unzip
         fi
-        
+
         # 再次检查curl是否安装成功
         if ! command -v curl &> /dev/null; then
             echo -e "${RED}基础工具安装失败，无法继续安装Docker${NC}"
             return 1
         fi
     fi
-    
+
     echo -e "${YELLOW}选择安装源：${NC}"
     echo "1. 官方源（默认）"
     echo "2. 阿里云镜像源"
     read -p "请选择 [1-2]: " docker_source
-    
+
     case $docker_source in
         2)
             echo -e "${YELLOW}使用阿里云镜像源安装Docker...${NC}"
@@ -188,7 +177,7 @@ install_docker_func() {
             fi
             ;;
     esac
-    
+
     # 启动Docker服务
     echo -e "${YELLOW}启动Docker服务...${NC}"
     if systemctl start docker; then
@@ -198,13 +187,13 @@ install_docker_func() {
         echo -e "${YELLOW}尝试手动启动Docker...${NC}"
         service docker start
     fi
-    
+
     if systemctl enable docker; then
         echo -e "${GREEN}Docker开机自启设置成功${NC}"
     else
         echo -e "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
     fi
-    
+
     # 验证Docker是否安装成功
     sleep 3
     if command -v docker &> /dev/null && docker --version &> /dev/null; then
@@ -214,20 +203,20 @@ install_docker_func() {
         echo -e "${RED}Docker安装验证失败${NC}"
         return 1
     fi
-    
+
     echo -e "${YELLOW}是否安装Docker Compose？[Y/n]: ${NC}"
     read -r install_compose
     install_compose=${install_compose:-Y}
     if [[ $install_compose =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}正在安装Docker Compose...${NC}"
-        
+
         # 获取最新版本号
         COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d'"' -f4)
         if [ -z "$COMPOSE_VERSION" ]; then
             COMPOSE_VERSION="v2.24.0"  # 备用版本
             echo -e "${YELLOW}无法获取最新版本，使用备用版本 $COMPOSE_VERSION${NC}"
         fi
-        
+
         if curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose; then
             chmod +x /usr/local/bin/docker-compose
             echo -e "${GREEN}Docker Compose安装完成${NC}"
@@ -236,8 +225,37 @@ install_docker_func() {
             echo -e "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
         fi
     fi
-    
+
     return 0
+}
+
+# [新增] 确保Docker已安装 (交互式，在菜单3,4,5,6中调用)
+ensure_docker_installed() {
+    if command -v docker &> /dev/null; then
+        return 0 # Docker已安装，直接返回成功
+    fi
+
+    echo -e "${YELLOW}此功能需要Docker支持，但检测到Docker未安装。${NC}"
+    echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
+    read -r install_docker_choice
+    install_docker_choice=${install_docker_choice:-Y}
+
+    if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
+        if install_docker_func; then
+            echo -e "${GREEN}Docker安装成功！${NC}"
+            return 0
+        else
+            echo -e "${RED}Docker安装失败。${NC}"
+            echo -e "${YELLOW}建议：${NC}"
+            echo -e "${WHITE}1. 检查网络连接${NC}"
+            echo -e "${WHITE}2. 确认系统源配置正确${NC}"
+            echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}用户取消Docker安装，无法继续。${NC}"
+        return 1
+    fi
 }
 
 # 创建必要目录
@@ -266,20 +284,20 @@ install_qb438() {
     echo -e "${WHITE}- Web端口：qBittorrent Web界面访问端口${NC}"
     echo -e "${WHITE}- BT端口：qBittorrent BT下载监听端口${NC}"
     echo
-    
+
     # 获取用户输入参数
     read -p "请输入用户名 [默认: admin]: " username
     username=${username:-admin}
-    
+
     read -p "请输入密码 [默认: adminadmin]: " password
     password=${password:-adminadmin}
-    
+
     read -p "请输入Web访问端口 [默认: 8080]: " web_port
     web_port=${web_port:-8080}
-    
+
     read -p "请输入BT监听端口 [默认: 23333]: " bt_port
     bt_port=${bt_port:-23333}
-    
+
     echo
     echo -e "${GREEN}安装参数确认：${NC}"
     echo -e "${WHITE}用户名: ${username}${NC}"
@@ -287,19 +305,19 @@ install_qb438() {
     echo -e "${WHITE}Web端口: ${web_port}${NC}"
     echo -e "${WHITE}BT端口: ${bt_port}${NC}"
     echo
-    
+
     read -p "确认安装？[Y/n]: " confirm
     confirm=${confirm:-Y}
-    
+
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
         return
     fi
-    
+
     echo -e "${YELLOW}正在下载并执行安装脚本...${NC}"
     echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) $username $password $web_port $bt_port${NC}"
     echo
-    
+
     # 下载并执行原作者脚本，传递参数
     if bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "$username" "$password" "$web_port" "$bt_port"; then
         echo
@@ -318,7 +336,7 @@ install_qb438() {
         echo -e "${RED}请检查网络连接和系统兼容性${NC}"
         echo -e "${RED}================================================${NC}"
     fi
-    
+
     echo
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
     read -n 1
@@ -336,39 +354,39 @@ install_qb439() {
     echo
     echo -e "${BLUE}安装参数配置：${NC}"
     echo
-    
+
     # 基础参数配置
     read -p "请输入用户名 [默认: admin]: " username
     username=${username:-admin}
-    
+
     read -p "请输入密码 [默认: adminadmin]: " password
     password=${password:-adminadmin}
-    
+
     read -p "请输入缓存大小(MiB) [默认: 3072]: " cache_size
     cache_size=${cache_size:-3072}
-    
+
     read -p "请输入libtorrent版本 [默认: v1.2.20]: " libtorrent_ver
     libtorrent_ver=${libtorrent_ver:-v1.2.20}
-    
+
     echo
     echo -e "${BLUE}可选功能配置：${NC}"
-    
+
     # 可选功能
     read -p "是否安装autobrr？[y/N]: " install_autobrr
     install_autobrr=${install_autobrr:-N}
     autobrr_flag=""
     [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
-    
+
     read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
     install_autoremove=${install_autoremove:-N}
     autoremove_flag=""
     [[ $install_autoremove =~ ^[Yy]$ ]] && autoremove_flag="-r"
-    
+
     read -p "是否启用BBRx？[y/N]: " enable_bbrx
     enable_bbrx=${enable_bbrx:-N}
     bbrx_flag=""
     [[ $enable_bbrx =~ ^[Yy]$ ]] && bbrx_flag="-x"
-    
+
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
     echo -e "${WHITE}用户名: ${username}${NC}"
@@ -380,27 +398,27 @@ install_qb439() {
     echo -e "${WHITE}autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo
-    
+
     read -p "确认安装？[Y/n]: " confirm
     confirm=${confirm:-Y}
-    
+
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
         return
     fi
-    
+
     # 构建安装命令
     install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
-    
+
     # 添加可选参数
     [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
     [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
     [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
-    
+
     echo -e "${YELLOW}正在执行安装命令...${NC}"
     echo -e "${BLUE}命令: $install_cmd${NC}"
     echo
-    
+
     # 执行安装
     if eval "$install_cmd"; then
         echo
@@ -418,7 +436,7 @@ install_qb439() {
         echo -e "${RED}请检查网络连接和系统兼容性${NC}"
         echo -e "${RED}================================================${NC}"
     fi
-    
+
     echo
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
     read -n 1
@@ -428,11 +446,11 @@ install_qb439() {
 install_vertex_docker() {
     echo -e "${YELLOW}正在创建Vertex目录...${NC}"
     mkdir -p /opt/docker/vertex
-    
+
     echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     local compose_file="/tmp/vertex-compose.yml"
     local github_url="$GITHUB_RAW/configs/docker-compose/vertex.yml"
-    
+
     if curl -fsSL "$github_url" -o "$compose_file"; then
         echo -e "${GREEN}Vertex配置文件下载成功${NC}"
     else
@@ -470,10 +488,10 @@ EOF
             -e TZ=Asia/Shanghai \
             lswl/vertex:stable
     fi
-    
+
     # 清理临时文件
     rm -f "$compose_file"
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
@@ -494,44 +512,22 @@ install_qb438_vt() {
     echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.8${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.8 作者：iniwex5${NC}"
     echo
-    
-    # 检查Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
-        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-        read -r install_docker_choice
-        install_docker_choice=${install_docker_choice:-Y}
-        
-        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}正在安装Docker...${NC}"
-            if install_docker_func; then
-                echo -e "${GREEN}Docker安装成功！${NC}"
-            else
-                echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
-                echo -e "${YELLOW}建议：${NC}"
-                echo -e "${WHITE}1. 检查网络连接${NC}"
-                echo -e "${WHITE}2. 确认系统源配置正确${NC}"
-                echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
-                return
-            fi
-        else
-            echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
-            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-            read -n 1
-            return
-        fi
-    fi
-    
+
     echo -e "${BLUE}Vertex安装方式选择：${NC}"
     echo "1. Docker方式（推荐）"
     echo "2. 原脚本方式"
     read -p "请选择 [1-2, 默认: 1]: " vertex_choice
     vertex_choice=${vertex_choice:-1}
-    
+
+    local vertex_install_type=""
     case $vertex_choice in
         1)
+            # [修改] 先检查Docker，再设置安装类型
+            if ! ensure_docker_installed; then
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            fi
             echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
             vertex_install_type="docker"
             ;;
@@ -541,27 +537,32 @@ install_qb438_vt() {
             ;;
         *)
             echo -e "${YELLOW}无效选择，使用默认Docker方式${NC}"
+            if ! ensure_docker_installed; then
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            fi
             vertex_install_type="docker"
             ;;
     esac
-    
+
     echo
     echo -e "${BLUE}qBittorrent 4.3.8 安装参数配置：${NC}"
     echo
-    
+
     # 获取用户输入参数
     read -p "请输入用户名 [默认: admin]: " username
     username=${username:-admin}
-    
+
     read -p "请输入密码 [默认: adminadmin]: " password
     password=${password:-adminadmin}
-    
+
     read -p "请输入Web访问端口 [默认: 8080]: " web_port
     web_port=${web_port:-8080}
-    
+
     read -p "请输入BT监听端口 [默认: 23333]: " bt_port
     bt_port=${bt_port:-23333}
-    
+
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
     echo -e "${WHITE}Vertex: $([ "$vertex_install_type" == "docker" ] && echo "Docker方式安装 (端口3333)" || echo "原脚本方式安装")${NC}"
@@ -571,18 +572,18 @@ install_qb438_vt() {
     echo -e "${WHITE}  - Web端口: ${web_port}${NC}"
     echo -e "${WHITE}  - BT端口: ${bt_port}${NC}"
     echo
-    
+
     read -p "确认安装？[Y/n]: " confirm
     confirm=${confirm:-Y}
-    
+
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
         return
     fi
-    
+
     # 步骤1: 安装Vertex
     echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
-    
+
     if [ "$vertex_install_type" == "docker" ]; then
         # Docker方式安装Vertex
         if install_vertex_docker; then
@@ -597,7 +598,7 @@ install_qb438_vt() {
         # 原脚本方式安装Vertex
         echo -e "${YELLOW}使用原脚本方式安装Vertex...${NC}"
         echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u admin -p adminadmin -v${NC}"
-        
+
         if bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u admin -p adminadmin -v; then
             echo -e "${GREEN}Vertex原脚本安装成功${NC}"
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
@@ -610,12 +611,12 @@ install_qb438_vt() {
             return
         fi
     fi
-    
+
     echo
     echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.8...${NC}"
     echo -e "${BLUE}执行命令: bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) $username $password $web_port $bt_port${NC}"
     echo
-    
+
     # 步骤2: 安装qBittorrent 4.3.8
     if bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) "$username" "$password" "$web_port" "$bt_port"; then
         echo
@@ -655,7 +656,7 @@ install_qb438_vt() {
         echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
         echo -e "${RED}================================================${NC}"
     fi
-    
+
     echo
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
     read -n 1
@@ -670,55 +671,24 @@ install_qb439_vt() {
     echo -e "${YELLOW}此功能将安装Vertex和qBittorrent 4.3.9${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.9 作者：jerry048${NC}"
     echo
-    
-    # 检查Docker（仅在选择Docker方式时需要）
-    docker_available=true
-    if ! command -v docker &> /dev/null; then
-        docker_available=false
-    fi
-    
+
     echo -e "${BLUE}Vertex安装方式选择：${NC}"
     echo "1. Docker方式（推荐）"
     echo "2. 原脚本方式"
-    if [ "$docker_available" = false ]; then
-        echo -e "${RED}注意：Docker未安装，选择1将自动安装Docker${NC}"
-    fi
     read -p "请选择 [1-2, 默认: 1]: " vertex_choice
     vertex_choice=${vertex_choice:-1}
-    
+
+    local vertex_install_type=""
     case $vertex_choice in
         1)
+            # [修改] 先检查Docker，再设置安装类型
+            if ! ensure_docker_installed; then
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            fi
             echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
             vertex_install_type="docker"
-            
-            # 检查并安装Docker
-            if [ "$docker_available" = false ]; then
-                echo -e "${YELLOW}检测到未安装Docker，Vertex需要Docker支持${NC}"
-                echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-                read -r install_docker_choice
-                install_docker_choice=${install_docker_choice:-Y}
-                
-                if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-                    echo -e "${YELLOW}正在安装Docker...${NC}"
-                    if install_docker_func; then
-                        echo -e "${GREEN}Docker安装成功！${NC}"
-                    else
-                        echo -e "${RED}Docker安装失败，无法继续安装Vertex${NC}"
-                        echo -e "${YELLOW}建议：${NC}"
-                        echo -e "${WHITE}1. 检查网络连接${NC}"
-                        echo -e "${WHITE}2. 确认系统源配置正确${NC}"
-                        echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
-                        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                        read -n 1
-                        return
-                    fi
-                else
-                    echo -e "${RED}用户取消Docker安装，无法安装Vertex${NC}"
-                    echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                    read -n 1
-                    return
-                fi
-            fi
             ;;
         2)
             echo -e "${GREEN}选择：原脚本方式安装Vertex${NC}"
@@ -726,46 +696,51 @@ install_qb439_vt() {
             ;;
         *)
             echo -e "${YELLOW}无效选择，使用默认Docker方式${NC}"
+            if ! ensure_docker_installed; then
+                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+                read -n 1
+                return
+            fi
             vertex_install_type="docker"
             ;;
     esac
-    
+
     echo
     echo -e "${BLUE}qBittorrent 4.3.9 安装参数配置：${NC}"
     echo
-    
+
     # 基础参数配置
     read -p "请输入用户名 [默认: admin]: " username
     username=${username:-admin}
-    
+
     read -p "请输入密码 [默认: adminadmin]: " password
     password=${password:-adminadmin}
-    
+
     read -p "请输入缓存大小(MiB) [默认: 3072]: " cache_size
     cache_size=${cache_size:-3072}
-    
+
     read -p "请输入libtorrent版本 [默认: v1.2.20]: " libtorrent_ver
     libtorrent_ver=${libtorrent_ver:-v1.2.20}
-    
+
     echo
     echo -e "${BLUE}可选功能配置：${NC}"
-    
+
     # 可选功能
     read -p "是否安装autobrr？[y/N]: " install_autobrr
     install_autobrr=${install_autobrr:-N}
     autobrr_flag=""
     [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
-    
+
     read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
     install_autoremove=${install_autoremove:-N}
     autoremove_flag=""
     [[ $install_autoremove =~ ^[Yy]$ ]] && autoremove_flag="-r"
-    
+
     read -p "是否启用BBRx？[y/N]: " enable_bbrx
     enable_bbrx=${enable_bbrx:-N}
     bbrx_flag=""
     [[ $enable_bbrx =~ ^[Yy]$ ]] && bbrx_flag="-x"
-    
+
     echo
     echo -e "${GREEN}安装配置确认：${NC}"
     echo -e "${WHITE}Vertex: $([ "$vertex_install_type" == "docker" ] && echo "Docker方式安装 (端口3333)" || echo "原脚本方式安装")${NC}"
@@ -778,15 +753,15 @@ install_qb439_vt() {
     echo -e "${WHITE}  - autoremove-torrents: $([[ $install_autoremove =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo -e "${WHITE}  - BBRx: $([[ $enable_bbrx =~ ^[Yy]$ ]] && echo "是" || echo "否")${NC}"
     echo
-    
+
     read -p "确认安装？[Y/n]: " confirm
     confirm=${confirm:-Y}
-    
+
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
         return
     fi
-    
+
     if [ "$vertex_install_type" == "docker" ]; then
         # Docker方式：先安装Vertex，再安装qBittorrent
         echo -e "${YELLOW}步骤1: 正在使用Docker安装Vertex...${NC}"
@@ -798,21 +773,21 @@ install_qb439_vt() {
             read -n 1
             return
         fi
-        
+
         echo
         echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
-        
+
         # 构建安装命令（不带-v参数，因为Vertex已经安装了）
         install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver"
-        
+
         # 添加可选参数
         [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
         [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
         [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
-        
+
         echo -e "${BLUE}命令: $install_cmd${NC}"
         echo
-        
+
         if eval "$install_cmd"; then
             echo
             echo -e "${GREEN}================================================${NC}"
@@ -844,22 +819,22 @@ install_qb439_vt() {
             echo -e "${RED}Vertex已安装成功，但qBittorrent安装失败${NC}"
             echo -e "${RED}================================================${NC}"
         fi
-        
+
     else
         # 原脚本方式：一次性安装Vertex和qBittorrent
         echo -e "${YELLOW}正在使用原脚本方式安装Vertex + qBittorrent 4.3.9...${NC}"
-        
+
         # 构建安装命令（带-v参数，同时安装Vertex和qBittorrent）
         install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u $username -p $password -c $cache_size -q 4.3.9 -l $libtorrent_ver -v"
-        
+
         # 添加可选参数
         [[ -n "$autobrr_flag" ]] && install_cmd="$install_cmd $autobrr_flag"
         [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
         [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
-        
+
         echo -e "${BLUE}命令: $install_cmd${NC}"
         echo
-        
+
         if eval "$install_cmd"; then
             echo
             echo -e "${GREEN}================================================${NC}"
@@ -880,7 +855,7 @@ install_qb439_vt() {
             echo -e "${RED}================================================${NC}"
         fi
     fi
-    
+
     echo
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
     read -n 1
@@ -893,32 +868,14 @@ install_full_docker_suite() {
     echo -e "${CYAN}qBittorrent 4.6.7 + Transmission 4.0.5 + Emby + IYUUPlus + MoviePilot${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
-    # 检查Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到未安装Docker，全套应用需要Docker支持${NC}"
-        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-        read -r install_docker_choice
-        install_docker_choice=${install_docker_choice:-Y}
-        
-        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}正在安装Docker...${NC}"
-            if install_docker_func; then
-                echo -e "${GREEN}Docker安装成功！${NC}"
-            else
-                echo -e "${RED}Docker安装失败，无法继续安装${NC}"
-                echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-                read -n 1
-                return
-            fi
-        else
-            echo -e "${RED}用户取消Docker安装，无法安装全套应用${NC}"
-            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-            read -n 1
-            return
-        fi
+
+    # [修改] 调用新的交互式Docker检查函数
+    if ! ensure_docker_installed; then
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
     fi
-    
+
     echo -e "${BLUE}应用配置说明：${NC}"
     echo -e "${WHITE}本功能将安装以下应用：${NC}"
     echo -e "${WHITE}• qBittorrent 4.6.7 (端口: 8080)${NC}"
@@ -929,15 +886,15 @@ install_full_docker_suite() {
     echo
     echo -e "${YELLOW}注意：所有应用将使用Docker安装，数据目录为 /opt/docker，下载目录为 /opt/downloads${NC}"
     echo
-    
+
     read -p "确认安装全套Docker应用？[Y/n]: " confirm
     confirm=${confirm:-Y}
-    
+
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}安装已取消${NC}"
         return
     fi
-    
+
     echo -e "${YELLOW}全套Docker应用安装功能开发中...${NC}"
     echo -e "${YELLOW}当前建议使用第6项单独安装各个应用${NC}"
     echo -e "${YELLOW}按任意键返回主菜单...${NC}"
@@ -950,44 +907,34 @@ pt_docker_apps() {
     echo -e "${CYAN}PT Docker应用 - 分类选择安装${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
-    # 检查Docker
-    if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}检测到未安装Docker，大部分应用需要Docker支持${NC}"
-        echo -e "${YELLOW}是否现在安装Docker？[Y/n]: ${NC}"
-        read -r install_docker_choice
-        install_docker_choice=${install_docker_choice:-Y}
-        
-        if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}正在安装Docker...${NC}"
-            if install_docker_func; then
-                echo -e "${GREEN}Docker安装成功！${NC}"
-            else
-                echo -e "${RED}Docker安装失败，部分功能可能无法使用${NC}"
-            fi
-        fi
+
+    # [修改] 调用新的交互式Docker检查函数
+    if ! ensure_docker_installed; then
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
     fi
-    
+
     # 下载并执行ptdocker.sh脚本
     echo -e "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
     local ptdocker_script="/tmp/ptdocker.sh"
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
-    
+
     if curl -fsSL "$ptdocker_url" -o "$ptdocker_script"; then
         chmod +x "$ptdocker_script"
         echo -e "${GREEN}PT Docker应用管理脚本下载成功${NC}"
         echo -e "${YELLOW}正在启动PT Docker应用管理...${NC}"
         echo
-        
-        # 执行ptdocker.sh脚本
-        bash "$ptocker_script"
-        
+
+        # [修正] 修正变量名拼写错误
+        bash "$ptdocker_script"
+
         # 清理临时文件
         rm -f "$ptdocker_script"
     else
         echo -e "${RED}PT Docker应用管理脚本下载失败${NC}"
         echo -e "${YELLOW}正在使用备用方案...${NC}"
-        
+
         # 备用方案：调用内置的简化版菜单
         fallback_pt_docker_menu
     fi
@@ -1001,7 +948,7 @@ fallback_pt_docker_menu() {
     echo
     echo -e "${YELLOW}注意：完整功能菜单下载失败，使用简化版菜单${NC}"
     echo
-    
+
     while true; do
         echo -e "${GREEN}常用Docker应用快速安装：${NC}"
         echo -e "${WHITE} 1. qBittorrent 4.6.7${NC}"
@@ -1014,9 +961,9 @@ fallback_pt_docker_menu() {
         echo -e "${WHITE} 8. Watchtower 容器自动更新${NC}"
         echo -e "${WHITE} 0. 返回主菜单${NC}"
         echo
-        
+
         read -p "请选择要安装的应用 [0-8]: " fallback_choice
-        
+
         case $fallback_choice in
             1|2|3|4|5|6|7|8)
                 echo -e "${YELLOW}Docker Compose配置文件开发中...${NC}"
@@ -1042,24 +989,24 @@ uninstall_apps() {
     echo -e "${CYAN}卸载应用${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
+
     # 检测Docker应用
     echo -e "${YELLOW}正在检测已安装的应用...${NC}"
     echo
-    
+
     # 检测Docker应用
     docker_apps=()
     if command -v docker &> /dev/null; then
         echo -e "${BLUE}检测到的Docker应用：${NC}"
-        
+
         # 检查常见的PT相关容器
         containers=("vertex" "qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot")
         found_docker=false
-        
+
         for container in "${containers[@]}"; do
             if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
                 status=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "^${container}" | awk '{print $2}')
-                if [ -n "$status" ]; then
+                if [[ "$status" == "Up" ]]; then
                     echo -e "${GREEN}  ✓ ${container} (运行中)${NC}"
                 else
                     echo -e "${YELLOW}  ✓ ${container} (已停止)${NC}"
@@ -1068,28 +1015,28 @@ uninstall_apps() {
                 found_docker=true
             fi
         done
-        
+
         if [ "$found_docker" = false ]; then
             echo -e "${GRAY}  未检测到相关Docker应用${NC}"
         fi
     else
         echo -e "${GRAY}Docker未安装，跳过Docker应用检测${NC}"
     fi
-    
+
     echo
     echo -e "${BLUE}原作者脚本安装的应用：${NC}"
     echo -e "${WHITE}  • qBittorrent (原生安装)${NC}"
     echo -e "${WHITE}  • Vertex (原生安装)${NC}"
     echo -e "${WHITE}  • 其他jerry048脚本安装的组件${NC}"
-    
+
     echo
     echo -e "${GREEN}请选择卸载类型：${NC}"
     echo "1. 卸载Docker应用"
     echo "2. 卸载原作者脚本应用"
     echo "3. 返回主菜单"
-    
+
     read -p "请选择 [1-3]: " uninstall_choice
-    
+
     case $uninstall_choice in
         1)
             uninstall_docker_apps
@@ -1114,36 +1061,36 @@ uninstall_docker_apps() {
     echo -e "${CYAN}卸载Docker应用${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
+
     if ! command -v docker &> /dev/null; then
         echo -e "${RED}Docker未安装，无法卸载Docker应用${NC}"
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
         return
     fi
-    
+
     # 重新检测Docker应用
     containers=("vertex" "qbittorrent" "transmission" "emby" "iyuuplus" "moviepilot")
     found_containers=()
-    
+
     echo -e "${YELLOW}检测Docker应用中...${NC}"
     for container in "${containers[@]}"; do
         if docker ps -a --format "table {{.Names}}" | grep -q "^${container}$"; then
             found_containers+=("$container")
         fi
     done
-    
+
     if [ ${#found_containers[@]} -eq 0 ]; then
         echo -e "${YELLOW}未发现相关Docker应用${NC}"
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
         return
     fi
-    
+
     echo -e "${GREEN}发现以下Docker应用：${NC}"
     for i in "${!found_containers[@]}"; do
         status=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "^${found_containers[$i]}" | awk '{print $2}')
-        if [ -n "$status" ]; then
+        if [[ "$status" == "Up" ]]; then
             echo -e "${GREEN}  $((i+1)). ${found_containers[$i]} (运行中)${NC}"
         else
             echo -e "${YELLOW}  $((i+1)). ${found_containers[$i]} (已停止)${NC}"
@@ -1151,9 +1098,9 @@ uninstall_docker_apps() {
     done
     echo -e "${WHITE}  $((${#found_containers[@]}+1)). 全部卸载${NC}"
     echo -e "${WHITE}  $((${#found_containers[@]}+2)). 返回上级菜单${NC}"
-    
+
     read -p "请选择要卸载的应用: " docker_choice
-    
+
     if [[ $docker_choice -eq $((${#found_containers[@]}+1)) ]]; then
         # 全部卸载
         echo -e "${RED}警告：这将卸载所有检测到的Docker应用！${NC}"
@@ -1175,7 +1122,7 @@ uninstall_docker_apps() {
     else
         echo -e "${RED}无效选择${NC}"
     fi
-    
+
     echo -e "${YELLOW}按任意键返回...${NC}"
     read -n 1
 }
@@ -1184,19 +1131,19 @@ uninstall_docker_apps() {
 uninstall_single_docker_app() {
     local container_name="$1"
     echo -e "${YELLOW}正在卸载 ${container_name}...${NC}"
-    
+
     # 停止容器
     if docker ps --format "table {{.Names}}" | grep -q "^${container_name}$"; then
         echo -e "${YELLOW}停止容器 ${container_name}...${NC}"
         docker stop "$container_name"
     fi
-    
+
     # 删除容器
     if docker ps -a --format "table {{.Names}}" | grep -q "^${container_name}$"; then
         echo -e "${YELLOW}删除容器 ${container_name}...${NC}"
         docker rm "$container_name"
     fi
-    
+
     # 询问是否删除数据目录
     echo -e "${YELLOW}是否同时删除数据目录 /opt/docker/${container_name}？[y/N]: ${NC}"
     read -r delete_data
@@ -1209,7 +1156,7 @@ uninstall_single_docker_app() {
     else
         echo -e "${BLUE}数据目录已保留：/opt/docker/${container_name}${NC}"
     fi
-    
+
     echo -e "${GREEN}${container_name} 卸载完成${NC}"
 }
 
@@ -1219,15 +1166,15 @@ uninstall_script_apps() {
     echo -e "${CYAN}卸载原作者脚本应用${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
+
     # 检测原作者脚本安装的qBittorrent
     echo -e "${YELLOW}正在检测原作者脚本安装的应用...${NC}"
-    
+
     local qb_detected=false
     local qb_services=()
     local qb_processes=()
     local other_services=()
-    
+
     # 检测qBittorrent相关服务
     if systemctl list-units --type=service --all | grep -q "qbittorrent"; then
         while IFS= read -r service; do
@@ -1237,7 +1184,7 @@ uninstall_script_apps() {
             fi
         done < <(systemctl list-units --type=service --all | grep "qbittorrent" | awk '{print $1}')
     fi
-    
+
     # 检测qBittorrent进程
     if pgrep -f "qbittorrent" >/dev/null; then
         while IFS= read -r process; do
@@ -1247,17 +1194,17 @@ uninstall_script_apps() {
             fi
         done < <(ps aux | grep qbittorrent | grep -v grep | awk '{print $2 " " $11}')
     fi
-    
+
     # 检测其他相关服务
     for service in vertex autobrr autoremove-torrents; do
         if systemctl list-units --type=service --all | grep -q "$service"; then
             other_services+=("$service")
         fi
     done
-    
+
     if [[ "$qb_detected" == true ]]; then
         echo -e "${GREEN}检测到原作者脚本安装的qBittorrent：${NC}"
-        
+
         if [[ ${#qb_services[@]} -gt 0 ]]; then
             echo -e "${WHITE}服务：${NC}"
             for service in "${qb_services[@]}"; do
@@ -1265,22 +1212,22 @@ uninstall_script_apps() {
                 echo -e "${WHITE}  • $service ($status)${NC}"
             done
         fi
-        
+
         if [[ ${#qb_processes[@]} -gt 0 ]]; then
             echo -e "${WHITE}进程：${NC}"
             for process in "${qb_processes[@]}"; do
                 echo -e "${WHITE}  • $process${NC}"
             done
         fi
-        
+
         echo
         echo -e "${GREEN}选择qBittorrent卸载方式：${NC}"
         echo "1. 自动卸载qBittorrent（推荐）"
         echo "2. 手动卸载指导"
         echo "3. 返回上级菜单"
-        
+
         read -p "请选择 [1-3]: " qb_choice
-        
+
         case $qb_choice in
             1)
                 uninstall_qbittorrent_auto
@@ -1298,7 +1245,7 @@ uninstall_script_apps() {
     else
         echo -e "${GRAY}未检测到原作者脚本安装的qBittorrent${NC}"
         echo
-        
+
         if [[ ${#other_services[@]} -gt 0 ]]; then
             echo -e "${YELLOW}检测到其他相关服务：${NC}"
             for service in "${other_services[@]}"; do
@@ -1306,11 +1253,11 @@ uninstall_script_apps() {
             done
             echo
         fi
-        
+
         echo -e "${BLUE}提供手动卸载指导：${NC}"
         show_manual_uninstall_guide
     fi
-    
+
     echo -e "${YELLOW}按任意键返回...${NC}"
     read -n 1
 }
@@ -1321,7 +1268,7 @@ uninstall_qbittorrent_auto() {
     echo -e "${CYAN}自动卸载qBittorrent${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo
-    
+
     echo -e "${RED}警告：此操作将完全删除qBittorrent及其配置！${NC}"
     echo -e "${YELLOW}包括：${NC}"
     echo -e "${WHITE}• 停止所有qBittorrent服务和进程${NC}"
@@ -1330,42 +1277,42 @@ uninstall_qbittorrent_auto() {
     echo -e "${WHITE}• 删除配置文件和数据${NC}"
     echo -e "${WHITE}• 清理用户和组${NC}"
     echo
-    
+
     read -p "确认卸载qBittorrent？[y/N]: " confirm_uninstall
     if [[ ! $confirm_uninstall =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}卸载已取消${NC}"
         return
     fi
-    
+
     echo
     echo -e "${YELLOW}开始彻底卸载qBittorrent...${NC}"
-    
+
     # 1. 暴力停止所有qBittorrent相关内容
     force_stop_all_qbittorrent
-    
+
     # 2. 彻底删除所有服务文件
     force_remove_all_services
-    
+
     # 3. 删除程序文件
     remove_qbittorrent_binaries
-    
+
     # 4. 删除配置文件
     remove_qbittorrent_configs
-    
+
     # 5. 清理用户和组
     cleanup_qbittorrent_user
-    
+
     # 6. 清理其他残留
     cleanup_qbittorrent_misc
-    
+
     # 7. 最终清理
     final_cleanup
-    
+
     echo
     echo -e "${GREEN}================================================${NC}"
     echo -e "${GREEN}qBittorrent卸载完成！${NC}"
     echo -e "${GREEN}================================================${NC}"
-    
+
     # 验证卸载结果
     verify_qbittorrent_removal
 }
@@ -1373,10 +1320,10 @@ uninstall_qbittorrent_auto() {
 # 暴力停止所有qBittorrent相关内容
 force_stop_all_qbittorrent() {
     echo -e "${YELLOW}正在暴力停止所有qBittorrent相关内容...${NC}"
-    
+
     # 1. 先停止所有可能的服务
     echo -e "${YELLOW}停止所有qBittorrent服务...${NC}"
-    
+
     # 获取所有qbittorrent相关服务
     systemctl list-units --type=service --all | grep -i qbittorrent | awk '{print $1}' | while read -r service; do
         if [[ -n "$service" ]]; then
@@ -1386,7 +1333,7 @@ force_stop_all_qbittorrent() {
             systemctl mask "$service" 2>/dev/null
         fi
     done
-    
+
     # 停止常见服务名的所有可能实例
     local service_patterns=("qbittorrent*" "qbittorrent-nox*")
     for pattern in "${service_patterns[@]}"; do
@@ -1394,37 +1341,37 @@ force_stop_all_qbittorrent() {
         systemctl disable "$pattern" 2>/dev/null
         systemctl mask "$pattern" 2>/dev/null
     done
-    
+
     # 2. 强制杀死所有qBittorrent进程
     echo -e "${YELLOW}强制终止所有qBittorrent进程...${NC}"
-    
+
     # 使用多种方式杀死进程
     pkill -9 -f "qbittorrent" 2>/dev/null
-    pkill -9 "qbittorrent" 2>/dev/null  
+    pkill -9 "qbittorrent" 2>/dev/null
     pkill -9 "qbittorrent-nox" 2>/dev/null
     killall -9 qbittorrent 2>/dev/null
     killall -9 qbittorrent-nox 2>/dev/null
-    
+
     # 等待进程彻底结束
     sleep 2
-    
+
     # 再次检查并强制杀死
     if pgrep -f "qbittorrent" >/dev/null; then
         echo -e "${RED}仍有顽固进程，使用kill -9强制终止...${NC}"
         pgrep -f "qbittorrent" | xargs -r kill -9 2>/dev/null
     fi
-    
+
     echo -e "${GREEN}所有qBittorrent进程已终止${NC}"
 }
 
 # 彻底删除所有服务文件
 force_remove_all_services() {
     echo -e "${YELLOW}正在彻底删除所有qBittorrent服务文件...${NC}"
-    
+
     # 1. 删除systemd目录中的所有qbittorrent相关文件
     local systemd_dirs=(
         "/etc/systemd/system"
-        "/lib/systemd/system" 
+        "/lib/systemd/system"
         "/usr/lib/systemd/system"
         "/usr/local/lib/systemd/system"
         "/run/systemd/system"
@@ -1432,7 +1379,7 @@ force_remove_all_services() {
         "/usr/lib/systemd/user"
         "/usr/local/lib/systemd/user"
     )
-    
+
     for dir in "${systemd_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
             # 查找所有qbittorrent相关文件
@@ -1440,13 +1387,13 @@ force_remove_all_services() {
                 echo -e "${GREEN}删除服务文件: $file${NC}"
                 rm -f "$file"
             done
-            
+
             # 查找所有qbittorrent相关链接
             find "$dir" -name "*qbittorrent*" -type l 2>/dev/null | while read -r link; do
                 echo -e "${GREEN}删除服务链接: $link${NC}"
                 rm -f "$link"
             done
-            
+
             # 删除目标文件夹中的qbittorrent相关内容
             find "$dir" -type d -name "*qbittorrent*" 2>/dev/null | while read -r qb_dir; do
                 echo -e "${GREEN}删除服务目录: $qb_dir${NC}"
@@ -1454,7 +1401,7 @@ force_remove_all_services() {
             done
         fi
     done
-    
+
     # 2. 删除用户目录中的服务文件
     find /home -name ".config" -type d 2>/dev/null | while read -r config_dir; do
         local user_systemd="$config_dir/systemd/user"
@@ -1465,26 +1412,26 @@ force_remove_all_services() {
             done
         fi
     done
-    
+
     # 3. 重置所有systemd状态
     echo -e "${YELLOW}重置systemd状态...${NC}"
     systemctl daemon-reload
     systemctl reset-failed 2>/dev/null
-    
+
     # 4. 尝试停止可能遗漏的服务
     for service in qbittorrent qbittorrent-nox qbittorrent@admin qbittorrent-nox@admin; do
         systemctl stop "$service" 2>/dev/null
         systemctl disable "$service" 2>/dev/null
         systemctl mask "$service" 2>/dev/null
     done
-    
+
     echo -e "${GREEN}所有systemd服务文件已清理${NC}"
 }
 
 # 删除程序文件
 remove_qbittorrent_binaries() {
     echo -e "${YELLOW}正在删除程序文件...${NC}"
-    
+
     # 常见安装路径
     local binary_paths=(
         "/usr/local/bin/qbittorrent"
@@ -1494,27 +1441,27 @@ remove_qbittorrent_binaries() {
         "/opt/qbittorrent"
         "/usr/local/qbittorrent"
     )
-    
+
     for path in "${binary_paths[@]}"; do
         if [[ -e "$path" ]]; then
             echo -e "${GREEN}删除: $path${NC}"
             rm -rf "$path"
         fi
     done
-    
+
     # 删除可能的符号链接
     find /usr/local/bin /usr/bin -name "*qbittorrent*" -type l 2>/dev/null | while read -r link; do
         echo -e "${GREEN}删除链接: $link${NC}"
         rm -f "$link"
     done
-    
+
     echo -e "${GREEN}程序文件已删除${NC}"
 }
 
 # 删除配置文件
 remove_qbittorrent_configs() {
     echo -e "${YELLOW}正在删除配置文件...${NC}"
-    
+
     local config_paths=(
         "/home/qbittorrent"
         "/root/.config/qBittorrent"
@@ -1524,69 +1471,69 @@ remove_qbittorrent_configs() {
         "/var/lib/qbittorrent"
         "/tmp/qbittorrent*"
     )
-    
+
     for path in "${config_paths[@]}"; do
         if [[ -e "$path" ]]; then
             echo -e "${GREEN}删除配置: $path${NC}"
             rm -rf "$path"
         fi
     done
-    
+
     echo -e "${GREEN}配置文件已删除${NC}"
 }
 
 # 清理用户和组
 cleanup_qbittorrent_user() {
     echo -e "${YELLOW}正在清理用户和组...${NC}"
-    
+
     # 删除qbittorrent用户
     if id "qbittorrent" &>/dev/null; then
         echo -e "${GREEN}删除用户: qbittorrent${NC}"
         userdel -r qbittorrent 2>/dev/null
     fi
-    
+
     # 删除qbittorrent组
     if getent group qbittorrent &>/dev/null; then
         echo -e "${GREEN}删除组: qbittorrent${NC}"
         groupdel qbittorrent 2>/dev/null
     fi
-    
+
     echo -e "${GREEN}用户和组已清理${NC}"
 }
 
 # 清理其他残留
 cleanup_qbittorrent_misc() {
     echo -e "${YELLOW}正在清理其他残留文件...${NC}"
-    
+
     # 清理日志文件
     find /var/log -name "*qbittorrent*" -type f 2>/dev/null | while read -r log_file; do
         echo -e "${GREEN}删除日志: $log_file${NC}"
         rm -f "$log_file"
     done
-    
+
     # 清理临时文件
     find /tmp -name "*qbittorrent*" 2>/dev/null | while read -r temp_file; do
         echo -e "${GREEN}删除临时文件: $temp_file${NC}"
         rm -rf "$temp_file"
     done
-    
+
     # 清理cron任务
     if crontab -l 2>/dev/null | grep -q "qbittorrent"; then
         echo -e "${YELLOW}检测到qBittorrent相关的cron任务，请手动检查${NC}"
         echo -e "${WHITE}执行: crontab -e${NC}"
     fi
-    
+
     echo -e "${GREEN}其他残留文件已清理${NC}"
 }
 
 # 最终清理
 final_cleanup() {
     echo -e "${YELLOW}正在进行最终清理...${NC}"
-    
+
     # 1. 清理所有可能的systemctl残留
     systemctl daemon-reload
     systemctl reset-failed 2>/dev/null
-    
+
     # 2. 强制删除任何遗留的qbittorrent服务定义
     systemctl list-units --type=service --all | grep -i qbittorrent | awk '{print $1}' | while read -r service; do
         if [[ -n "$service" ]]; then
@@ -1596,7 +1543,7 @@ final_cleanup() {
             systemctl mask "$service" 2>/dev/null
         fi
     done
-    
+
     # 3. 删除所有可能的二进制文件路径
     local all_possible_paths=(
         "/usr/local/bin/qbittorrent*"
@@ -1606,7 +1553,7 @@ final_cleanup() {
         "/home/*/qbittorrent*"
         "/root/qbittorrent*"
     )
-    
+
     for path_pattern in "${all_possible_paths[@]}"; do
         for path in $path_pattern; do
             if [[ -e "$path" ]]; then
@@ -1615,20 +1562,20 @@ final_cleanup() {
             fi
         done
     done
-    
+
     # 4. 强制清理systemd缓存
     systemctl daemon-reexec 2>/dev/null
-    
+
     echo -e "${GREEN}最终清理完成${NC}"
 }
 
 # 验证卸载结果
 verify_qbittorrent_removal() {
     echo -e "${BLUE}验证卸载结果：${NC}"
-    
+
     local issues=()
     local all_clean=true
-    
+
     # 1. 检查进程
     if pgrep -f "qbittorrent" >/dev/null; then
         local process_count=$(pgrep -f "qbittorrent" | wc -l)
@@ -1639,7 +1586,7 @@ verify_qbittorrent_removal() {
     else
         echo -e "${GREEN}✓ 无qBittorrent进程${NC}"
     fi
-    
+
     # 2. 检查服务（最严格的检查）
     local remaining_services=()
     while IFS= read -r service; do
@@ -1647,7 +1594,7 @@ verify_qbittorrent_removal() {
             remaining_services+=("$service")
         fi
     done < <(systemctl list-units --type=service --all 2>/dev/null | grep -i qbittorrent | awk '{print $1}' | sed 's/[●*]//')
-    
+
     if [[ ${#remaining_services[@]} -gt 0 ]]; then
         issues+=("仍有 ${#remaining_services[@]} 个qBittorrent服务")
         echo -e "${RED}✗ 仍有qBittorrent服务存在${NC}"
@@ -1658,7 +1605,7 @@ verify_qbittorrent_removal() {
     else
         echo -e "${GREEN}✓ 无qBittorrent服务${NC}"
     fi
-    
+
     # 3. 检查二进制文件
     local found_binaries=()
     for binary in qbittorrent qbittorrent-nox; do
@@ -1666,7 +1613,7 @@ verify_qbittorrent_removal() {
             found_binaries+=("$binary")
         fi
     done
-    
+
     if [[ ${#found_binaries[@]} -gt 0 ]]; then
         issues+=("仍可找到qBittorrent程序")
         echo -e "${RED}✗ 仍可找到qBittorrent程序${NC}"
@@ -1677,21 +1624,21 @@ verify_qbittorrent_removal() {
     else
         echo -e "${GREEN}✓ qBittorrent程序已删除${NC}"
     fi
-    
+
     # 4. 检查配置文件
     local config_check=(
         "/home/qbittorrent"
         "/root/.config/qBittorrent"
         "/etc/qbittorrent"
     )
-    
+
     local found_configs=()
     for config in "${config_check[@]}"; do
         if [[ -e "$config" ]]; then
             found_configs+=("$config")
         fi
     done
-    
+
     if [[ ${#found_configs[@]} -gt 0 ]]; then
         echo -e "${YELLOW}! 发现残留配置${NC}"
         for config in "${found_configs[@]}"; do
@@ -1700,7 +1647,7 @@ verify_qbittorrent_removal() {
     else
         echo -e "${GREEN}✓ 配置文件已清理${NC}"
     fi
-    
+
     echo
     if [[ "$all_clean" == true ]]; then
         echo -e "${GREEN}🎉 qBittorrent已完全卸载！无任何残留！${NC}"
@@ -1752,10 +1699,10 @@ show_menu() {
     echo
     echo -e "${WHITE}├── 1. qBittorrent 4.3.8⭐${NC}"
     echo -e "${WHITE}├── 2. qBittorrent 4.3.9⭐${NC}"
-    echo -e "${WHITE}├── 3. Vertex + qBittorrent 4.3.8🔥${NC}"
-    echo -e "${WHITE}├── 4. Vertex + qBittorrent 4.3.9🔥${NC}"
-    echo -e "${WHITE}├── 5. qBittorrent 4.6.7 + Transmission 4.0.5 + emby + iyuuplus + moviepilot🔥${NC}"
-    echo -e "${WHITE}├── 6. PT Docker应用${NC}"
+    echo -e "${WHITE}├── 3. Vertex + qBittorrent 4.3.8 (Docker)🔥${NC}"
+    echo -e "${WHITE}├── 4. Vertex + qBittorrent 4.3.9 (Docker)🔥${NC}"
+    echo -e "${WHITE}├── 5. 全套Docker应用 (qBittorrent, Transmission, Emby等)🔥${NC}"
+    echo -e "${WHITE}├── 6. PT Docker应用 (分类安装)🔥${NC}"
     echo -e "${WHITE}├── 7. 系统优化 (VPS性能调优, 以后添加)${NC}"
     echo -e "${WHITE}├── 8. 卸载应用${NC}"
     echo -e "${WHITE}├── 9. 卸载脚本${NC}"
@@ -1768,14 +1715,10 @@ show_menu() {
 
 # 主程序
 main() {
-    # 初始化检查
-    check_root
-    check_system
-    
     while true; do
         show_menu
         read -p "请输入选项 [0-9]: " choice
-        
+
         case $choice in
             1)
                 install_qb438
@@ -1823,7 +1766,11 @@ main() {
 }
 
 # 初始化环境
+clear
+show_banner
 echo -e "${YELLOW}正在初始化环境...${NC}"
+check_root
+check_system
 update_system
 
 if ! install_base_tools; then
@@ -1840,8 +1787,10 @@ if ! install_base_tools; then
     exit 1
 fi
 
-check_docker # 此处调用时，Docker现在默认不安装
 create_directories
+echo
+check_docker_status # [修改] 此处调用静默检查函数，默认不提示安装
+echo
 
 echo -e "${GREEN}环境初始化完成！${NC}"
 echo -e "${YELLOW}按任意键进入主菜单...${NC}"
