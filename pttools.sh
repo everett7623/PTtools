@@ -1,12 +1,14 @@
 #!/bin/bash
 
+===================================================================================================
 # PTtools - PT工具一键安装脚本
 # 脚本名称: pttools.sh
 # 脚本描述: PT工具一键安装脚本，支持qBittorrent、Transmission、Emby等应用的快捷安装
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
-# 使用方法: wget -O pttools.sh https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh && chmod +x pttools.sh && ./pttools.sh
-# 作者: everett7623
-# 更新时间: 2025-06-27
+# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh) 
+# 作者: Jensfrank
+# 更新时间: 2025-09-17
+===================================================================================================
 
 # 颜色定义
 RED='\033[0;31m'
@@ -124,9 +126,9 @@ install_base_tools() {
 # 检查Docker是否安装
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？[Y/n]: ${NC}"
+        echo -e "${YELLOW}Docker未安装，是否现在安装Docker？[y/N]: ${NC}" # 默认不安装Docker，修改了提示和默认值
         read -r install_docker
-        install_docker=${install_docker:-Y}
+        install_docker=${install_docker:-N} # 默认不安装
         if [[ $install_docker =~ ^[Yy]$ ]]; then
             if install_docker_func; then
                 echo -e "${GREEN}Docker安装成功${NC}"
@@ -978,7 +980,7 @@ pt_docker_apps() {
         echo
         
         # 执行ptdocker.sh脚本
-        bash "$ptdocker_script"
+        bash "$ptocker_script"
         
         # 清理临时文件
         rm -f "$ptdocker_script"
@@ -1838,7 +1840,7 @@ if ! install_base_tools; then
     exit 1
 fi
 
-check_docker
+check_docker # 此处调用时，Docker现在默认不安装
 create_directories
 
 echo -e "${GREEN}环境初始化完成！${NC}"
