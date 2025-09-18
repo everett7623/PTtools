@@ -1958,7 +1958,6 @@ show_manual_uninstall_guide_vertex() {
 show_menu() {
     clear
     show_banner
-    echo
     echo -e "${WHITE}  1. qBittorrent 4.3.8⭐${NC}"
     echo -e "${WHITE}  2. qBittorrent 4.3.9⭐${NC}"
     echo -e "${WHITE}  3. Vertex + qBittorrent 4.3.8 (推荐Docker方式安装)🔥${NC}"
