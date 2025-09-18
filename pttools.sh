@@ -31,15 +31,15 @@ LOG_DIR="/opt/logs/pttools"
 show_banner() {
     echo -e "${CYAN}"
     echo "=================================================="
-    echo "PTtools - PT工具一键安装脚本"
-    echo "作者: Jensfrank"
+    echo "           PTtools - PT工具一键安装脚本"
+    echo "               作者: Jensfrank"
     echo "=================================================="
     echo -e "${NC}"
 }
 
 # 记录日志 (只写入文件，不输出到终端)
 log_message() {
-    mkdir -p "$LOG_DIR" # 确保日志目录在记录前存在
+    mkdir -p "$LOG_DIR" &>/dev/null # 确保日志目录在记录前存在
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
     echo -e "[$timestamp] $1" >> "$LOG_DIR/pttools.log"
 }
@@ -173,14 +173,14 @@ check_docker_status() {
     log_message "${GREEN}${compose_status_msg}${NC}" # 日志记录
 }
 
-# 安装Docker (内部函数，非交互式，由ensure_docker_installed调用)
+# 安装Docker (内部函数，仅执行安装，不负责终端输出结果)
 install_docker_func() {
-    log_message "${YELLOW}正在安装Docker...${NC}"
-    echo -e "${YELLOW}正在安装Docker...${NC}"
-
+    log_message "${YELLOW}Docker安装流程开始...${NC}"
+    echo -e "${YELLOW}正在安装Docker...${NC}" # 终端提示正在安装
+    
+    # 基础工具检查（冗余但安全）
     if ! command -v curl &> /dev/null; then
-        log_message "${YELLOW}curl未安装，正在安装基础工具...${NC}"
-        echo -e "${YELLOW}curl未安装，正在安装基础工具...${NC}"
+        log_message "${YELLOW}curl未安装，尝试在Docker安装前安装基础工具...${NC}"
         if [[ $DISTRO == "debian" ]]; then
             apt update -y &>> "$LOG_DIR/pttools.log"
             apt install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"
@@ -188,11 +188,9 @@ install_docker_func() {
             yum update -y &>> "$LOG_DIR/pttools.log"
             yum install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"
         fi
-
         if ! command -v curl &> /dev/null; then
             log_message "${RED}基础工具安装失败，无法继续安装Docker${NC}"
-            echo -e "${RED}基础工具安装失败，无法继续安装Docker${NC}"
-            return 1
+            return 1 # 失败
         fi
     fi
 
@@ -212,41 +210,31 @@ install_docker_func() {
     fi
 
     if ! $docker_install_cmd &>> "$LOG_DIR/pttools.log"; then
-        log_message "${RED}Docker安装失败${NC}"
-        echo -e "${RED}Docker安装失败${NC}"
-        return 1
+        log_message "${RED}Docker安装脚本执行失败${NC}"
+        return 1 # 失败
     fi
 
     log_message "${YELLOW}启动Docker服务...${NC}"
     echo -e "${YELLOW}启动Docker服务...${NC}"
     if systemctl start docker &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Docker服务启动成功${NC}"
-        echo -e "${GREEN}Docker服务启动成功${NC}"
     else
         log_message "${RED}Docker服务启动失败${NC}"
-        echo -e "${RED}Docker服务启动失败${NC}"
-        log_message "${YELLOW}尝试手动启动Docker...${NC}"
-        echo -e "${YELLOW}尝试手动启动Docker...${NC}"
-        service docker start &>> "$LOG_DIR/pttools.log"
+        service docker start &>> "$LOG_DIR/pttools.log" # 尝试手动启动
     fi
 
     if systemctl enable docker &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Docker开机自启设置成功${NC}"
-        echo -e "${GREEN}Docker开机自启设置成功${NC}"
     else
         log_message "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
-        echo -e "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
     fi
 
     sleep 3 # 等待Docker服务稳定
     if command -v docker &> /dev/null && docker --version &> /dev/null; then
-        log_message "${GREEN}Docker安装成功$(docker --version | head -n 1)${NC}"
-        echo -e "${GREEN}Docker安装成功${NC}"
-        docker --version | head -n 1 # 终端显示版本
+        log_message "${GREEN}Docker核心安装成功: $(docker --version | head -n 1)${NC}"
     else
-        log_message "${RED}Docker安装验证失败${NC}"
-        echo -e "${RED}Docker安装验证失败${NC}"
-        return 1
+        log_message "${RED}Docker核心安装验证失败${NC}"
+        return 1 # 失败
     fi
 
     echo -e "${YELLOW}是否安装Docker Compose？[Y/n]: ${NC}"
@@ -259,22 +247,23 @@ install_docker_func() {
         COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d'"' -f4)
         if [ -z "$COMPOSE_VERSION" ]; then
             COMPOSE_VERSION="v2.24.0"
-            log_message "${YELLOW}无法获取最新版本，使用备用版本 $COMPOSE_VERSION${NC}"
+            log_message "${YELLOW}无法获取最新Docker Compose版本，使用备用版本 $COMPOSE_VERSION${NC}"
             echo -e "${YELLOW}无法获取最新版本，使用备用版本 $COMPOSE_VERSION${NC}"
         fi
 
         if curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose &>> "$LOG_DIR/pttools.log"; then
             chmod +x /usr/local/bin/docker-compose
-            log_message "${GREEN}Docker Compose安装完成${NC}"
-            echo -e "${GREEN}Docker Compose安装完成${NC}"
-            /usr/local/bin/docker-compose --version | head -n 1 # 终端显示版本
+            log_message "${GREEN}Docker Compose安装完成: $(/usr/local/bin/docker-compose --version | head -n 1)${NC}"
         else
             log_message "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
             echo -e "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
+            # Compose安装失败不影响Docker本身的判断，但可能影响需要Compose的功能
         fi
+    else
+        log_message "${YELLOW}用户选择跳过Docker Compose安装。${NC}"
     fi
 
-    return 0
+    return 0 # 成功
 }
 
 # 确保Docker已安装 (交互式，在菜单3,4,5,6中调用)
@@ -290,12 +279,12 @@ ensure_docker_installed() {
 
     if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
         if install_docker_func; then
-            log_message "${GREEN}Docker安装成功！${NC}"
-            echo -e "${GREEN}Docker安装成功！${NC}"
+            log_message "${GREEN}Docker环境安装成功！${NC}"
+            echo -e "${GREEN}Docker环境安装成功！${NC}"
             return 0
         else
-            log_message "${RED}Docker安装失败。${NC}"
-            echo -e "${RED}Docker安装失败。${NC}"
+            log_message "${RED}Docker环境安装失败。${NC}"
+            echo -e "${RED}Docker环境安装失败。${NC}" # 统一输出失败信息
             echo -e "${YELLOW}建议：${NC}"
             echo -e "${WHITE}1. 检查网络连接${NC}"
             echo -e "${WHITE}2. 确认系统源配置正确${NC}"
@@ -596,11 +585,11 @@ EOF
         if [ -f "$vertex_password_file" ]; then
             local vertex_password=$(cat "$vertex_password_file" 2>/dev/null)
             if [ -n "$vertex_password" ]; then
-                echo -e "${GREEN}Vertex初始密码: ${vertex_password}${NC}"
-                log_message "${GREEN}Vertex初始密码: ${vertex_password}${NC}"
+                echo -e "${GREEN}Vertex密码: ${vertex_password}${NC}"
+                log_message "${GREEN}Vertex密码: ${vertex_password}${NC}"
             else
-                echo -e "${YELLOW}Vertex初始密码: 文件为空，请手动查看 $vertex_password_file${NC}"
-                log_message "${YELLOW}Vertex初始密码文件为空${NC}"
+                echo -e "${YELLOW}Vertex密码: 密码文件为空，请执行 cat $vertex_password_file 查看${NC}"
+                log_message "${YELLOW}Vertex密码文件为空${NC}"
             fi
         else
             echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
@@ -747,11 +736,11 @@ install_qb438_vt() {
                     log_message "Vertex密码: ${vertex_password}"
                 else
                     echo -e "${YELLOW}Vertex密码: 密码文件为空，请执行 cat $vertex_password_file 查看${NC}"
-                    log_message "Vertex密码文件为空"
+                    log_message "${YELLOW}Vertex密码文件为空${NC}"
                 fi
             else
                 echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
-                log_message "Vertex密码文件未生成"
+                log_message "${YELLOW}Vertex密码文件未生成${NC}"
             fi
         else
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
@@ -878,11 +867,7 @@ install_qb439_vt() {
         else
             log_message "${RED}Vertex Docker安装失败，终止安装${NC}"
             echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
-        fi
-    else
-        echo -e "${YELLOW}正在使用原脚本方式安装Vertex...${NC}"
-        log_message "${YELLOW}正在使用原脚本方式安装Vertex...${NC}"
-        local jerry_script="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
+        口味s: //raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
         log_message "执行命令: $jerry_script -u admin -p adminadmin -v"
         echo -e "${BLUE}执行命令: $jerry_script -u admin -p adminadmin -v${NC}"
 
@@ -935,11 +920,11 @@ install_qb439_vt() {
                     log_message "Vertex密码: ${vertex_password}"
                 else
                     echo -e "${YELLOW}Vertex密码: 密码文件为空，请执行 cat $vertex_password_file 查看${NC}"
-                    log_message "Vertex密码文件为空"
+                    log_message "${YELLOW}Vertex密码文件为空${NC}"
                 fi
             else
                 echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
-                log_message "Vertex密码文件未生成"
+                log_message "${YELLOW}Vertex密码文件未生成${NC}"
             fi
         else
             echo -e "${GREEN}Vertex访问地址: http://你的服务器IP:3333${NC}"
@@ -1038,7 +1023,7 @@ pt_docker_apps() {
         echo
 
         # 执行ptdocker.sh，并传递DOCKER_DIR和DOWNLOADS_DIR
-        bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR"
+        bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
 
         # 清理下载的ptdocker.sh，或保留取决于设计，这里选择保留在PTtools目录结构中
         # rm -f "$ptdocker_script_path"
@@ -1155,11 +1140,11 @@ install_single_fallback_docker_app() {
 
     echo -e "${YELLOW}启动 ${app_name} 容器...${NC}"
     log_message "${YELLOW}启动 ${app_name} 容器...${NC}"
-    local docker_compose_cmd=""
+    local docker_compose_bin=""
     if command -v docker-compose &> /dev/null; then
-        docker_compose_cmd="docker-compose -f \"$temp_compose_file\" --project-directory \"${DOCKER_DIR}/${app_dir_name}\" up -d"
+        docker_compose_bin="docker-compose"
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker_compose_cmd="docker compose -f \"$temp_compose_file\" --project-directory \"${DOCKER_DIR}/${app_dir_name}\" up -d"
+        docker_compose_bin="docker compose"
     else
         log_message "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
         echo -e "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
@@ -1169,7 +1154,7 @@ install_single_fallback_docker_app() {
         return
     fi
 
-    if eval "$docker_compose_cmd" &>> "$LOG_DIR/pttools.log"; then
+    if eval "$docker_compose_bin" -f "$temp_compose_file" --project-directory "${DOCKER_DIR}/${app_dir_name}" up -d &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}${app_name} 安装成功${NC}"
         echo -e "${GREEN}================================================${NC}"
         echo -e "${GREEN}${app_name} 安装成功！${NC}"
@@ -1958,6 +1943,10 @@ show_manual_uninstall_guide_vertex() {
 show_menu() {
     clear
     show_banner
+    echo -e "${PURPLE}==================${NC}"
+    echo -e "${PURPLE}  PTtools 主菜单  ${NC}" # 居中标题
+    echo -e "${PURPLE}==================${NC}"
+    echo
     echo -e "${WHITE}  1. qBittorrent 4.3.8⭐${NC}"
     echo -e "${WHITE}  2. qBittorrent 4.3.9⭐${NC}"
     echo -e "${WHITE}  3. Vertex + qBittorrent 4.3.8 (推荐Docker方式安装)🔥${NC}"
