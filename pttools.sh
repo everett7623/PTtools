@@ -603,8 +603,8 @@ EOF
                 log_message "${YELLOW}Vertex初始密码文件为空${NC}"
             fi
         else
-            echo -e "${YELLOW}Vertex初始密码: 文件未生成，请登录后自行设置，或查看容器日志${NC}"
-            log_message "${YELLOW}Vertex初始密码文件未生成${NC}"
+            echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
+            log_message "${YELLOW}Vertex密码文件未生成${NC}"
         fi
         rm -f "$compose_file"
         return 0
@@ -1958,21 +1958,26 @@ show_manual_uninstall_guide_vertex() {
 show_menu() {
     clear
     show_banner
-    echo -e "${PURPLE}==PTtools 主菜单==${NC}"
-    echo -e "${WHITE}├── 1. qBittorrent 4.3.8⭐${NC}"
-    echo -e "${WHITE}├── 2. qBittorrent 4.3.9⭐${NC}"
-    echo -e "${WHITE}├── 3. Vertex + qBittorrent 4.3.8 (推荐Docker方式安装)🔥${NC}"
-    echo -e "${WHITE}├── 4. Vertex + qBittorrent 4.3.9 (推荐Docker方式安装)🔥${NC}"
-    echo -e "${WHITE}├── 5. 全套Docker应用 (qBittorrent, Transmission, Emby等)🔥 (开发中)${NC}"
-    echo -e "${WHITE}├── 6. PT Docker应用 (分类安装)🔥${NC}"
-    echo -e "${WHITE}├── 7. 系统优化 (VPS性能调优, 开发中)${NC}"
-    echo -e "${WHITE}├── 8. 卸载应用${NC}"
-    echo -e "${WHITE}├── 9. 卸载脚本${NC}"
-    echo -e "${WHITE}└── 0. 退出脚本${NC}"
+    echo -e "${PURPLE}==================${NC}"
+    echo -e "${PURPLE}  PTtools 主菜单  ${NC}" # 居中标题
+    echo -e "${PURPLE}==================${NC}"
     echo
-    echo -e "${BLUE}Docker应用安装目录: $DOCKER_DIR${NC}"
-    echo -e "${BLUE}所有应用默认下载目录: $DOWNLOADS_DIR${NC}"
-    echo -e "${BLUE}脚本日志目录: $LOG_DIR${NC}"
+    echo -e "${WHITE}  1. qBittorrent 4.3.8⭐${NC}"
+    echo -e "${WHITE}  2. qBittorrent 4.3.9⭐${NC}"
+    echo -e "${WHITE}  3. Vertex + qBittorrent 4.3.8 (推荐Docker方式安装)🔥${NC}"
+    echo -e "${WHITE}  4. Vertex + qBittorrent 4.3.9 (推荐Docker方式安装)🔥${NC}"
+    echo -e "${WHITE}  5. 全套Docker应用 (qBittorrent, Transmission, Emby等)🔥 (开发中)${NC}"
+    echo -e "${WHITE}  6. PT Docker应用 (分类安装)🔥${NC}"
+    echo -e "${WHITE}  7. 系统优化 (VPS性能调优, 开发中)${NC}"
+    echo -e "${WHITE}  8. 卸载应用${NC}"
+    echo -e "${WHITE}  9. 卸载脚本${NC}"
+    echo -e "${WHITE}  0. 退出脚本${NC}"
+    echo
+    echo -e "${BLUE}--------------------------------------------------${NC}"
+    echo -e "${BLUE} Docker应用安装目录: ${DOCKER_DIR}${NC}"
+    echo -e "${BLUE} 所有应用默认下载目录: ${DOWNLOADS_DIR}${NC}"
+    echo -e "${BLUE} 脚本日志目录: ${LOG_DIR}${NC}"
+    echo -e "${BLUE}--------------------------------------------------${NC}"
     echo
 }
 
@@ -2068,8 +2073,6 @@ create_directories
 check_docker_status # 此处调用静默检查函数，终端只显示摘要
 echo -e "${GREEN}环境初始化完成！将自动进入主菜单。${NC}" # 终端显示一次
 log_message "${GREEN}环境初始化完成！自动进入主菜单。${NC}" # 日志记录一次
-
-# 移除此处的 read -n 1 和其前面的 echo，实现自动进入主菜单
 
 # 运行主程序
 main
