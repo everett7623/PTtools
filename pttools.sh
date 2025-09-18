@@ -26,6 +26,7 @@ DOCKER_DIR="/opt/docker"
 DOWNLOADS_DIR="/opt/downloads"
 GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 LOG_DIR="/opt/logs/pttools"
+PTTOOLS_LOG_FILE="$LOG_DIR/pttools.log" # 主脚本日志文件
 
 # 显示横幅
 show_banner() {
@@ -41,7 +42,7 @@ show_banner() {
 log_message() {
     mkdir -p "$LOG_DIR" &>/dev/null # 确保日志目录在记录前存在
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    echo -e "[$timestamp] $1" >> "$LOG_DIR/pttools.log"
+    echo -e "[$timestamp] $1" >> "$PTTOOLS_LOG_FILE"
 }
 
 # 检查是否为root用户
@@ -93,7 +94,7 @@ check_system() {
 update_system() {
     echo -e "${YELLOW}正在更新系统...${NC}"
     log_message "${YELLOW}正在更新系统...${NC}"
-    if apt update -y &>> "$LOG_DIR/pttools.log"; then # 统一处理apt/yum
+    if apt update -y &>> "$PTTOOLS_LOG_FILE"; then # 统一处理apt/yum
         log_message "${GREEN}系统更新成功${NC}"
         echo -e "${GREEN}系统更新成功${NC}"
     else
@@ -107,7 +108,7 @@ install_base_tools() {
     echo -e "${YELLOW}正在安装基础工具 (curl, wget, git, unzip)...${NC}"
     log_message "${YELLOW}正在安装基础工具 (curl, wget, git, unzip)...${NC}"
     if [[ $DISTRO == "debian" ]]; then
-        if apt install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"; then
+        if apt install -y curl wget git unzip &>> "$PTTOOLS_LOG_FILE"; then
             log_message "${GREEN}基础工具安装成功${NC}"
             echo -e "${GREEN}基础工具安装成功${NC}"
         else
@@ -116,7 +117,7 @@ install_base_tools() {
             return 1
         fi
     elif [[ $DISTRO == "centos" ]]; then
-        if yum install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"; then
+        if yum install -y curl wget git unzip &>> "$PTTOOLS_LOG_FILE"; then
             log_message "${GREEN}基础工具安装成功${NC}"
             echo -e "${GREEN}基础工具安装成功${NC}"
         else
@@ -170,19 +171,30 @@ install_docker_func() {
     
     # 基础工具检查
     if ! command -v curl &> /dev/null; then
-        log_message "${YELLOW}curl未安装，尝试在Docker安装前安装基础工具...${NC}"
+        log_message "${RED}curl未安装，尝试在Docker安装前安装基础工具...${NC}"
         if [[ $DISTRO == "debian" ]]; then
-            apt update -y &>> "$LOG_DIR/pttools.log"
-            apt install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"
+            apt update -y &>> "$PTTOOLS_LOG_FILE"
+            apt install -y curl wget git unzip &>> "$PTTOOLS_LOG_FILE"
         elif [[ $DISTRO == "centos" ]]; then
-            yum update -y &>> "$LOG_DIR/pttools.log"
-            yum install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"
+            yum update -y &>> "$PTTOOLS_LOG_FILE"
+            yum install -y curl wget git unzip &>> "$PTTOOLS_LOG_FILE"
         fi
         if ! command -v curl &> /dev/null; then
             log_message "${RED}基础工具安装失败，无法继续安装Docker${NC}"
             return 1 # 失败
         fi
     fi
+
+    # --- 网络连通性预检 ---
+    echo -e "${YELLOW}正在测试网络连通性 (get.docker.com)...${NC}"
+    log_message "${YELLOW}正在测试网络连通性 (get.docker.com)...${NC}"
+    if ! curl -Is https://get.docker.com &>/dev/null; then
+        log_message "${RED}网络连通性测试失败：无法访问 get.docker.com。请检查网络。${NC}"
+        echo -e "${RED}网络连通性测试失败：无法访问 get.docker.com。请检查您的网络连接或DNS设置。${NC}"
+        return 1
+    fi
+    log_message "${GREEN}网络连通性测试成功。${NC}"
+    echo -e "${GREEN}网络连通性测试成功。${NC}"
 
     echo -e "${YELLOW}请选择Docker安装源：${NC}"
     echo "1. 官方源（默认）"
@@ -199,21 +211,32 @@ install_docker_func() {
         echo -e "${YELLOW}使用官方源安装Docker...${NC}" # 终端提示
     fi
 
-    if ! $docker_install_cmd &>> "$LOG_DIR/pttools.log"; then
-        log_message "${RED}Docker安装脚本执行失败${NC}"
+    # 执行 Docker 安装脚本并捕获错误
+    local docker_install_output=""
+    if ! docker_install_output=$(eval "$docker_install_cmd" 2>&1); then
+        log_message "${RED}Docker安装脚本执行失败。原始输出：\n$docker_install_output${NC}"
+        # 尝试从错误输出中提取关键信息
+        local error_summary=$(echo "$docker_install_output" | tail -n 5 | grep -v "install-docker.sh" | sed '/^$/d')
+        if [[ -n "$error_summary" ]]; then
+            echo -e "${RED}Docker安装脚本执行失败。可能原因：\n${error_summary}${NC}"
+        else
+            echo -e "${RED}Docker安装脚本执行失败。请查看日志获取详细信息：$PTTOOLS_LOG_FILE${NC}"
+        fi
         return 1 # 失败
+    else
+        log_message "${GREEN}Docker安装脚本执行成功。输出：\n$docker_install_output${NC}"
     fi
 
     log_message "${YELLOW}启动Docker服务...${NC}"
     echo -e "${YELLOW}启动Docker服务...${NC}" # 终端提示
-    if systemctl start docker &>> "$LOG_DIR/pttools.log"; then
+    if systemctl start docker &>> "$PTTOOLS_LOG_FILE"; then
         log_message "${GREEN}Docker服务启动成功${NC}"
     else
         log_message "${RED}Docker服务启动失败${NC}"
-        service docker start &>> "$LOG_DIR/pttools.log" # 尝试手动启动
+        service docker start &>> "$PTTOOLS_LOG_FILE" # 尝试手动启动
     fi
 
-    if systemctl enable docker &>> "$LOG_DIR/pttools.log"; then
+    if systemctl enable docker &>> "$PTTOOLS_LOG_FILE"; then
         log_message "${GREEN}Docker开机自启设置成功${NC}"
     else
         log_message "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
@@ -241,13 +264,13 @@ install_docker_func() {
             echo -e "${YELLOW}无法获取最新版本，使用备用版本 $COMPOSE_VERSION${NC}"
         fi
 
-        if curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose &>> "$LOG_DIR/pttools.log"; then
+        local compose_install_output=""
+        if ! compose_install_output=$(curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 2>&1); then
+            log_message "${RED}Docker Compose下载失败。输出：\n$compose_install_output${NC}"
+            echo -e "${RED}Docker Compose下载失败，但不影响Docker使用（可能需要手动安装）。${NC}" # 终端提示
+        else
             chmod +x /usr/local/bin/docker-compose
             log_message "${GREEN}Docker Compose安装完成: $(/usr/local/bin/docker-compose --version | head -n 1)${NC}"
-        else
-            log_message "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
-            echo -e "${RED}Docker Compose安装失败，但不影响Docker使用（可能需要手动安装）。${NC}" # 终端提示
-            # Compose安装失败不影响Docker本身的判断，但可能影响需要Compose的功能
         fi
     else
         log_message "${YELLOW}用户选择跳过Docker Compose安装。${NC}"
@@ -279,6 +302,7 @@ ensure_docker_installed() {
             echo -e "${WHITE}1. 检查网络连接${NC}"
             echo -e "${WHITE}2. 确认系统源配置正确${NC}"
             echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
+            echo -e "${WHITE}   详细日志请查看：${PTTOOLS_LOG_FILE}${NC}" # 指示用户查看日志
             echo
             echo -e "${YELLOW}按任意键返回主菜单...${NC}" # 统一在这里提示返回
             read -n 1
@@ -298,9 +322,9 @@ ensure_docker_installed() {
 create_directories() {
     echo -e "${YELLOW}正在创建项目核心目录...${NC}"
     log_message "${YELLOW}正在创建项目核心目录: ${DOCKER_DIR}, ${DOWNLOADS_DIR}, ${LOG_DIR}${NC}"
-    mkdir -p "$DOCKER_DIR" &>> "$LOG_DIR/pttools.log"
-    mkdir -p "$DOWNLOADS_DIR" &>> "$LOG_DIR/pttools.log"
-    mkdir -p "$LOG_DIR" &>> "$LOG_DIR/pttools.log"
+    mkdir -p "$DOCKER_DIR" &>> "$PTTOOLS_LOG_FILE"
+    mkdir -p "$DOWNLOADS_DIR" &>> "$PTTOOLS_LOG_FILE"
+    mkdir -p "$LOG_DIR" &>> "$PTTOOLS_LOG_FILE"
     log_message "${GREEN}核心目录创建完成${NC}"
     echo -e "${GREEN}核心目录创建完成。${NC}"
 }
@@ -457,8 +481,8 @@ install_qb439() {
     [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
 
     echo -e "${YELLOW}正在执行安装命令...${NC}"
-    log_message "${YELLOW}正在执行安装命令: $install_cmd${NC}"
-    echo -e "${BLUE}命令: $install_cmd${NC}"
+    log_message "${YELLOW}正在执行命令: $install_cmd${NC}"
+    echo -e "${BLUE}执行命令: $install_cmd${NC}"
     echo
 
     if eval "$install_cmd" &>> "$LOG_DIR/pttools.log"; then
@@ -633,8 +657,7 @@ install_qb438_vt() {
     local vertex_install_type=""
     if [[ "$vertex_choice" == "1" ]]; then
         if ! ensure_docker_installed; then
-            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-            read -n 1
+            # ensure_docker_installed 已经处理了返回主菜单的提示和read -n 1
             return
         fi
         echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
@@ -796,8 +819,7 @@ install_qb439_vt() {
     local vertex_install_type=""
     if [[ "$vertex_choice" == "1" ]]; then
         if ! ensure_docker_installed; then
-            echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-            read -n 1
+            # ensure_docker_installed 已经处理了返回主菜单的提示和read -n 1
             return
         fi
         echo -e "${GREEN}选择：Docker方式安装Vertex${NC}"
@@ -829,7 +851,7 @@ install_qb439_vt() {
     read -p "是否安装autobrr？[y/N]: " install_autobrr
     install_autobrr=${install_autobrr:-N}
     autobrr_flag=""
-    [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
+    [[ $install_autobrr =~ ^[Yy]$ ]] && autoborr_flag="-b"
 
     read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
     install_autoremove=${install_autoremove:-N}
@@ -973,8 +995,7 @@ install_full_docker_suite() {
     echo
 
     if ! ensure_docker_installed; then
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
+        # ensure_docker_installed 已经处理了返回主菜单的提示和read -n 1
         return
     fi
 
@@ -1043,6 +1064,11 @@ pt_docker_apps() {
         log_message "${YELLOW}正在使用备用方案...${NC}"
         echo -e "${YELLOW}正在使用备用方案...${NC}"
 
+        # 备用方案也需要确保 Docker 已安装，并且能从 GitHub 下载 compose 文件
+        if ! ensure_docker_installed; then
+             # 如果备用方案也无法保证 Docker 环境，则直接返回，ensure_docker_installed会处理提示
+            return
+        fi
         fallback_pt_docker_menu
     fi
 }
@@ -1124,11 +1150,13 @@ install_single_fallback_docker_app() {
     log_message "${YELLOW}正在安装备用Docker应用: ${app_name}${NC}"
     echo
 
-    # Ensure Docker is installed before attempting fallback install
-    if ! ensure_docker_installed; then
+    # Ensure Docker is installed before attempting fallback install (redundant if called after ensure_docker_installed but safe)
+    if ! command -v docker &> /dev/null || (! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null); then
+        log_message "${RED}Docker 或 Docker Compose 未安装，无法安装 ${app_name}。请返回主脚本安装Docker。${NC}"
+        echo -e "${RED}Docker 或 Docker Compose 未安装！请返回主脚本安装Docker。${NC}"
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
-        return
+        return 1
     fi
 
     local compose_url="$GITHUB_RAW/configs/docker-compose/${compose_subdir}/${yml_file}" # Corrected URL
@@ -1145,7 +1173,7 @@ install_single_fallback_docker_app() {
         echo -e "${RED}${app_name} Docker Compose配置下载失败。请手动检查: $compose_url${NC}"
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
-        return
+        return 1
     fi
 
     echo -e "${YELLOW}正在创建应用目录: ${DOCKER_DIR}/${app_dir_name}/config ...${NC}"
@@ -1176,7 +1204,7 @@ install_single_fallback_docker_app() {
         rm -f "$temp_compose_file" &>/dev/null
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
-        return
+        return 1
     fi
 
     local current_dir=$(pwd)
@@ -1816,7 +1844,7 @@ final_cleanup() {
 # 验证qBittorrent卸载结果
 verify_qbittorrent_removal() {
     echo -e "${BLUE}验证卸载结果：${NC}"
-    log_message "${BLUE}验证卸载结果：${NC}"
+    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
 
     local all_clean=true
 
