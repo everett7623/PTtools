@@ -93,22 +93,12 @@ check_system() {
 update_system() {
     echo -e "${YELLOW}正在更新系统...${NC}"
     log_message "${YELLOW}正在更新系统...${NC}"
-    if [[ $DISTRO == "debian" ]]; then
-        if apt update -y &>> "$LOG_DIR/pttools.log"; then
-            log_message "${GREEN}系统更新成功${NC}"
-            echo -e "${GREEN}系统更新成功${NC}"
-        else
-            log_message "${RED}系统更新失败，但继续安装${NC}"
-            echo -e "${RED}系统更新失败，但继续安装${NC}"
-        fi
-    elif [[ $DISTRO == "centos" ]]; then
-        if yum update -y &>> "$LOG_DIR/pttools.log"; then
-            log_message "${GREEN}系统更新成功${NC}"
-            echo -e "${GREEN}系统更新成功${NC}"
-        else
-            log_message "${RED}系统更新失败，但继续安装${NC}"
-            echo -e "${RED}系统更新失败，但继续安装${NC}"
-        fi
+    if apt update -y &>> "$LOG_DIR/pttools.log"; then # 统一处理apt/yum
+        log_message "${GREEN}系统更新成功${NC}"
+        echo -e "${GREEN}系统更新成功${NC}"
+    else
+        log_message "${RED}系统更新失败，但继续安装${NC}"
+        echo -e "${RED}系统更新失败，但继续安装${NC}"
     fi
 }
 
@@ -173,12 +163,12 @@ check_docker_status() {
     log_message "${GREEN}${compose_status_msg}${NC}" # 日志记录
 }
 
-# 安装Docker (内部函数，仅执行安装，不负责终端输出结果)
+# 安装Docker (内部函数，仅执行安装，不负责终端输出结果，只返回状态)
 install_docker_func() {
     log_message "${YELLOW}Docker安装流程开始...${NC}"
     echo -e "${YELLOW}正在安装Docker...${NC}" # 终端提示正在安装
     
-    # 基础工具检查（冗余但安全）
+    # 基础工具检查
     if ! command -v curl &> /dev/null; then
         log_message "${YELLOW}curl未安装，尝试在Docker安装前安装基础工具...${NC}"
         if [[ $DISTRO == "debian" ]]; then
@@ -202,11 +192,11 @@ install_docker_func() {
 
     if [[ "$docker_source_choice" == "2" ]]; then
         log_message "${YELLOW}使用阿里云镜像源安装Docker...${NC}"
-        echo -e "${YELLOW}使用阿里云镜像源安装Docker...${NC}"
+        echo -e "${YELLOW}使用阿里云镜像源安装Docker...${NC}" # 终端提示
         docker_install_cmd+=" --mirror Aliyun"
     else
         log_message "${YELLOW}使用官方源安装Docker...${NC}"
-        echo -e "${YELLOW}使用官方源安装Docker...${NC}"
+        echo -e "${YELLOW}使用官方源安装Docker...${NC}" # 终端提示
     fi
 
     if ! $docker_install_cmd &>> "$LOG_DIR/pttools.log"; then
@@ -215,7 +205,7 @@ install_docker_func() {
     fi
 
     log_message "${YELLOW}启动Docker服务...${NC}"
-    echo -e "${YELLOW}启动Docker服务...${NC}"
+    echo -e "${YELLOW}启动Docker服务...${NC}" # 终端提示
     if systemctl start docker &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Docker服务启动成功${NC}"
     else
@@ -242,7 +232,7 @@ install_docker_func() {
     install_compose=${install_compose:-Y}
     if [[ $install_compose =~ ^[Yy]$ ]]; then
         log_message "${YELLOW}正在安装Docker Compose...${NC}"
-        echo -e "${YELLOW}正在安装Docker Compose...${NC}"
+        echo -e "${YELLOW}正在安装Docker Compose...${NC}" # 终端提示
 
         COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d'"' -f4)
         if [ -z "$COMPOSE_VERSION" ]; then
@@ -256,7 +246,7 @@ install_docker_func() {
             log_message "${GREEN}Docker Compose安装完成: $(/usr/local/bin/docker-compose --version | head -n 1)${NC}"
         else
             log_message "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
-            echo -e "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
+            echo -e "${RED}Docker Compose安装失败，但不影响Docker使用（可能需要手动安装）。${NC}" # 终端提示
             # Compose安装失败不影响Docker本身的判断，但可能影响需要Compose的功能
         fi
     else
@@ -278,9 +268,9 @@ ensure_docker_installed() {
     install_docker_choice=${install_docker_choice:-Y}
 
     if [[ $install_docker_choice =~ ^[Yy]$ ]]; then
-        if install_docker_func; then
+        if install_docker_func; then # 调用安装函数
             log_message "${GREEN}Docker环境安装成功！${NC}"
-            echo -e "${GREEN}Docker环境安装成功！${NC}"
+            echo -e "${GREEN}Docker环境安装成功！${NC}" # 统一输出成功信息
             return 0
         else
             log_message "${RED}Docker环境安装失败。${NC}"
@@ -289,11 +279,17 @@ ensure_docker_installed() {
             echo -e "${WHITE}1. 检查网络连接${NC}"
             echo -e "${WHITE}2. 确认系统源配置正确${NC}"
             echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
+            echo
+            echo -e "${YELLOW}按任意键返回主菜单...${NC}" # 统一在这里提示返回
+            read -n 1
             return 1
         fi
     else
         log_message "${RED}用户取消Docker安装，无法继续。${NC}"
         echo -e "${RED}用户取消Docker安装，无法继续。${NC}"
+        echo
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}" # 用户取消也提示返回
+        read -n 1
         return 1
     fi
 }
@@ -499,7 +495,7 @@ install_vertex_docker() {
     echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     log_message "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     local compose_file="/tmp/vertex-compose.yml"
-    local github_url="$GITHUB_RAW/configs/docker-compose/vertex.yml"
+    local github_url="$GITHUB_RAW/configs/docker-compose/automation/vertex.yml" # Corrected compose_subdir
 
     if curl -fsSL "$github_url" -o "$compose_file" &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Vertex配置文件下载成功${NC}"
@@ -526,7 +522,7 @@ install_vertex_docker() {
 # 使用方法:
 #   1. 确保已安装 Docker 和 Docker Compose
 #   2. 执行命令: docker-compose -f vertex.yml up -d
-#   3. 访问地址: http://your-server-ip:3333
+#   3. 访问地址: http://your-server-ip:端口号
 # ===================================================================
 # 更新信息:
 #   - 创建时间: 2025-01-XX
@@ -556,12 +552,14 @@ EOF
     log_message "${YELLOW}正在启动Vertex容器...${NC}"
     local docker_compose_cmd=""
     if command -v docker-compose &> /dev/null; then
-        docker_compose_cmd="docker-compose -f \"$compose_file\" up -d"
+        docker_compose_cmd="docker-compose -f \"$compose_file\" --project-directory \"${DOCKER_DIR}/vertex\" up -d" # Explicitly specify project-directory
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker_compose_cmd="docker compose -f \"$compose_file\" up -d"
+        docker_compose_cmd="docker compose -f \"$compose_file\" --project-directory \"${DOCKER_DIR}/vertex\" up -d" # Explicitly specify project-directory
     else
         log_message "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
         echo -e "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
+        # Fallback to docker run requires manual volume mapping and port assignment as per the compose file logic
+        # This part is complex to match exactly generic compose, keep it simple or warn user to install compose
         docker_compose_cmd="docker run -d \
             --name vertex \
             --restart unless-stopped \
@@ -572,6 +570,14 @@ EOF
             -e TZ=Asia/Shanghai \
             lswl/vertex:stable"
     fi
+
+    local current_dir=$(pwd)
+    cd "${DOCKER_DIR}/vertex" &>> "$LOG_DIR/pttools.log" || { 
+        log_message "${RED}切换目录失败: ${DOCKER_DIR}/vertex${NC}"; 
+        echo -e "${RED}错误：无法进入应用目录 ${DOCKER_DIR}/vertex！${NC}"; 
+        cd "$current_dir" &>/dev/null; 
+        return 1; 
+    }
 
     if eval "$docker_compose_cmd" &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Vertex Docker安装完成${NC}"
@@ -595,12 +601,14 @@ EOF
             echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
             log_message "${YELLOW}Vertex密码文件未生成${NC}"
         fi
-        rm -f "$compose_file"
+        rm -f "$compose_file" &>/dev/null # Remove temp compose file
+        cd "$current_dir" &>/dev/null
         return 0
     else
         log_message "${RED}Vertex Docker安装失败，详情请查看日志：$LOG_DIR/pttools.log${NC}"
         echo -e "${RED}Vertex Docker安装失败，详情请查看日志：$LOG_DIR/pttools.log${NC}"
-        rm -f "$compose_file"
+        rm -f "$compose_file" &>/dev/null # Remove temp compose file
+        cd "$current_dir" &>/dev/null
         return 1
     fi
 }
@@ -782,7 +790,7 @@ install_qb439_vt() {
     echo -e "${BLUE}Vertex安装方式选择：${NC}"
     echo "1. Docker方式（推荐）"
     echo "2. 原脚本方式"
-    read -p "请选择 [1-2, 默认: 1]: " vertex_choice
+    read -p "请选择 [1-2, default: 1]: " vertex_choice
     vertex_choice=${vertex_choice:-1}
 
     local vertex_install_type=""
@@ -867,7 +875,11 @@ install_qb439_vt() {
         else
             log_message "${RED}Vertex Docker安装失败，终止安装${NC}"
             echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
-        口味s: //raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
+        fi
+    else
+        echo -e "${YELLOW}使用原脚本方式安装Vertex...${NC}"
+        log_message "${YELLOW}使用原脚本方式安装Vertex...${NC}"
+        local jerry_script="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
         log_message "执行命令: $jerry_script -u admin -p adminadmin -v"
         echo -e "${BLUE}执行命令: $jerry_script -u admin -p adminadmin -v${NC}"
 
@@ -1002,8 +1014,7 @@ pt_docker_apps() {
     echo
 
     if ! ensure_docker_installed; then
-        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
-        read -n 1
+        # ensure_docker_installed 已经处理了返回主菜单的提示和read -n 1
         return
     fi
 
@@ -1022,11 +1033,10 @@ pt_docker_apps() {
         log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
         echo
 
-        # 执行ptdocker.sh，并传递DOCKER_DIR和DOWNLOADS_DIR
+        # 执行ptdocker.sh，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
         bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
 
-        # 清理下载的ptdocker.sh，或保留取决于设计，这里选择保留在PTtools目录结构中
-        # rm -f "$ptdocker_script_path"
+        # ptdocker.sh 脚本会处理其内部的循环和返回，此处无需额外操作
     else
         log_message "${RED}PT Docker应用管理脚本下载失败${NC}"
         echo -e "${RED}PT Docker应用管理脚本下载失败${NC}"
@@ -1064,28 +1074,28 @@ fallback_pt_docker_menu() {
 
         case $fallback_choice in
             1)
-                install_single_fallback_docker_app "qbittorrent-4.6.7.yml" "qBittorrent 4.6.7" "8080"
+                install_single_fallback_docker_app "qbittorrent-4.6.7.yml" "qBittorrent 4.6.7" "downloaders" "8080"
                 ;;
             2)
-                install_single_fallback_docker_app "transmission.yml" "Transmission 4.0.5" "9091"
+                install_single_fallback_docker_app "transmission.yml" "Transmission 4.0.5" "downloaders" "9091"
                 ;;
             3)
-                install_single_fallback_docker_app "emby.yml" "Emby" "8096"
+                install_single_fallback_docker_app "emby.yml" "Emby" "media-servers" "8096"
                 ;;
             4)
-                install_single_fallback_docker_app "jellyfin.yml" "Jellyfin" "8096" # 默认端口可能冲突，需要配置
+                install_single_fallback_docker_app "jellyfin.yml" "Jellyfin" "media-servers" "8096" # 默认端口可能冲突，需要配置
                 ;;
             5)
-                install_single_fallback_docker_app "iyuuplus.yml" "IYUUPlus" "8780"
+                install_single_fallback_docker_app "iyuuplus.yml" "IYUUPlus" "automation" "8780"
                 ;;
             6)
-                install_single_fallback_docker_app "moviepilot.yml" "MoviePilot" "3000"
+                install_single_fallback_docker_app "moviepilot.yml" "MoviePilot" "automation" "3000"
                 ;;
             7)
-                install_single_fallback_docker_app "filebrowser.yml" "FileBrowser" "8081" # 假设一个默认端口
+                install_single_fallback_docker_app "filebrowser.yml" "FileBrowser" "network-files" "8081" # 假设一个默认端口
                 ;;
             8)
-                install_single_fallback_docker_app "watchtower.yml" "Watchtower" "N/A" # 无需端口
+                install_single_fallback_docker_app "watchtower.yml" "Watchtower" "system-tools" "N/A" # 无需端口
                 ;;
             0)
                 return
@@ -1104,7 +1114,8 @@ fallback_pt_docker_menu() {
 install_single_fallback_docker_app() {
     local yml_file="$1"
     local app_name="$2"
-    local default_port="$3"
+    local compose_subdir="$3" # Added compose_subdir parameter
+    local default_port="$4"
     local app_dir_name=$(echo "$yml_file" | cut -d'.' -f1) # 从yml文件名提取应用目录名
 
     echo -e "${CYAN}================================================${NC}"
@@ -1113,11 +1124,19 @@ install_single_fallback_docker_app() {
     log_message "${YELLOW}正在安装备用Docker应用: ${app_name}${NC}"
     echo
 
-    local compose_url="$GITHUB_RAW/configs/docker-compose/$yml_file" # 简化，假设都在根目录
-    local temp_compose_file="/tmp/${yml_file}"
+    # Ensure Docker is installed before attempting fallback install
+    if ! ensure_docker_installed; then
+        echo -e "${YELLOW}按任意键返回...${NC}"
+        read -n 1
+        return
+    fi
+
+    local compose_url="$GITHUB_RAW/configs/docker-compose/${compose_subdir}/${yml_file}" # Corrected URL
+    local temp_compose_file="${DOCKER_DIR}/${app_dir_name}/${yml_file}" # Download directly to app dir
 
     echo -e "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
     log_message "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
+    mkdir -p "${DOCKER_DIR}/${app_dir_name}" &>> "$LOG_DIR/pttools.log" # Ensure app base dir exists
     if curl -fsSL "$compose_url" -o "$temp_compose_file" &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
         echo -e "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
@@ -1138,6 +1157,12 @@ install_single_fallback_docker_app() {
     log_message "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
     echo -e "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
 
+    # Replace variables in the compose file
+    echo -e "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
+    log_message "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
+    sed -i "s|/opt/docker/应用名/config|${DOCKER_DIR}/${app_dir_name}/config|g" "$temp_compose_file" &>> "$LOG_DIR/pttools.log"
+    sed -i "s|/opt/downloads|${DOWNLOADS_DIR}|g" "$temp_compose_file" &>> "$LOG_DIR/pttools.log"
+    
     echo -e "${YELLOW}启动 ${app_name} 容器...${NC}"
     log_message "${YELLOW}启动 ${app_name} 容器...${NC}"
     local docker_compose_bin=""
@@ -1148,13 +1173,22 @@ install_single_fallback_docker_app() {
     else
         log_message "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
         echo -e "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
-        rm -f "$temp_compose_file"
+        rm -f "$temp_compose_file" &>/dev/null
         echo -e "${YELLOW}按任意键返回...${NC}"
         read -n 1
         return
     fi
 
-    if eval "$docker_compose_bin" -f "$temp_compose_file" --project-directory "${DOCKER_DIR}/${app_dir_name}" up -d &>> "$LOG_DIR/pttools.log"; then
+    local current_dir=$(pwd)
+    cd "${DOCKER_DIR}/${app_dir_name}" &>> "$LOG_DIR/pttools.log" || { 
+        log_message "${RED}切换目录失败: ${DOCKER_DIR}/${app_dir_name}${NC}"; 
+        echo -e "${RED}错误：无法进入应用目录 ${DOCKER_DIR}/${app_dir_name}！${NC}"; 
+        rm -f "$temp_compose_file" &>/dev/null; # Ensure cleanup on error
+        cd "$current_dir" &>/dev/null; 
+        return 1; 
+    }
+
+    if eval "$docker_compose_bin" -f "${yml_file}" up -d &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}${app_name} 安装成功${NC}"
         echo -e "${GREEN}================================================${NC}"
         echo -e "${GREEN}${app_name} 安装成功！${NC}"
@@ -1162,14 +1196,17 @@ install_single_fallback_docker_app() {
         if [[ "$default_port" != "N/A" ]]; then
             echo -e "${GREEN}访问地址: http://你的服务器IP:${default_port}${NC}"
             log_message "${app_name} 访问地址: http://你的服务器IP:${default_port}"
+        else
+            echo -e "${GREEN}${app_name} 通常没有Web界面，请通过CLI或特定方式访问。${NC}"
+            log_message "${app_name} 无Web界面，端口N/A"
         fi
         echo -e "${GREEN}配置目录: ${DOCKER_DIR}/${app_dir_name}/config${NC}"
         echo -e "${GREEN}下载目录: ${DOWNLOADS_DIR}${NC}"
         echo -e "${GREEN}================================================${NC}"
         # 验证容器状态
         sleep 2
-        if docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep -q "${app_dir_name}"; then
-            local status=$(docker ps -a --format "table {{.Names}}\t{{.Status}}" | grep "${app_dir_name}" | awk '{print $2}')
+        if docker ps -a --filter "name=^${app_dir_name}$" --format "{{.Status}}" | grep -q "Up"; then
+            local status=$(docker ps -a --filter "name=^${app_dir_name}$" --format "{{.Status}}" | awk '{print $2}')
             echo -e "${GREEN}容器状态: ${app_dir_name} is $status${NC}"
         else
             echo -e "${RED}容器 ${app_dir_name} 未运行或不存在，请检查日志。${NC}"
@@ -1183,7 +1220,8 @@ install_single_fallback_docker_app() {
         echo -e "${RED}================================================${NC}"
     fi
 
-    rm -f "$temp_compose_file"
+    rm -f "$temp_compose_file" &>/dev/null # Clean up downloaded compose file
+    cd "$current_dir" &>/dev/null
     echo -e "${YELLOW}按任意键返回...${NC}"
     read -n 1
 }
@@ -1205,7 +1243,7 @@ uninstall_apps() {
     if command -v docker &> /dev/null; then
         echo -e "${BLUE}检测到的Docker容器：${NC}"
         local all_containers=$(docker ps -a --format "{{.Names}}")
-        local relevant_containers=("vertex" "qbittorrent" "transmission" "iyuuplus" "moviepilot" "emby" "jellyfin" "plex" "filebrowser" "watchtower" "netdata" "cookiecloud" "homepage" "sonarr" "radarr" "lidarr" "prowlarr" "autobrr" "bazarr" "cross-seed" "reseedpuppy" "flexget" "jackett" "clouddrive2" "frps" "frpc" "lucky" "sun-panel" "qiandao" "metatube" "byte-muse" "ikaros" "mdcng" "calibre-web" "komga" "music-tag-web" "audiobookshelf" "navidrome" "pt-nexus")
+        local relevant_containers=("vertex" "qbittorrent" "transmission" "iyuuplus" "moviepilot" "emby" "jellyfin" "plex" "filebrowser" "watchtower" "netdata" "cookiecloud" "homepage" "sonarr" "radarr" "lidarr" "prowlarr" "autobrr" "bazarr" "cross-seed" "reseedpuppy" "flexget" "jackett" "clouddrive2" "frps" "frpc" "lucky" "sun-panel" "qiandao" "metatube" "byte-muse" "ikaros" "mdcng" "calibre-web" "komga" "music-tag-web" "audiobookshelf" "navidrome" "pt-nexus" "aria2") # Added aria2
 
         local found_any_docker=false
         for app_name in "${relevant_containers[@]}"; do
@@ -1290,10 +1328,10 @@ uninstall_docker_apps() {
 
     local containers_to_display=()
     local all_docker_containers=$(docker ps -a --format "{{.Names}}")
-    local relevant_containers=("vertex" "qbittorrent" "transmission" "iyuuplus" "moviepilot" "emby" "jellyfin" "plex" "filebrowser" "watchtower" "netdata" "cookiecloud" "homepage" "sonarr" "radarr" "lidarr" "prowlarr" "autobrr" "bazarr" "cross-seed" "reseedpuppy" "flexget" "jackett" "clouddrive2" "frps" "frpc" "lucky" "sun-panel" "qiandao" "metatube" "byte-muse" "ikaros" "mdcng" "calibre-web" "komga" "music-tag-web" "audiobookshelf" "navidrome" "pt-nexus")
+    local relevant_containers=("vertex" "qbittorrent" "transmission" "iyuuplus" "moviepilot" "emby" "jellyfin" "plex" "filebrowser" "watchtower" "netdata" "cookiecloud" "homepage" "sonarr" "radarr" "lidarr" "prowlarr" "autobrr" "bazarr" "cross-seed" "reseedpuppy" "flexget" "jackett" "clouddrive2" "frps" "frpc" "lucky" "sun-panel" "qiandao" "metatube" "byte-muse" "ikaros" "mdcng" "calibre-web" "komga" "music-tag-web" "audiobookshelf" "navidrome" "pt-nexus" "aria2") # Added aria2
 
     for app_name in "${relevant_containers[@]}"; do
-        if echo "$all_docker_containers" | grep -q "^${app_name}$"; then
+        if echo "$all_containers" | grep -q "^${app_name}$"; then
             containers_to_display+=("$app_name")
         fi
     done
@@ -1778,7 +1816,7 @@ final_cleanup() {
 # 验证qBittorrent卸载结果
 verify_qbittorrent_removal() {
     echo -e "${BLUE}验证卸载结果：${NC}"
-    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
+    log_message "${BLUE}验证卸载结果：${NC}"
 
     local all_clean=true
 
