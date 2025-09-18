@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 DOCKER_DIR="/opt/docker"
 DOWNLOADS_DIR="/opt/downloads"
 GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
-LOG_DIR="/opt/logs/pttools" # 新增日志目录
+LOG_DIR="/opt/logs/pttools"
 
 # 显示横幅
 show_banner() {
@@ -37,26 +37,31 @@ show_banner() {
     echo -e "${NC}"
 }
 
-# 记录日志
+# 记录日志 (只写入文件，不输出到终端)
 log_message() {
-    mkdir -p "$LOG_DIR"
+    mkdir -p "$LOG_DIR" # 确保日志目录在记录前存在
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    echo -e "[$timestamp] $1" | tee -a "$LOG_DIR/pttools.log"
+    echo -e "[$timestamp] $1" >> "$LOG_DIR/pttools.log"
 }
 
 # 检查是否为root用户
 check_root() {
+    echo -e "${YELLOW}正在检查root权限...${NC}" # 终端显示
+    log_message "${YELLOW}正在检查root权限...${NC}" # 日志记录
     if [[ $EUID -ne 0 ]]; then
         log_message "${RED}错误：此脚本需要root权限运行${NC}"
-        echo -e "${RED}错误：此脚本需要root权限运行${NC}"
+        echo -e "${RED}错误：此脚本需要root权限运行${NC}" # 终端显示错误
         echo "请使用 sudo 或切换到root用户后重新运行"
         exit 1
     fi
     log_message "${GREEN}root权限检查通过${NC}"
+    echo -e "${GREEN}root权限检查通过${NC}" # 终端显示成功
 }
 
 # 检查系统类型
 check_system() {
+    echo -e "${YELLOW}正在检测系统类型...${NC}"
+    log_message "${YELLOW}正在检测系统类型...${NC}"
     if [[ -f /etc/redhat-release ]]; then
         DISTRO="centos"
         PM="yum"
@@ -80,18 +85,14 @@ check_system() {
         uname -a
         exit 1
     fi
-    log_message "${GREEN}系统类型: $DISTRO${NC}"
-    log_message "${GREEN}系统版本: $OS_VERSION${NC}"
-    log_message "${GREEN}包管理器: $PM${NC}"
-    echo -e "${GREEN}系统类型: $DISTRO${NC}"
-    echo -e "${GREEN}系统版本: $OS_VERSION${NC}"
-    echo -e "${GREEN}包管理器: $PM${NC}"
+    log_message "${GREEN}系统类型: $DISTRO, 版本: $OS_VERSION, 包管理器: $PM${NC}"
+    echo -e "${GREEN}系统类型: $DISTRO (版本: $OS_VERSION)${NC}" # 终端显示更精简
 }
 
 # 更新系统
 update_system() {
-    log_message "${YELLOW}正在更新系统...${NC}"
     echo -e "${YELLOW}正在更新系统...${NC}"
+    log_message "${YELLOW}正在更新系统...${NC}"
     if [[ $DISTRO == "debian" ]]; then
         if apt update -y &>> "$LOG_DIR/pttools.log"; then
             log_message "${GREEN}系统更新成功${NC}"
@@ -113,8 +114,8 @@ update_system() {
 
 # 安装基础工具
 install_base_tools() {
-    log_message "${YELLOW}正在安装基础工具...${NC}"
-    echo -e "${YELLOW}正在安装基础工具...${NC}"
+    echo -e "${YELLOW}正在安装基础工具 (curl, wget, git, unzip)...${NC}"
+    log_message "${YELLOW}正在安装基础工具 (curl, wget, git, unzip)...${NC}"
     if [[ $DISTRO == "debian" ]]; then
         if apt install -y curl wget git unzip &>> "$LOG_DIR/pttools.log"; then
             log_message "${GREEN}基础工具安装成功${NC}"
@@ -150,22 +151,26 @@ install_base_tools() {
 
 # 检查并静默报告Docker状态
 check_docker_status() {
+    echo -e "${YELLOW}正在检查Docker状态...${NC}"
+    log_message "${YELLOW}正在检查Docker状态...${NC}"
+    local docker_status_msg="Docker状态: 未安装"
     if command -v docker &> /dev/null; then
-        echo -e "${GREEN}Docker状态: 已安装${NC}"
-        docker --version | head -n 1
-        log_message "${GREEN}Docker状态: 已安装$(docker --version | head -n 1)${NC}"
-    else
-        echo -e "${YELLOW}Docker状态: 未安装 (部分功能需要Docker支持)${NC}"
-        log_message "${YELLOW}Docker状态: 未安装${NC}"
+        docker_version=$(docker --version | head -n 1)
+        docker_status_msg="Docker状态: 已安装 ($docker_version)"
     fi
-    if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
-        echo -e "${GREEN}Docker Compose状态: 已安装${NC}"
-        (command -v docker-compose &> /dev/null && docker-compose --version || docker compose version) | head -n 1
-        log_message "${GREEN}Docker Compose状态: 已安装$((command -v docker-compose &> /dev/null && docker-compose --version || docker compose version) | head -n 1)${NC}"
-    else
-        echo -e "${YELLOW}Docker Compose状态: 未安装${NC}"
-        log_message "${YELLOW}Docker Compose状态: 未安装${NC}"
+    echo -e "${GREEN}${docker_status_msg}${NC}" # 终端显示
+    log_message "${GREEN}${docker_status_msg}${NC}" # 日志记录
+
+    local compose_status_msg="Docker Compose状态: 未安装"
+    if command -v docker-compose &> /dev/null; then
+        compose_version=$(docker-compose --version | head -n 1)
+        compose_status_msg="Docker Compose状态: 已安装 ($compose_version)"
+    elif docker compose version &> /dev/null; then
+        compose_version=$(docker compose version | head -n 1)
+        compose_status_msg="Docker Compose状态: 已安装 ($compose_version)"
     fi
+    echo -e "${GREEN}${compose_status_msg}${NC}" # 终端显示
+    log_message "${GREEN}${compose_status_msg}${NC}" # 日志记录
 }
 
 # 安装Docker (内部函数，非交互式，由ensure_docker_installed调用)
@@ -191,7 +196,7 @@ install_docker_func() {
         fi
     fi
 
-    echo -e "${YELLOW}选择安装源：${NC}"
+    echo -e "${YELLOW}请选择Docker安装源：${NC}"
     echo "1. 官方源（默认）"
     echo "2. 阿里云镜像源"
     read -p "请选择 [1-2]: " docker_source_choice
@@ -235,9 +240,9 @@ install_docker_func() {
 
     sleep 3 # 等待Docker服务稳定
     if command -v docker &> /dev/null && docker --version &> /dev/null; then
-        log_message "${GREEN}Docker安装成功${NC}"
+        log_message "${GREEN}Docker安装成功$(docker --version | head -n 1)${NC}"
         echo -e "${GREEN}Docker安装成功${NC}"
-        docker --version | head -n 1
+        docker --version | head -n 1 # 终端显示版本
     else
         log_message "${RED}Docker安装验证失败${NC}"
         echo -e "${RED}Docker安装验证失败${NC}"
@@ -262,7 +267,7 @@ install_docker_func() {
             chmod +x /usr/local/bin/docker-compose
             log_message "${GREEN}Docker Compose安装完成${NC}"
             echo -e "${GREEN}Docker Compose安装完成${NC}"
-            /usr/local/bin/docker-compose --version | head -n 1
+            /usr/local/bin/docker-compose --version | head -n 1 # 终端显示版本
         else
             log_message "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
             echo -e "${RED}Docker Compose安装失败，但不影响Docker使用${NC}"
@@ -304,29 +309,23 @@ ensure_docker_installed() {
     fi
 }
 
-# 创建必要目录
+# 创建必要目录 (只创建项目根目录和日志目录)
 create_directories() {
-    log_message "${YELLOW}正在创建必要目录...${NC}"
-    echo -e "${YELLOW}正在创建必要目录...${NC}"
+    echo -e "${YELLOW}正在创建项目核心目录...${NC}"
+    log_message "${YELLOW}正在创建项目核心目录: ${DOCKER_DIR}, ${DOWNLOADS_DIR}, ${LOG_DIR}${NC}"
     mkdir -p "$DOCKER_DIR" &>> "$LOG_DIR/pttools.log"
     mkdir -p "$DOWNLOADS_DIR" &>> "$LOG_DIR/pttools.log"
-    mkdir -p "$LOG_DIR" &>> "$LOG_DIR/pttools.log" # 确保日志目录也创建
-    log_message "${GREEN}目录创建完成${NC}"
-    log_message "${GREEN}Docker目录: $DOCKER_DIR${NC}"
-    log_message "${GREEN}下载目录: $DOWNLOADS_DIR${NC}"
-    log_message "${GREEN}日志目录: $LOG_DIR${NC}"
-    echo -e "${GREEN}目录创建完成${NC}"
-    echo -e "${GREEN}Docker目录: $DOCKER_DIR${NC}"
-    echo -e "${GREEN}下载目录: $DOWNLOADS_DIR${NC}"
-    echo -e "${GREEN}日志目录: $LOG_DIR${NC}"
+    mkdir -p "$LOG_DIR" &>> "$LOG_DIR/pttools.log"
+    log_message "${GREEN}核心目录创建完成${NC}"
+    echo -e "${GREEN}核心目录创建完成。${NC}"
 }
 
 # 安装qBittorrent 4.3.8
 install_qb438() {
-    log_message "${CYAN}正在安装 qBittorrent 4.3.8${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}正在安装 qBittorrent 4.3.8${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}正在安装 qBittorrent 4.3.8${NC}"
     echo
     echo -e "${YELLOW}此功能将调用原作者脚本进行安装${NC}"
     echo -e "${YELLOW}原作者：iniwex5${NC}"
@@ -369,8 +368,8 @@ install_qb438() {
         return
     fi
 
-    log_message "${YELLOW}正在下载并执行安装脚本...${NC}"
     echo -e "${YELLOW}正在下载并执行安装脚本...${NC}"
+    log_message "${YELLOW}正在下载并执行安装脚本...${NC}"
     local install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) \"$username\" \"$password\" \"$web_port\" \"$bt_port\""
     log_message "执行命令: $install_cmd"
     echo -e "${BLUE}执行命令: $install_cmd${NC}"
@@ -403,10 +402,10 @@ install_qb438() {
 
 # 安装qBittorrent 4.3.9
 install_qb439() {
-    log_message "${CYAN}正在安装 qBittorrent 4.3.9${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}正在安装 qBittorrent 4.3.9${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}正在安装 qBittorrent 4.3.9${NC}"
     echo
     echo -e "${YELLOW}此功能将调用原作者脚本进行安装${NC}"
     echo -e "${YELLOW}原作者：jerry048${NC}"
@@ -472,8 +471,8 @@ install_qb439() {
     [[ -n "$autoremove_flag" ]] && install_cmd="$install_cmd $autoremove_flag"
     [[ -n "$bbrx_flag" ]] && install_cmd="$install_cmd $bbrx_flag"
 
-    log_message "${YELLOW}正在执行安装命令: $install_cmd${NC}"
     echo -e "${YELLOW}正在执行安装命令...${NC}"
+    log_message "${YELLOW}正在执行安装命令: $install_cmd${NC}"
     echo -e "${BLUE}命令: $install_cmd${NC}"
     echo
 
@@ -503,13 +502,13 @@ install_qb439() {
 
 # 使用Docker安装Vertex
 install_vertex_docker() {
-    log_message "${YELLOW}正在创建Vertex目录: $DOCKER_DIR/vertex${NC}"
-    echo -e "${YELLOW}正在创建Vertex目录...${NC}"
+    echo -e "${YELLOW}正在创建Vertex应用目录: $DOCKER_DIR/vertex/config ...${NC}"
+    log_message "${YELLOW}正在创建Vertex应用目录: ${DOCKER_DIR}/vertex/config 和 ${DOCKER_DIR}/vertex/data${NC}"
     mkdir -p "$DOCKER_DIR/vertex/config" &>> "$LOG_DIR/pttools.log"
     mkdir -p "$DOCKER_DIR/vertex/data" &>> "$LOG_DIR/pttools.log" # 根据需求增加data目录
 
-    log_message "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
+    log_message "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     local compose_file="/tmp/vertex-compose.yml"
     local github_url="$GITHUB_RAW/configs/docker-compose/vertex.yml"
 
@@ -564,16 +563,16 @@ services:
 EOF
     fi
 
-    log_message "${YELLOW}正在启动Vertex容器...${NC}"
     echo -e "${YELLOW}正在启动Vertex容器...${NC}"
+    log_message "${YELLOW}正在启动Vertex容器...${NC}"
     local docker_compose_cmd=""
     if command -v docker-compose &> /dev/null; then
         docker_compose_cmd="docker-compose -f \"$compose_file\" up -d"
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
         docker_compose_cmd="docker compose -f \"$compose_file\" up -d"
     else
-        log_message "${RED}Docker Compose未找到，尝试使用docker run命令启动...${NC}"
-        echo -e "${RED}Docker Compose未找到，尝试使用docker run命令启动...${NC}"
+        log_message "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
+        echo -e "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
         docker_compose_cmd="docker run -d \
             --name vertex \
             --restart unless-stopped \
@@ -619,10 +618,10 @@ EOF
 
 # 安装Vertex + qBittorrent 4.3.8
 install_qb438_vt() {
-    log_message "${CYAN}正在安装 Vertex + qBittorrent 4.3.8${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}正在安装 Vertex + qBittorrent 4.3.8${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}正在安装 Vertex + qBittorrent 4.3.8${NC}"
     echo
     echo -e "${YELLOW}此功能将先安装Vertex，然后安装qBittorrent 4.3.8${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.8 作者：iniwex5${NC}"
@@ -684,8 +683,8 @@ install_qb438_vt() {
         return
     fi
 
-    log_message "${YELLOW}步骤1: 正在安装Vertex...${NC}"
     echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
+    log_message "${YELLOW}步骤1: 正在安装Vertex...${NC}"
 
     local vertex_install_success=false
     if [ "$vertex_install_type" == "docker" ]; then
@@ -698,8 +697,8 @@ install_qb438_vt() {
             echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
         fi
     else
-        log_message "${YELLOW}使用原脚本方式安装Vertex...${NC}"
         echo -e "${YELLOW}使用原脚本方式安装Vertex...${NC}"
+        log_message "${YELLOW}使用原脚本方式安装Vertex...${NC}"
         local jerry_script="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
         log_message "执行命令: $jerry_script -u admin -p adminadmin -v"
         echo -e "${BLUE}执行命令: $jerry_script -u admin -p adminadmin -v${NC}"
@@ -724,8 +723,8 @@ install_qb438_vt() {
     fi
 
     echo
-    log_message "${YELLOW}步骤2: 正在安装qBittorrent 4.3.8...${NC}"
     echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.8...${NC}"
+    log_message "${YELLOW}步骤2: 正在安装qBittorrent 4.3.8...${NC}"
     local qb438_install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/iniwex5/tools/refs/heads/main/NC_QB438.sh) \"$username\" \"$password\" \"$web_port\" \"$bt_port\""
     log_message "执行命令: $qb438_install_cmd"
     echo -e "${BLUE}执行命令: $qb438_install_cmd${NC}"
@@ -782,10 +781,10 @@ install_qb438_vt() {
 
 # 安装Vertex + qBittorrent 4.3.9
 install_qb439_vt() {
-    log_message "${CYAN}正在安装 Vertex + qBittorrent 4.3.9${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}正在安装 Vertex + qBittorrent 4.3.9${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}正在安装 Vertex + qBittorrent 4.3.9${NC}"
     echo
     echo -e "${YELLOW}此功能将安装Vertex和qBittorrent 4.3.9${NC}"
     echo -e "${YELLOW}qBittorrent 4.3.9 作者：jerry048${NC}"
@@ -870,8 +869,8 @@ install_qb439_vt() {
 
     local vertex_install_success=false
     if [ "$vertex_install_type" == "docker" ]; then
-        log_message "${YELLOW}步骤1: 正在使用Docker安装Vertex...${NC}"
         echo -e "${YELLOW}步骤1: 正在使用Docker安装Vertex...${NC}"
+        log_message "${YELLOW}步骤1: 正在使用Docker安装Vertex...${NC}"
         if install_vertex_docker; then
             log_message "${GREEN}Vertex Docker安装成功${NC}"
             echo -e "${GREEN}Vertex Docker安装成功${NC}"
@@ -881,8 +880,8 @@ install_qb439_vt() {
             echo -e "${RED}Vertex Docker安装失败，终止安装${NC}"
         fi
     else
-        log_message "${YELLOW}正在使用原脚本方式安装Vertex...${NC}"
         echo -e "${YELLOW}正在使用原脚本方式安装Vertex...${NC}"
+        log_message "${YELLOW}正在使用原脚本方式安装Vertex...${NC}"
         local jerry_script="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh)"
         log_message "执行命令: $jerry_script -u admin -p adminadmin -v"
         echo -e "${BLUE}执行命令: $jerry_script -u admin -p adminadmin -v${NC}"
@@ -907,8 +906,8 @@ install_qb439_vt() {
     fi
 
     echo
-    log_message "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
     echo -e "${YELLOW}步骤2: 正在安装qBittorrent 4.3.9...${NC}"
+    log_message "${YELLOW}步骤2: 在安装qBittorrent 4.3.9...${NC}"
 
     local qb439_install_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u \"$username\" -p \"$password\" -c \"$cache_size\" -q 4.3.9 -l \"$libtorrent_ver\""
     [[ -n "$autobrr_flag" ]] && qb439_install_cmd="$qb439_install_cmd $autobrr_flag"
@@ -969,11 +968,11 @@ install_qb439_vt() {
 
 # 安装全套Docker应用
 install_full_docker_suite() {
-    log_message "${CYAN}尝试安装全套Docker应用${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}安装全套Docker应用${NC}"
     echo -e "${CYAN}qBittorrent 4.6.7 + Transmission 4.0.5 + Emby + IYUUPlus + MoviePilot${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}尝试安装全套Docker应用${NC}"
     echo
 
     if ! ensure_docker_installed; then
@@ -1011,10 +1010,10 @@ install_full_docker_suite() {
 
 # PT Docker应用管理 (调用外部脚本)
 pt_docker_apps() {
-    log_message "${CYAN}进入PT Docker应用管理菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}PT Docker应用 - 分类选择安装${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}进入PT Docker应用管理菜单${NC}"
     echo
 
     if ! ensure_docker_installed; then
@@ -1023,19 +1022,19 @@ pt_docker_apps() {
         return
     fi
 
-    log_message "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
     echo -e "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
+    log_message "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
     local ptdocker_script_path="./configs/ptdocker.sh" # 定义本地脚本路径
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
 
     # 尝试下载脚本到当前脚本目录的configs子目录，保持目录结构
-    mkdir -p "$(dirname "$0")/configs" # 确保 configs 目录存在
+    mkdir -p "$(dirname "$0")/configs" &>> "$LOG_DIR/pttools.log" # 确保 configs 目录存在
     if curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" &>> "$LOG_DIR/pttools.log"; then
         chmod +x "$ptdocker_script_path"
         log_message "${GREEN}PT Docker应用管理脚本下载成功${NC}"
         echo -e "${GREEN}PT Docker应用管理脚本下载成功${NC}"
-        log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
         echo -e "${YELLOW}正在启动PT Docker应用管理...${NC}"
+        log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
         echo
 
         # 执行ptdocker.sh，并传递DOCKER_DIR和DOWNLOADS_DIR
@@ -1055,10 +1054,10 @@ pt_docker_apps() {
 
 # 备用PT Docker应用菜单 (当ptdocker.sh下载失败时使用)
 fallback_pt_docker_menu() {
-    log_message "${YELLOW}启动备用PT Docker应用简化菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}PT Docker应用 - 备用简化菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${YELLOW}启动备用PT Docker应用简化菜单${NC}"
     echo
     echo -e "${YELLOW}注意：完整功能菜单下载失败，使用简化版菜单${NC}"
     echo
@@ -1123,16 +1122,17 @@ install_single_fallback_docker_app() {
     local default_port="$3"
     local app_dir_name=$(echo "$yml_file" | cut -d'.' -f1) # 从yml文件名提取应用目录名
 
-    log_message "${YELLOW}正在安装备用Docker应用: ${app_name}${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}正在安装 ${app_name}${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${YELLOW}正在安装备用Docker应用: ${app_name}${NC}"
     echo
 
     local compose_url="$GITHUB_RAW/configs/docker-compose/$yml_file" # 简化，假设都在根目录
     local temp_compose_file="/tmp/${yml_file}"
 
     echo -e "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
+    log_message "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
     if curl -fsSL "$compose_url" -o "$temp_compose_file" &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
         echo -e "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
@@ -1154,6 +1154,7 @@ install_single_fallback_docker_app() {
     echo -e "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
 
     echo -e "${YELLOW}启动 ${app_name} 容器...${NC}"
+    log_message "${YELLOW}启动 ${app_name} 容器...${NC}"
     local docker_compose_cmd=""
     if command -v docker-compose &> /dev/null; then
         docker_compose_cmd="docker-compose -f \"$temp_compose_file\" --project-directory \"${DOCKER_DIR}/${app_dir_name}\" up -d"
@@ -1205,13 +1206,14 @@ install_single_fallback_docker_app() {
 
 # 卸载应用
 uninstall_apps() {
-    log_message "${CYAN}进入卸载应用菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}卸载应用${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}进入卸载应用菜单${NC}"
     echo
 
     echo -e "${YELLOW}正在检测已安装的应用...${NC}"
+    log_message "${YELLOW}正在检测已安装的应用...${NC}"
     echo
 
     local docker_apps_found=()
@@ -1287,10 +1289,10 @@ uninstall_apps() {
 
 # 卸载Docker应用
 uninstall_docker_apps() {
-    log_message "${CYAN}进入卸载Docker应用菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}卸载Docker应用${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}进入卸载Docker应用菜单${NC}"
     echo
 
     if ! command -v docker &> /dev/null; then
@@ -1376,8 +1378,8 @@ uninstall_docker_apps() {
 # 卸载单个Docker应用
 uninstall_single_docker_app() {
     local container_name="$1"
+    echo -e "${YELLOW}正在卸载 Docker 应用: ${container_name}...${NC}"
     log_message "${YELLOW}正在卸载 Docker 应用: ${container_name}...${NC}"
-    echo -e "${YELLOW}正在卸载 ${container_name}...${NC}"
 
     if docker ps --format "table {{.Names}}" | grep -q "^${container_name}$" &>> "$LOG_DIR/pttools.log"; then
         echo -e "${YELLOW}停止容器 ${container_name}...${NC}"
@@ -1414,14 +1416,14 @@ uninstall_single_docker_app() {
 
 # 卸载原生脚本应用
 uninstall_script_apps() {
-    log_message "${CYAN}进入卸载原生脚本应用菜单${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}卸载原生安装应用${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}进入卸载原生脚本应用菜单${NC}"
     echo
 
-    log_message "${YELLOW}正在检测原生安装的qBittorrent/Vertex...${NC}"
     echo -e "${YELLOW}正在检测原生安装的qBittorrent/Vertex...${NC}"
+    log_message "${YELLOW}正在检测原生安装的qBittorrent/Vertex...${NC}"
 
     local qb_detected=false
     local vertex_detected=false
@@ -1510,10 +1512,10 @@ uninstall_script_apps() {
 
 # 自动卸载qBittorrent (原生安装)
 uninstall_qbittorrent_auto() {
-    log_message "${CYAN}开始自动卸载qBittorrent (原生安装)${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}自动卸载qBittorrent (原生安装)${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}开始自动卸载qBittorrent (原生安装)${NC}"
     echo
 
     echo -e "${RED}警告：此操作将尝试完全删除qBittorrent及其配置！${NC}"
@@ -1532,8 +1534,8 @@ uninstall_qbittorrent_auto() {
         return
     fi
 
-    log_message "${YELLOW}开始彻底卸载qBittorrent...${NC}"
     echo -e "${YELLOW}开始彻底卸载qBittorrent...${NC}"
+    log_message "${YELLOW}开始彻底卸载qBittorrent...${NC}"
 
     force_stop_all_qbittorrent
     force_remove_all_services "qbittorrent"
@@ -1553,10 +1555,10 @@ uninstall_qbittorrent_auto() {
 
 # 自动卸载Vertex (原生安装) - 基于jerry048脚本的卸载逻辑
 uninstall_vertex_auto_script() {
-    log_message "${CYAN}开始自动卸载Vertex (原生安装)${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${CYAN}自动卸载Vertex (原生安装)${NC}"
     echo -e "${CYAN}================================================${NC}"
+    log_message "${CYAN}开始自动卸载Vertex (原生安装)${NC}"
     echo
 
     echo -e "${RED}警告：此操作将尝试删除原生安装的Vertex及其相关文件！${NC}"
@@ -1573,8 +1575,8 @@ uninstall_vertex_auto_script() {
         return
     fi
 
-    log_message "${YELLOW}尝试通过Jerry048的Install.sh脚本卸载Vertex...${NC}"
     echo -e "${YELLOW}尝试通过Jerry048的Install.sh脚本卸载Vertex...${NC}"
+    log_message "${YELLOW}尝试通过Jerry048的Install.sh脚本卸载Vertex...${NC}"
     local uninstall_cmd="bash <(wget -qO- https://raw.githubusercontent.com/jerry048/Dedicated-Seedbox/main/Install.sh) -u admin -p adminadmin -U -v"
     log_message "执行命令: $uninstall_cmd"
     echo -e "${BLUE}命令: $uninstall_cmd${NC}"
@@ -1594,8 +1596,8 @@ uninstall_vertex_auto_script() {
 
 # 暴力停止所有qBittorrent相关内容
 force_stop_all_qbittorrent() {
-    log_message "${YELLOW}正在暴力停止所有qBittorrent相关内容...${NC}"
     echo -e "${YELLOW}正在暴力停止所有qBittorrent相关内容...${NC}"
+    log_message "${YELLOW}正在暴力停止所有qBittorrent相关内容...${NC}"
 
     echo -e "${YELLOW}停止所有qBittorrent服务...${NC}"
     systemctl list-units --type=service --all | grep -i qbittorrent | awk '{print $1}' | while read -r service; do
@@ -1626,8 +1628,8 @@ force_stop_all_qbittorrent() {
 # 彻底删除所有服务文件 (通用函数，接受服务名称模式)
 force_remove_all_services() {
     local service_pattern="$1"
-    log_message "${YELLOW}正在彻底删除所有${service_pattern}服务文件...${NC}"
     echo -e "${YELLOW}正在彻底删除所有${service_pattern}服务文件...${NC}"
+    log_message "${YELLOW}正在彻底删除所有${service_pattern}服务文件...${NC}"
 
     local systemd_dirs=(
         "/etc/systemd/system"
@@ -1655,8 +1657,8 @@ force_remove_all_services() {
         fi
     done
 
-    log_message "${YELLOW}重置systemd状态...${NC}"
     echo -e "${YELLOW}重置systemd状态...${NC}"
+    log_message "${YELLOW}重置systemd状态...${NC}"
     systemctl daemon-reload &>> "$LOG_DIR/pttools.log"
     systemctl reset-failed 2>/dev/null &>> "$LOG_DIR/pttools.log"
 
@@ -1666,8 +1668,8 @@ force_remove_all_services() {
 
 # 删除qBittorrent程序文件
 remove_qbittorrent_binaries() {
-    log_message "${YELLOW}正在删除qBittorrent程序文件...${NC}"
     echo -e "${YELLOW}正在删除qBittorrent程序文件...${NC}"
+    log_message "${YELLOW}正在删除qBittorrent程序文件...${NC}"
 
     local binary_paths=(
         "/usr/local/bin/qbittorrent" "/usr/local/bin/qbittorrent-nox"
@@ -1690,8 +1692,8 @@ remove_qbittorrent_binaries() {
 
 # 删除qBittorrent配置文件
 remove_qbittorrent_configs() {
-    log_message "${YELLOW}正在删除qBittorrent配置文件...${NC}"
     echo -e "${YELLOW}正在删除qBittorrent配置文件...${NC}"
+    log_message "${YELLOW}正在删除qBittorrent配置文件...${NC}"
 
     local config_paths=(
         "/home/qbittorrent"
@@ -1716,8 +1718,8 @@ remove_qbittorrent_configs() {
 
 # 清理qBittorrent用户和组
 cleanup_qbittorrent_user() {
-    log_message "${YELLOW}正在清理qBittorrent用户和组...${NC}"
     echo -e "${YELLOW}正在清理qBittorrent用户和组...${NC}"
+    log_message "${YELLOW}正在清理qBittorrent用户和组...${NC}"
 
     if id "qbittorrent" &>/dev/null; then
         log_message "${GREEN}删除用户: qbittorrent${NC}"
@@ -1736,8 +1738,8 @@ cleanup_qbittorrent_user() {
 
 # 清理qBittorrent其他残留
 cleanup_qbittorrent_misc() {
-    log_message "${YELLOW}正在清理qBittorrent其他残留文件...${NC}"
     echo -e "${YELLOW}正在清理qBittorrent其他残留文件...${NC}"
+    log_message "${YELLOW}正在清理qBittorrent其他残留文件...${NC}"
 
     find /var/log -name "*qbittorrent*" -type f -delete 2>/dev/null &>> "$LOG_DIR/pttools.log"
     find /tmp -name "*qbittorrent*" -exec rm -rf {} + 2>/dev/null &>> "$LOG_DIR/pttools.log"
@@ -1753,8 +1755,8 @@ cleanup_qbittorrent_misc() {
 
 # 最终清理
 final_cleanup() {
-    log_message "${YELLOW}正在进行最终清理...${NC}"
     echo -e "${YELLOW}正在进行最终清理...${NC}"
+    log_message "${YELLOW}正在进行最终清理...${NC}"
 
     systemctl daemon-reload &>> "$LOG_DIR/pttools.log"
     systemctl reset-failed 2>/dev/null &>> "$LOG_DIR/pttools.log"
@@ -1790,8 +1792,8 @@ final_cleanup() {
 
 # 验证qBittorrent卸载结果
 verify_qbittorrent_removal() {
-    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
     echo -e "${BLUE}验证卸载结果：${NC}"
+    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
 
     local all_clean=true
 
@@ -1876,8 +1878,8 @@ verify_qbittorrent_removal() {
 
 # 显示手动卸载指导 (通用，包含qBittorrent和Vertex)
 show_manual_uninstall_guide() {
-    log_message "${BLUE}显示通用手动卸载指导${NC}"
     echo -e "${BLUE}通用手动卸载指导：${NC}"
+    log_message "${BLUE}显示通用手动卸载指导${NC}"
     echo
     echo -e "${WHITE}本指导适用于原生安装的 qBittorrent, Vertex 或其他通过类似脚本安装的组件。${NC}"
     echo -e "${RED}请谨慎操作，并根据您实际安装的组件进行调整。${NC}"
@@ -1926,8 +1928,8 @@ show_manual_uninstall_guide() {
 
 # 显示Vertex手动卸载指导 (Specific for native Vertex if auto-uninstall fails)
 show_manual_uninstall_guide_vertex() {
-    log_message "${BLUE}显示Vertex手动卸载指导${NC}"
     echo -e "${BLUE}Vertex手动卸载指导 (如果自动卸载失败)：${NC}"
+    log_message "${BLUE}显示Vertex手动卸载指导${NC}"
     echo
     echo -e "${WHITE}1. 停止Vertex服务：${NC}"
     echo -e "${GRAY}   systemctl stop vertex${NC}"
@@ -2041,8 +2043,8 @@ main() {
 # 初始化环境
 clear
 show_banner
-log_message "${YELLOW}正在初始化环境...${NC}"
-echo -e "${YELLOW}正在初始化环境...${NC}"
+echo -e "${YELLOW}正在初始化PTtools运行环境...${NC}" # 终端显示一次
+log_message "${YELLOW}正在初始化PTtools运行环境...${NC}" # 日志记录一次
 check_root
 check_system
 update_system
@@ -2063,14 +2065,11 @@ if ! install_base_tools; then
 fi
 
 create_directories
-echo
-check_docker_status # 此处调用静默检查函数，默认不提示安装
-echo
+check_docker_status # 此处调用静默检查函数，终端只显示摘要
+echo -e "${GREEN}环境初始化完成！将自动进入主菜单。${NC}" # 终端显示一次
+log_message "${GREEN}环境初始化完成！自动进入主菜单。${NC}" # 日志记录一次
 
-log_message "${GREEN}环境初始化完成！${NC}"
-echo -e "${GREEN}环境初始化完成！${NC}"
-echo -e "${YELLOW}按任意键进入主菜单...${NC}"
-read -n 1
+# 移除此处的 read -n 1 和其前面的 echo，实现自动进入主菜单
 
 # 运行主程序
 main
