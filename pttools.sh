@@ -711,7 +711,7 @@ install_qb438_vt() {
         return
     fi
 
-    echo -e "${YELLOW}步骤1: 安装Vertex...${NC}"
+    echo -e "${YELLOW}步骤1: 正在安装Vertex...${NC}"
     log_message "${YELLOW}步骤1: 正在安装Vertex...${NC}"
 
     local vertex_install_success=false
@@ -942,7 +942,7 @@ install_qb439_vt() {
     [[ -n "$bbrx_flag" ]] && qb439_install_cmd="$qb439_install_cmd $bbrx_flag"
 
     log_message "执行命令: $qb439_install_cmd"
-    echo -e "${BLUE}执行命令: $qb439_install_cmd${NC}"
+    echo -e "${BLUE}命令: $qb439_install_cmd${NC}"
     echo
 
     if eval "$qb439_install_cmd" &>> "$LOG_DIR/pttools.log"; then
@@ -1053,6 +1053,9 @@ pt_docker_apps() {
     echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
     log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
     
+    # 确保 /tmp 目录存在
+    mkdir -p /tmp &>/dev/null
+
     local download_output=""
     # 使用 curl -fsSL --retry 3 --retry-delay 5 尝试下载
     if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_temp_path" 2>&1); then
@@ -1078,17 +1081,27 @@ pt_docker_apps() {
     log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
     echo
 
-    # 执行ptdocker.sh (临时文件)，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
-    # 捕获子脚本的退出码，如果子脚本指示返回主菜单（例如通过特定的退出码），则这里也返回
-    bash "$ptdocker_script_temp_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
-    local ptdocker_exit_code=$?
+    # 使用 source 执行 ptdocker.sh (临时文件)，使其在当前 shell 环境中运行
+    # 这样 ptdocker.sh 内部的 return 才能返回到 pttools.sh 的调用点
+    source "$ptdocker_script_temp_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
+    local ptdocker_exit_code=$? # 捕获 ptdocker.sh 中 `return` 的值
 
     # 清理临时文件
     rm -f "$ptdocker_script_temp_path" &>/dev/null
 
-    if [[ "$ptdocker_exit_code" == "99" ]]; then # ptdocker.sh 中如果用户选择返回主菜单，可以设置退出码为99
+    # 如果 ptdocker.sh 返回 99，表示它内部用户选择返回主菜单
+    if [[ "$ptdocker_exit_code" == "99" ]]; then 
         log_message "${YELLOW}PT Docker应用管理脚本指示返回主菜单。${NC}"
         return # 返回到 pttools.sh 的主循环
+    elif [[ "$ptdocker_exit_code" == "0" ]]; then # ptdocker.sh 正常退出（例如选择了退出脚本），这里不做特殊处理，回到主菜单。
+        log_message "${YELLOW}PT Docker应用管理脚本正常退出。${NC}"
+        return
+    else # 其他非0的退出码可能表示子脚本内部错误
+        log_message "${RED}PT Docker应用管理脚本非正常退出，退出码: ${ptdocker_exit_code}${NC}"
+        echo -e "${RED}PT Docker应用管理脚本执行异常，请查看日志。${NC}"
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        return
     fi
 }
 
