@@ -5,7 +5,7 @@
 # 脚本名称: pttools.sh
 # 脚本描述: PT工具一键安装脚本，支持qBittorrent、Transmission、Emby等应用的快捷安装
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
-# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh)
+# 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh)
 # 作者: Jensfrank (GitHub: everett7623)
 # 更新时间: 2025-09-18
 # ===================================================================================================
@@ -28,7 +28,7 @@ GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 LOG_DIR="/opt/logs/pttools"
 PTTOOLS_LOG_FILE="$LOG_DIR/pttools.log" # 主脚本日志文件
 
-# 获取当前脚本的目录 (此变量在此执行方式下将不再用于定位子脚本，而是提供一个参考值)
+# 移除 SCRIPT_DIR 变量，因为它在 bash <(wget ...) 模式下无法正确获取 GitHub 项目的本地根目录
 # SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &>/dev/null && pwd )" 
 
 # 显示横幅
@@ -1053,7 +1053,6 @@ pt_docker_apps() {
     echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
     log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
     
-    local download_output=""
     # 使用 curl -fsSL --retry 3 --retry-delay 5 尝试下载
     if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_temp_path" 2>&1); then
         log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
@@ -1079,15 +1078,18 @@ pt_docker_apps() {
     echo
 
     # 执行ptdocker.sh (临时文件)，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
+    # 捕获子脚本的退出码，如果子脚本指示返回主菜单（例如通过特定的退出码），则这里也返回
     bash "$ptdocker_script_temp_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
+    local ptdocker_exit_code=$?
 
     # 清理临时文件
     rm -f "$ptdocker_script_temp_path" &>/dev/null
+
+    if [[ "$ptdocker_exit_code" == "99" ]]; then # ptdocker.sh 中如果用户选择返回主菜单，可以设置退出码为99
+        log_message "${YELLOW}PT Docker应用管理脚本指示返回主菜单。${NC}"
+        return # 返回到 pttools.sh 的主循环
+    fi
 }
-
-# 移除 fallback_pt_docker_menu 函数，因为不再需要备用方案
-# 移除 install_single_fallback_docker_app 函数，因为不再需要备用方案
-
 
 # 卸载应用
 uninstall_apps() {
@@ -1717,7 +1719,7 @@ verify_qbittorrent_removal() {
         echo -e "${RED}✗仍可找到qBittorrent程序${NC}"
         for binary in "${found_binaries[@]}"; do
             echo -e "${RED}    $binary -> $(which "$binary")${NC}"
-        end
+        done
         all_clean=false
     else
         echo -e "${GREEN}✓ qBittorrent程序已删除${NC}"
@@ -1756,6 +1758,7 @@ verify_qbittorrent_removal() {
         echo -e "${BLUE}手动清理命令：${NC}"
         echo -e "${GRAY}systemctl daemon-reload${NC}"
         echo -e "${GRAY}systemctl reset-failed${NC}"
+        echo -e "${GRAY}reboot${NC}"
     fi
 }
 
