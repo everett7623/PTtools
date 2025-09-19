@@ -306,7 +306,7 @@ ensure_docker_installed() {
             log_message "${RED}Docker环境安装失败。${NC}"
             echo -e "${RED}Docker环境安装失败。${NC}" # 统一输出失败信息
             echo -e "${YELLOW}建议：${NC}"
-            echo -e "${WHITE}1. 检查网络连接，特别是能否访问 get.docker.com${NC}"
+            echo -e "${WHITE}1. 检查网络连接，特别是能否访问 get.docker.com 或 GitHub${NC}" # 更明确的建议
             echo -e "${WHITE}2. 确认系统源配置正确${NC}"
             echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
             echo -e "${WHITE}   详细日志请查看：${PTTOOLS_LOG_FILE}${NC}" # 指示用户查看日志
@@ -1050,6 +1050,27 @@ pt_docker_apps() {
     log_message "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
     local ptdocker_script_path="./configs/ptdocker.sh" # 定义本地脚本路径
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
+
+    # --- 增加网络连通性预检 ptdocker.sh 下载 ---
+    echo -e "${YELLOW}正在测试网络连通性 (${GITHUB_RAW}/configs/ptdocker.sh)...${NC}"
+    log_message "${YELLOW}正在测试网络连通性 (${GITHUB_RAW}/configs/ptdocker.sh)...${NC}"
+    if ! curl -Is "${GITHUB_RAW}/configs/ptdocker.sh" &>/dev/null; then
+        log_message "${RED}网络连通性测试失败：无法访问 GitHub 上的 ptdocker.sh 脚本。${NC}"
+        echo -e "${RED}网络连通性测试失败：无法访问 GitHub 上的PT Docker应用管理脚本。请检查网络。${NC}"
+        echo -e "${YELLOW}PT Docker应用管理脚本下载失败${NC}" # 终端提示
+        log_message "${RED}PT Docker应用管理脚本下载失败${NC}" # 日志记录
+        echo -e "${YELLOW}正在使用备用方案...${NC}"
+        log_message "${YELLOW}正在使用备用方案...${NC}"
+        
+        # 备用方案也需要确保 Docker 已安装，并且能从 GitHub 下载 compose 文件
+        if ! ensure_docker_installed; then # 再次检查 Docker 环境，如果用户已取消，这里可能再次提示
+             return
+        fi
+        fallback_pt_docker_menu
+        return # 从 fallback 菜单返回后，退出当前 pt_docker_apps 函数
+    fi
+    log_message "${GREEN}网络连通性测试成功。${NC}"
+    echo -e "${GREEN}网络连通性测试成功。${NC}" # 终端提示
 
     # 尝试下载脚本到当前脚本目录的configs子目录，保持目录结构
     mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
@@ -2016,6 +2037,11 @@ show_manual_uninstall_guide_vertex() {
 show_menu() {
     clear
     show_banner
+    # 移除冗余的主菜单标题
+    # echo -e "${PURPLE}==================${NC}"
+    # echo -e "${PURPLE}  PTtools 主菜单  ${NC}" # 居中标题
+    # echo -e "${PURPLE}==================${NC}"
+    echo
     echo -e "${WHITE}  1. qBittorrent 4.3.8⭐${NC}"
     echo -e "${WHITE}  2. qBittorrent 4.3.9⭐${NC}"
     echo -e "${WHITE}  3. Vertex + qBittorrent 4.3.8 (推荐Docker方式安装)🔥${NC}"
