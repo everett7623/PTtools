@@ -28,6 +28,9 @@ GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 LOG_DIR="/opt/logs/pttools"
 PTTOOLS_LOG_FILE="$LOG_DIR/pttools.log" # 主脚本日志文件
 
+# 获取当前脚本的目录
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &>/dev/null && pwd )"
+
 # 显示横幅
 show_banner() {
     echo -e "${CYAN}"
@@ -1044,47 +1047,32 @@ pt_docker_apps() {
         return
     fi
 
-    local ptdocker_script_path="./configs/ptdocker.sh" # 定义本地脚本路径
-    local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
+    local ptdocker_script_path="${SCRIPT_DIR}/configs/ptdocker.sh" # 直接指定本地路径
 
-    # --- 改进的网络连通性预检 ptdocker.sh 下载 (直接尝试下载，而不是HEAD请求) ---
-    echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
-    log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
-    
-    mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
+    # --- 检查本地 ptdocker.sh 是否存在并可执行 ---
+    if [[ -f "$ptdocker_script_path" && -x "$ptdocker_script_path" ]]; then
+        log_message "${GREEN}检测到本地PT Docker应用管理脚本 (${ptdocker_script_path})。${NC}"
+        echo -e "${GREEN}检测到本地PT Docker应用管理脚本。正在启动...${NC}"
+        echo
 
-    local download_output=""
-    # 使用 curl -fsSL --retry 3 --retry-delay 5 尝试下载，如果失败则输出错误信息
-    if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_path" 2>&1); then
-        log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
-        echo -e "${RED}PT Docker应用管理脚本下载失败！这可能是由于网络不稳定、GitHub访问受限或临时问题。${NC}"
-        echo -e "${WHITE}请尝试：${NC}"
-        echo -e "${WHITE}1. 检查您的VPS网络连接或DNS设置。${NC}"
-        echo -e "${WHITE}2. 稍后重试，GitHub可能存在临时波动。${NC}"
-        echo -e "${WHITE}3. 如果您的VPS位于中国大陆，可能需要配置代理来访问GitHub Raw。${NC}"
-        echo -e "${WHITE}   详细日志请查看：${PTTOOLS_LOG_FILE}${NC}"
+        # 执行ptdocker.sh，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
+        bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
+        
+        # ptdocker.sh 会处理其内部的循环和返回，此处无需额外操作
+    else
+        log_message "${RED}错误：未找到或无法执行本地PT Docker应用管理脚本：${ptdocker_script_path}${NC}"
+        echo -e "${RED}错误：未找到或无法执行PT Docker应用管理脚本！${NC}"
+        echo -e "${WHITE}请确保以下文件存在且具有可执行权限：${NC}"
+        echo -e "${WHITE}  ${ptdocker_script_path}${NC}"
+        echo -e "${WHITE}并确保该文件内容正确。${NC}"
+        echo -e "${WHITE}详细日志请查看：${PTTOOLS_LOG_FILE}${NC}"
         echo
         echo -e "${YELLOW}按任意键返回主菜单...${NC}"
         read -n 1
-        rm -f "$ptdocker_script_path" &>/dev/null # 清理未完成的下载文件
-        return # 直接返回主菜单
-    else
-        log_message "${GREEN}PT Docker应用管理脚本下载成功。输出：\n$download_output${NC}"
-        echo -e "${GREEN}PT Docker应用管理脚本下载成功。${NC}"
     fi
-
-    chmod +x "$ptdocker_script_path"
-    echo -e "${YELLOW}正在启动PT Docker应用管理...${NC}"
-    log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
-    echo
-
-    # 执行ptdocker.sh，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
-    bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
-
-    # ptdocker.sh 脚本会处理其内部的循环和返回，此处无需额外操作
 }
 
-# 移除 fallback_pt_docker_menu 函数，因为不再需要备用方案
+# 移除 fallback_pt_docker_menu 函数及其相关调用，因为不再需要备用方案
 # 移除 install_single_fallback_docker_app 函数，因为不再需要备用方案
 
 
@@ -1713,7 +1701,7 @@ verify_qbittorrent_removal() {
     done
 
     if [[ ${#found_binaries[@]} -gt 0 ]]; then
-        echo -e "${RED}✗ 仍可找到qBittorrent程序${NC}"
+        echo -e "${RED}✗仍可找到qBittorrent程序${NC}"
         for binary in "${found_binaries[@]}"; do
             echo -e "${RED}    $binary -> $(which "$binary")${NC}"
         done
@@ -1755,7 +1743,6 @@ verify_qbittorrent_removal() {
         echo -e "${BLUE}手动清理命令：${NC}"
         echo -e "${GRAY}systemctl daemon-reload${NC}"
         echo -e "${GRAY}systemctl reset-failed${NC}"
-        echo -e "${GRAY}reboot${NC}"
     fi
 }
 
