@@ -213,8 +213,6 @@ install_docker_func() {
 
     # 执行 Docker 安装脚本并捕获错误
     local docker_install_output=""
-    # 注意：这里eval命令的2>&1捕获所有输出，如果SSH断开，这个输出可能不完整。
-    # 更重要的是，Docker安装脚本有时会修改系统网络配置，可能短暂中断SSH。
     echo -e "${YELLOW}正在运行Docker官方安装脚本，此过程可能导致SSH短暂中断，请耐心等待...${NC}"
     log_message "${YELLOW}正在运行Docker官方安装脚本，此过程可能导致SSH短暂中断，请耐心等待...${NC}"
     if ! docker_install_output=$(eval "$docker_install_cmd" 2>&1); then
@@ -632,13 +630,13 @@ EOF
             echo -e "${YELLOW}Vertex密码: 密码文件未生成，请登录后自行设置，或查看容器日志${NC}"
             log_message "${YELLOW}Vertex密码文件未生成${NC}"
         fi
-        rm -f "$compose_file" &>/dev/null # Remove temp compose file
+        # rm -f "$compose_file" &>/dev/null # Remove temp compose file, no need as it's downloaded to app dir
         cd "$current_dir" &>/dev/null
         return 0
     else
         log_message "${RED}Vertex Docker安装失败，详情请查看日志：$LOG_DIR/pttools.log${NC}"
         echo -e "${RED}Vertex Docker安装失败，详情请查看日志：$LOG_DIR/pttools.log${NC}"
-        rm -f "$compose_file" &>/dev/null # Remove temp compose file
+        rm -f "$compose_file" &>/dev/null # Remove temp compose file on failure
         cd "$current_dir" &>/dev/null
         return 1
     fi
@@ -1046,59 +1044,40 @@ pt_docker_apps() {
         return
     fi
 
-    echo -e "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
-    log_message "${YELLOW}正在下载PT Docker应用管理脚本...${NC}"
     local ptdocker_script_path="./configs/ptdocker.sh" # 定义本地脚本路径
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
 
-    # --- 增加网络连通性预检 ptdocker.sh 下载 ---
-    echo -e "${YELLOW}正在测试网络连通性 (${GITHUB_RAW}/configs/ptdocker.sh)...${NC}"
-    log_message "${YELLOW}正在测试网络连通性 (${GITHUB_RAW}/configs/ptdocker.sh)...${NC}"
-    if ! curl -Is "${GITHUB_RAW}/configs/ptdocker.sh" &>/dev/null; then
-        log_message "${RED}网络连通性测试失败：无法访问 GitHub 上的 ptdocker.sh 脚本。${NC}"
-        echo -e "${RED}网络连通性测试失败：无法访问 GitHub 上的PT Docker应用管理脚本。请检查网络。${NC}"
-        echo -e "${YELLOW}PT Docker应用管理脚本下载失败${NC}" # 终端提示
-        log_message "${RED}PT Docker应用管理脚本下载失败${NC}" # 日志记录
-        echo -e "${YELLOW}正在使用备用方案...${NC}"
-        log_message "${YELLOW}正在使用备用方案...${NC}"
+    # --- 改进的网络连通性预检 ptdocker.sh 下载 ---
+    echo -e "${YELLOW}正在测试网络连通性并下载PT Docker应用管理脚本...${NC}"
+    log_message "${YELLOW}正在测试网络连通性并尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
+    
+    mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
+
+    local download_output=""
+    if ! download_output=$(curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" 2>&1); then
+        log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
+        echo -e "${RED}PT Docker应用管理脚本下载失败！这可能是由于网络不稳定、GitHub访问受限或临时问题。${NC}"
+        echo -e "${YELLOW}正在使用备用简化菜单方案...${NC}"
+        log_message "${YELLOW}PT Docker应用管理脚本下载失败，切换至备用简化菜单方案。${NC}"
         
         # 备用方案也需要确保 Docker 已安装，并且能从 GitHub 下载 compose 文件
-        if ! ensure_docker_installed; then # 再次检查 Docker 环境，如果用户已取消，这里可能再次提示
-             return
-        fi
+        # ensure_docker_installed 已经在此函数开头被调用并确保了环境，无需重复
         fallback_pt_docker_menu
         return # 从 fallback 菜单返回后，退出当前 pt_docker_apps 函数
-    fi
-    log_message "${GREEN}网络连通性测试成功。${NC}"
-    echo -e "${GREEN}网络连通性测试成功。${NC}" # 终端提示
-
-    # 尝试下载脚本到当前脚本目录的configs子目录，保持目录结构
-    mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
-    if curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" &>> "$PTTOOLS_LOG_FILE"; then
-        chmod +x "$ptdocker_script_path"
-        log_message "${GREEN}PT Docker应用管理脚本下载成功${NC}"
-        echo -e "${GREEN}PT Docker应用管理脚本下载成功${NC}"
-        echo -e "${YELLOW}正在启动PT Docker应用管理...${NC}"
-        log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
-        echo
-
-        # 执行ptdocker.sh，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
-        bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
-
-        # ptdocker.sh 脚本会处理其内部的循环和返回，此处无需额外操作
     else
-        log_message "${RED}PT Docker应用管理脚本下载失败${NC}"
-        echo -e "${RED}PT Docker应用管理脚本下载失败${NC}"
-        log_message "${YELLOW}正在使用备用方案...${NC}"
-        echo -e "${YELLOW}正在使用备用方案...${NC}"
-
-        # 备用方案也需要确保 Docker 已安装，并且能从 GitHub 下载 compose 文件
-        if ! ensure_docker_installed; then
-             # 如果备用方案也无法保证 Docker 环境，则直接返回，ensure_docker_installed会处理提示
-            return
-        fi
-        fallback_pt_docker_menu
+        log_message "${GREEN}PT Docker应用管理脚本下载成功。输出：\n$download_output${NC}"
+        echo -e "${GREEN}PT Docker应用管理脚本下载成功。${NC}"
     fi
+
+    chmod +x "$ptdocker_script_path"
+    echo -e "${YELLOW}正在启动PT Docker应用管理...${NC}"
+    log_message "${YELLOW}正在启动PT Docker应用管理...${NC}"
+    echo
+
+    # 执行ptdocker.sh，并传递DOCKER_DIR, DOWNLOADS_DIR, LOG_DIR, GITHUB_RAW
+    bash "$ptdocker_script_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
+
+    # ptdocker.sh 脚本会处理其内部的循环和返回，此处无需额外操作
 }
 
 # 备用PT Docker应用菜单 (当ptdocker.sh下载失败时使用)
@@ -1331,13 +1310,11 @@ uninstall_apps() {
     fi
     # 简单的Vertex原生安装检测
     if systemctl is-active --quiet vertex || pgrep -f "vertex" >/dev/null; then
+        vertex_detected=true
         echo -e "${GREEN}  ✓ Vertex (原生安装)${NC}"
-        native_apps_found=true
+    else
+        echo -e "${GRAY}  未检测到原生安装的Vertex${NC}"
     fi
-    if [ "$native_apps_found" = false ]; then
-        echo -e "${GRAY}  未检测到原生安装的PT相关应用${NC}"
-    fi
-
 
     echo
     echo -e "${GREEN}请选择卸载类型：${NC}"
