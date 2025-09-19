@@ -1054,8 +1054,7 @@ pt_docker_apps() {
     mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
 
     local download_output=""
-    # 使用 curl -f 选项，如果 HTTP 错误码 (4xx 或 5xx) 则不输出错误页面内容，直接失败
-    # -s 静默模式，-S 显示错误
+    # 使用 curl -fsSL --retry 3 --retry-delay 5 尝试下载，如果失败则输出错误信息
     if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_path" 2>&1); then
         log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
         echo -e "${RED}PT Docker应用管理脚本下载失败！这可能是由于网络不稳定、GitHub访问受限或临时问题。${NC}"
@@ -1063,6 +1062,7 @@ pt_docker_apps() {
         echo -e "${WHITE}1. 检查您的VPS网络连接或DNS设置。${NC}"
         echo -e "${WHITE}2. 稍后重试，GitHub可能存在临时波动。${NC}"
         echo -e "${WHITE}3. 如果您的VPS位于中国大陆，可能需要配置代理来访问GitHub Raw。${NC}"
+        echo -e "${WHITE}   详细日志请查看：${PTTOOLS_LOG_FILE}${NC}"
         echo
         echo -e "${YELLOW}按任意键返回主菜单...${NC}"
         read -n 1
@@ -1085,16 +1085,7 @@ pt_docker_apps() {
 }
 
 # 移除 fallback_pt_docker_menu 函数，因为不再需要备用方案
-# 备用PT Docker应用菜单 (此函数已被移除，不再使用)
-# fallback_pt_docker_menu() {
-#     ... (代码已移除) ...
-# }
-
 # 移除 install_single_fallback_docker_app 函数，因为不再需要备用方案
-# 备用菜单中的单个Docker应用安装逻辑 (此函数已被移除，不再使用)
-# install_single_fallback_docker_app() {
-#     ... (代码已移除) ...
-# }
 
 
 # 卸载应用
@@ -1684,7 +1675,7 @@ final_cleanup() {
 # 验证qBittorrent卸载结果
 verify_qbittorrent_removal() {
     echo -e "${BLUE}验证卸载结果：${NC}"
-    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
+    log_message "${BLUE}验证卸载结果：${NC}"
 
     local all_clean=true
 
@@ -1697,6 +1688,7 @@ verify_qbittorrent_removal() {
     fi
 
     local remaining_services=()
+    # Corrected syntax for while loop and if condition
     while IFS= read -r service; do
         if [[ -n "$service" ]]; then
             remaining_services+=("$service")
@@ -1707,7 +1699,7 @@ verify_qbittorrent_removal() {
         echo -e "${RED}✗ 仍有qBittorrent服务存在${NC}"
         for service in "${remaining_services[@]}"; do
             echo -e "${RED}    $service${NC}"
-        end
+        done
         all_clean=false
     else
         echo -e "${GREEN}✓ 无qBittorrent服务${NC}"
