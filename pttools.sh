@@ -7,7 +7,8 @@
 # 脚本路径: https://raw.githubusercontent.com/everett7623/PTtools/main/pttools.sh
 # 使用方法: bash <(wget -qO- https://raw.githubusercontent.com/everett7623/pttools/main/pttools.sh)
 # 作者: Jensfrank (GitHub: everett7623)
-# 更新时间: 2025-09-18
+# 更新时间: 2025-09-19
+# 版本: v1.1.0
 # ===================================================================================================
 
 # 颜色定义
@@ -27,9 +28,7 @@ DOWNLOADS_DIR="/opt/downloads"
 GITHUB_RAW="https://raw.githubusercontent.com/everett7623/PTtools/main"
 LOG_DIR="/opt/logs/pttools"
 PTTOOLS_LOG_FILE="$LOG_DIR/pttools.log" # 主脚本日志文件
-
-# 移除 SCRIPT_DIR 变量，因为它在 bash <(wget ...) 模式下无法正确获取 GitHub 项目的本地根目录
-# SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &>/dev/null && pwd )" 
+PTTOOLS_VERSION="v1.1.0"
 
 # 显示横幅
 show_banner() {
@@ -37,6 +36,7 @@ show_banner() {
     echo "=================================================="
     echo "           PTtools - PT工具一键安装脚本"
     echo "               作者: Jensfrank"
+    echo "                 版本: ${PTTOOLS_VERSION}"
     echo "=================================================="
     echo -e "${NC}"
 }
@@ -558,7 +558,7 @@ install_vertex_docker() {
 # ===================================================================
 # 更新信息:
 #   - 创建时间: 2025-01-XX
-#   - 最后更新: 2025-09-18
+#   - 最后更新: 2025-09-19
 #   - 更新内容: 初始版本创建
 # ===================================================================
 
@@ -611,7 +611,7 @@ EOF
         return 1; 
     }
 
-    if eval "$docker_compose_cmd" -f "${DOCKER_DIR}/vertex/vertex.yml" up -d &>> "$LOG_DIR/pttools.log"; then
+    if eval "$docker_compose_bin" -f "${DOCKER_DIR}/vertex/vertex.yml" up -d &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
@@ -1051,7 +1051,7 @@ pt_docker_apps() {
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
 
     echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
-    log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
+    log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptocker_url}${NC}"
     
     # 确保 /tmp 目录存在
     mkdir -p /tmp &>/dev/null
@@ -1083,7 +1083,8 @@ pt_docker_apps() {
 
     # 使用 source 执行 ptdocker.sh (临时文件)，使其在当前 shell 环境中运行
     # 这样 ptdocker.sh 内部的 return 才能返回到 pttools.sh 的调用点
-    source "$ptdocker_script_temp_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW"
+    # 将所有必要变量作为参数传递给 ptdocker.sh
+    source "$ptdocker_script_temp_path" "$DOCKER_DIR" "$DOWNLOADS_DIR" "$LOG_DIR" "$GITHUB_RAW" "$PTTOOLS_LOG_FILE"
     local ptdocker_exit_code=$? # 捕获 ptdocker.sh 中 `return` 的值
 
     # 清理临时文件
