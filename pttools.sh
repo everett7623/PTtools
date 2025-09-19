@@ -1047,23 +1047,27 @@ pt_docker_apps() {
     local ptdocker_script_path="./configs/ptdocker.sh" # 定义本地脚本路径
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
 
-    # --- 改进的网络连通性预检 ptdocker.sh 下载 ---
-    echo -e "${YELLOW}正在测试网络连通性并下载PT Docker应用管理脚本...${NC}"
-    log_message "${YELLOW}正在测试网络连通性并尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
+    # --- 改进的网络连通性预检 ptdocker.sh 下载 (直接尝试下载，而不是HEAD请求) ---
+    echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
+    log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
     
     mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
 
     local download_output=""
-    if ! download_output=$(curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" 2>&1); then
+    # 使用 curl -f 选项，如果 HTTP 错误码 (4xx 或 5xx) 则不输出错误页面内容，直接失败
+    # -s 静默模式，-S 显示错误
+    if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_path" 2>&1); then
         log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
         echo -e "${RED}PT Docker应用管理脚本下载失败！这可能是由于网络不稳定、GitHub访问受限或临时问题。${NC}"
-        echo -e "${YELLOW}正在使用备用简化菜单方案...${NC}"
-        log_message "${YELLOW}PT Docker应用管理脚本下载失败，切换至备用简化菜单方案。${NC}"
-        
-        # 备用方案也需要确保 Docker 已安装，并且能从 GitHub 下载 compose 文件
-        # ensure_docker_installed 已经在此函数开头被调用并确保了环境，无需重复
-        fallback_pt_docker_menu
-        return # 从 fallback 菜单返回后，退出当前 pt_docker_apps 函数
+        echo -e "${WHITE}请尝试：${NC}"
+        echo -e "${WHITE}1. 检查您的VPS网络连接或DNS设置。${NC}"
+        echo -e "${WHITE}2. 稍后重试，GitHub可能存在临时波动。${NC}"
+        echo -e "${WHITE}3. 如果您的VPS位于中国大陆，可能需要配置代理来访问GitHub Raw。${NC}"
+        echo
+        echo -e "${YELLOW}按任意键返回主菜单...${NC}"
+        read -n 1
+        rm -f "$ptdocker_script_path" &>/dev/null # 清理未完成的下载文件
+        return # 直接返回主菜单
     else
         log_message "${GREEN}PT Docker应用管理脚本下载成功。输出：\n$download_output${NC}"
         echo -e "${GREEN}PT Docker应用管理脚本下载成功。${NC}"
@@ -1080,186 +1084,17 @@ pt_docker_apps() {
     # ptdocker.sh 脚本会处理其内部的循环和返回，此处无需额外操作
 }
 
-# 备用PT Docker应用菜单 (当ptdocker.sh下载失败时使用)
-fallback_pt_docker_menu() {
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${CYAN}PT Docker应用 - 备用简化菜单${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    log_message "${YELLOW}启动备用PT Docker应用简化菜单${NC}"
-    echo
-    echo -e "${YELLOW}注意：完整功能菜单下载失败，使用简化版菜单${NC}"
-    echo
+# 移除 fallback_pt_docker_menu 函数，因为不再需要备用方案
+# 备用PT Docker应用菜单 (此函数已被移除，不再使用)
+# fallback_pt_docker_menu() {
+#     ... (代码已移除) ...
+# }
 
-    while true; do
-        echo -e "${GREEN}常用Docker应用快速安装：${NC}"
-        echo -e "${WHITE} 1. qBittorrent 4.6.7 (docker)${NC}"
-        echo -e "${WHITE} 2. Transmission 4.0.5 (docker)${NC}"
-        echo -e "${WHITE} 3. Emby 媒体服务器 (docker)${NC}"
-        echo -e "${WHITE} 4. Jellyfin 媒体服务器 (docker)${NC}"
-        echo -e "${WHITE} 5. IYUUPlus 自动辅种 (docker)${NC}"
-        echo -e "${WHITE} 6. MoviePilot 影视管理 (docker)${NC}"
-        echo -e "${WHITE} 7. FileBrowser 文件管理器 (docker)${NC}"
-        echo -e "${WHITE} 8. Watchtower 容器自动更新 (docker)${NC}"
-        echo -e "${WHITE} 0. 返回主菜单${NC}"
-        echo
-
-        read -p "请选择要安装的应用 [0-8]: " fallback_choice
-
-        case $fallback_choice in
-            1)
-                install_single_fallback_docker_app "qbittorrent-4.6.7.yml" "qBittorrent 4.6.7" "downloaders" "8080"
-                ;;
-            2)
-                install_single_fallback_docker_app "transmission.yml" "Transmission 4.0.5" "downloaders" "9091"
-                ;;
-            3)
-                install_single_fallback_docker_app "emby.yml" "Emby" "media-servers" "8096"
-                ;;
-            4)
-                install_single_fallback_docker_app "jellyfin.yml" "Jellyfin" "media-servers" "8096" # 默认端口可能冲突，需要配置
-                ;;
-            5)
-                install_single_fallback_docker_app "iyuuplus.yml" "IYUUPlus" "automation" "8780"
-                ;;
-            6)
-                install_single_fallback_docker_app "moviepilot.yml" "MoviePilot" "automation" "3000"
-                ;;
-            7)
-                install_single_fallback_docker_app "filebrowser.yml" "FileBrowser" "network-files" "8081" # 假设一个默认端口
-                ;;
-            8)
-                install_single_fallback_docker_app "watchtower.yml" "Watchtower" "system-tools" "N/A" # 无需端口
-                ;;
-            0)
-                return
-                ;;
-            *)
-                echo -e "${RED}无效选项，请重新选择${NC}"
-                log_message "${RED}备用菜单无效选项: $fallback_choice${NC}"
-                echo -e "${YELLOW}按任意键继续...${NC}"
-                read -n 1
-                ;;
-        esac
-    done
-}
-
-# 备用菜单中的单个Docker应用安装逻辑
-install_single_fallback_docker_app() {
-    local yml_file="$1"
-    local app_name="$2"
-    local compose_subdir="$3" # Added compose_subdir parameter
-    local default_port="$4"
-    local app_dir_name=$(echo "$yml_file" | cut -d'.' -f1) # 从yml文件名提取应用目录名
-
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${CYAN}正在安装 ${app_name}${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    log_message "${YELLOW}正在安装备用Docker应用: ${app_name}${NC}"
-    echo
-
-    # Ensure Docker is installed before attempting fallback install (redundant if called after ensure_docker_installed but safe)
-    if ! command -v docker &> /dev/null || (! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null); then
-        log_message "${RED}Docker 或 Docker Compose 未安装，无法安装 ${app_name}。请返回主脚本安装Docker。${NC}"
-        echo -e "${RED}Docker 或 Docker Compose 未安装！请返回主脚本安装Docker。${NC}"
-        echo -e "${YELLOW}按任意键返回...${NC}"
-        read -n 1
-        return 1
-    fi
-
-    local compose_url="$GITHUB_RAW/configs/docker-compose/${compose_subdir}/${yml_file}" # Corrected URL
-    local temp_compose_file="${DOCKER_DIR}/${app_dir_name}/${yml_file}" # Download directly to app dir
-
-    echo -e "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
-    log_message "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
-    mkdir -p "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" # Ensure app base dir exists
-    if curl -fsSL "$compose_url" -o "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"; then
-        log_message "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
-        echo -e "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
-    else
-        log_message "${RED}${app_name} Docker Compose配置下载失败。请手动检查: $compose_url${NC}"
-        echo -e "${RED}${app_name} Docker Compose配置下载失败。请手动检查: $compose_url${NC}"
-        echo -e "${YELLOW}按任意键返回...${NC}"
-        read -n 1
-        return 1
-    fi
-
-    echo -e "${YELLOW}正在创建应用目录: ${DOCKER_DIR}/${app_dir_name}/config ...${NC}"
-    mkdir -p "${DOCKER_DIR}/${app_dir_name}/config" &>> "$PTTOOLS_LOG_FILE"
-    echo -e "${YELLOW}正在创建下载目录: ${DOWNLOADS_DIR} ...${NC}"
-    mkdir -p "${DOWNLOADS_DIR}" &>> "$PTTOOLS_LOG_FILE"
-    chmod -R 777 "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" # 赋权
-    chmod -R 777 "${DOWNLOADS_DIR}" &>> "$PTTOOLS_LOG_FILE" # 赋权
-    log_message "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
-    echo -e "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
-
-    # Replace variables in the compose file
-    echo -e "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
-    log_message "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
-    sed -i "s|/opt/docker/应用名/config|${DOCKER_DIR}/${app_dir_name}/config|g" "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"
-    sed -i "s|/opt/downloads|${DOWNLOADS_DIR}|g" "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"
-    
-    echo -e "${YELLOW}启动 ${app_name} 容器...${NC}"
-    log_message "${YELLOW}启动 ${app_name} 容器...${NC}"
-    local docker_compose_bin=""
-    if command -v docker-compose &> /dev/null; then
-        docker_compose_bin="docker-compose"
-    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker_compose_bin="docker compose"
-    else
-        log_message "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
-        echo -e "${RED}Docker Compose或docker compose未找到，无法启动${NC}"
-        rm -f "$temp_compose_file" &>/dev/null
-        echo -e "${YELLOW}按任意键返回...${NC}"
-        read -n 1
-        return 1
-    fi
-
-    local current_dir=$(pwd)
-    cd "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" || { 
-        log_message "${RED}切换目录失败: ${DOCKER_DIR}/${app_dir_name}${NC}"; 
-        echo -e "${RED}错误：无法进入应用目录 ${DOCKER_DIR}/${app_dir_name}！${NC}"; 
-        rm -f "$temp_compose_file" &>/dev/null; # Ensure cleanup on error
-        cd "$current_dir" &>/dev/null; 
-        return 1; 
-    }
-
-    if eval "$docker_compose_bin" -f "${yml_file}" up -d &>> "$PTTOOLS_LOG_FILE"; then
-        log_message "${GREEN}${app_name} 安装成功${NC}"
-        echo -e "${GREEN}================================================${NC}"
-        echo -e "${GREEN}${app_name} 安装成功！${NC}"
-        echo -e "${GREEN}================================================${NC}"
-        if [[ "$default_port" != "N/A" ]]; then
-            echo -e "${GREEN}访问地址: http://你的服务器IP:${default_port}${NC}"
-            log_message "${app_name} 访问地址: http://你的服务器IP:${default_port}"
-        else
-            echo -e "${GREEN}${app_name} 通常没有Web界面，请通过CLI或特定方式访问。${NC}"
-            log_message "${app_name} 无Web界面，端口N/A"
-        fi
-        echo -e "${GREEN}配置目录: ${DOCKER_DIR}/${app_dir_name}/config${NC}"
-        echo -e "${GREEN}下载目录: ${DOWNLOADS_DIR}${NC}"
-        echo -e "${GREEN}================================================${NC}"
-        # 验证容器状态
-        sleep 2
-        if docker ps -a --filter "name=^${app_dir_name}$" --format "{{.Status}}" | grep -q "Up"; then
-            local status=$(docker ps -a --filter "name=^${app_dir_name}$" --format "{{.Status}}" | awk '{print $2}')
-            echo -e "${GREEN}容器状态: ${app_dir_name} is $status${NC}"
-        else
-            echo -e "${RED}容器 ${app_dir_name} 未运行或不存在，请检查日志。${NC}"
-            log_message "${RED}容器 ${app_dir_name} 未运行或不存在${NC}"
-        fi
-    else
-        log_message "${RED}${app_name} 安装失败！详情请查看日志：$PTTOOLS_LOG_FILE${NC}"
-        echo -e "${RED}================================================${NC}"
-        echo -e "${RED}${app_name} 安装失败！${NC}"
-        echo -e "${RED}请检查网络连接和配置文件，详情请查看日志：$PTTOOLS_LOG_FILE${NC}"
-        echo -e "${RED}================================================${NC}"
-    fi
-
-    rm -f "$temp_compose_file" &>/dev/null # Clean up downloaded compose file
-    cd "$current_dir" &>/dev/null
-    echo -e "${YELLOW}按任意键返回...${NC}"
-    read -n 1
-}
+# 移除 install_single_fallback_docker_app 函数，因为不再需要备用方案
+# 备用菜单中的单个Docker应用安装逻辑 (此函数已被移除，不再使用)
+# install_single_fallback_docker_app() {
+#     ... (代码已移除) ...
+# }
 
 
 # 卸载应用
@@ -1728,7 +1563,7 @@ remove_qbittorrent_binaries() {
     log_message "${YELLOW}正在删除qBittorrent程序文件...${NC}"
 
     local binary_paths=(
-        "/usr/local/bin/qbittorrent" "/usr/local/bin/qbittorrent-nox"
+        "/usr/local/bin/qbittorrent" "/usr/bin/qbittorrent-nox"
         "/usr/bin/qbittorrent" "/usr/bin/qbittorrent-nox"
         "/opt/qbittorrent" "/usr/local/qbittorrent"
     )
@@ -1872,7 +1707,7 @@ verify_qbittorrent_removal() {
         echo -e "${RED}✗ 仍有qBittorrent服务存在${NC}"
         for service in "${remaining_services[@]}"; do
             echo -e "${RED}    $service${NC}"
-        done
+        end
         all_clean=false
     else
         echo -e "${GREEN}✓ 无qBittorrent服务${NC}"
