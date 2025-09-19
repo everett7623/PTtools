@@ -213,6 +213,10 @@ install_docker_func() {
 
     # 执行 Docker 安装脚本并捕获错误
     local docker_install_output=""
+    # 注意：这里eval命令的2>&1捕获所有输出，如果SSH断开，这个输出可能不完整。
+    # 更重要的是，Docker安装脚本有时会修改系统网络配置，可能短暂中断SSH。
+    echo -e "${YELLOW}正在运行Docker官方安装脚本，此过程可能导致SSH短暂中断，请耐心等待...${NC}"
+    log_message "${YELLOW}正在运行Docker官方安装脚本，此过程可能导致SSH短暂中断，请耐心等待...${NC}"
     if ! docker_install_output=$(eval "$docker_install_cmd" 2>&1); then
         log_message "${RED}Docker安装脚本执行失败。原始输出：\n$docker_install_output${NC}"
         # 尝试从错误输出中提取关键信息
@@ -229,11 +233,14 @@ install_docker_func() {
 
     log_message "${YELLOW}启动Docker服务...${NC}"
     echo -e "${YELLOW}启动Docker服务...${NC}" # 终端提示
+    # 增加启动后的等待时间，给系统更多稳定时间，尤其是在网络可能被修改后
     if systemctl start docker &>> "$PTTOOLS_LOG_FILE"; then
         log_message "${GREEN}Docker服务启动成功${NC}"
+        sleep 5 # 增加额外等待时间
     else
         log_message "${RED}Docker服务启动失败${NC}"
         service docker start &>> "$PTTOOLS_LOG_FILE" # 尝试手动启动
+        sleep 5 # 增加额外等待时间
     fi
 
     if systemctl enable docker &>> "$PTTOOLS_LOG_FILE"; then
@@ -242,7 +249,7 @@ install_docker_func() {
         log_message "${YELLOW}Docker开机自启设置失败，但不影响使用${NC}"
     fi
 
-    sleep 3 # 等待Docker服务稳定
+    sleep 3 # 再次等待，确保Docker完全稳定
     if command -v docker &> /dev/null && docker --version &> /dev/null; then
         log_message "${GREEN}Docker核心安装成功: $(docker --version | head -n 1)${NC}"
     else
@@ -299,7 +306,7 @@ ensure_docker_installed() {
             log_message "${RED}Docker环境安装失败。${NC}"
             echo -e "${RED}Docker环境安装失败。${NC}" # 统一输出失败信息
             echo -e "${YELLOW}建议：${NC}"
-            echo -e "${WHITE}1. 检查网络连接${NC}"
+            echo -e "${WHITE}1. 检查网络连接，特别是能否访问 get.docker.com${NC}"
             echo -e "${WHITE}2. 确认系统源配置正确${NC}"
             echo -e "${WHITE}3. 手动安装Docker后重试${NC}"
             echo -e "${WHITE}   详细日志请查看：${PTTOOLS_LOG_FILE}${NC}" # 指示用户查看日志
@@ -518,7 +525,7 @@ install_vertex_docker() {
 
     echo -e "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
     log_message "${YELLOW}正在下载Vertex Docker Compose配置...${NC}"
-    local compose_file="/tmp/vertex-compose.yml"
+    local compose_file="${DOCKER_DIR}/vertex/vertex.yml" # Download directly to app dir
     local github_url="$GITHUB_RAW/configs/docker-compose/automation/vertex.yml" # Corrected compose_subdir
 
     if curl -fsSL "$github_url" -o "$compose_file" &>> "$LOG_DIR/pttools.log"; then
@@ -574,11 +581,11 @@ EOF
 
     echo -e "${YELLOW}正在启动Vertex容器...${NC}"
     log_message "${YELLOW}正在启动Vertex容器...${NC}"
-    local docker_compose_cmd=""
+    local docker_compose_bin=""
     if command -v docker-compose &> /dev/null; then
-        docker_compose_cmd="docker-compose -f \"$compose_file\" --project-directory \"${DOCKER_DIR}/vertex\" up -d" # Explicitly specify project-directory
+        docker_compose_bin="docker-compose"
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        docker_compose_cmd="docker compose -f \"$compose_file\" --project-directory \"${DOCKER_DIR}/vertex\" up -d" # Explicitly specify project-directory
+        docker_compose_bin="docker compose"
     else
         log_message "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
         echo -e "${RED}Docker Compose或docker compose未找到，尝试使用docker run命令启动...${NC}"
@@ -603,7 +610,7 @@ EOF
         return 1; 
     }
 
-    if eval "$docker_compose_cmd" &>> "$LOG_DIR/pttools.log"; then
+    if eval "$docker_compose_cmd" -f "${DOCKER_DIR}/vertex/vertex.yml" up -d &>> "$LOG_DIR/pttools.log"; then
         log_message "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}Vertex Docker安装完成${NC}"
         echo -e "${GREEN}访问地址: http://你的服务器IP:3333${NC}"
@@ -851,7 +858,7 @@ install_qb439_vt() {
     read -p "是否安装autobrr？[y/N]: " install_autobrr
     install_autobrr=${install_autobrr:-N}
     autobrr_flag=""
-    [[ $install_autobrr =~ ^[Yy]$ ]] && autoborr_flag="-b"
+    [[ $install_autobrr =~ ^[Yy]$ ]] && autobrr_flag="-b"
 
     read -p "是否安装autoremove-torrents？[y/N]: " install_autoremove
     install_autoremove=${install_autoremove:-N}
@@ -1045,8 +1052,8 @@ pt_docker_apps() {
     local ptdocker_url="$GITHUB_RAW/configs/ptdocker.sh"
 
     # 尝试下载脚本到当前脚本目录的configs子目录，保持目录结构
-    mkdir -p "$(dirname "$0")/configs" &>> "$LOG_DIR/pttools.log" # 确保 configs 目录存在
-    if curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" &>> "$LOG_DIR/pttools.log"; then
+    mkdir -p "$(dirname "$0")/configs" &>> "$PTTOOLS_LOG_FILE" # 确保 configs 目录存在
+    if curl -fsSL "$ptdocker_url" -o "$ptdocker_script_path" &>> "$PTTOOLS_LOG_FILE"; then
         chmod +x "$ptdocker_script_path"
         log_message "${GREEN}PT Docker应用管理脚本下载成功${NC}"
         echo -e "${GREEN}PT Docker应用管理脚本下载成功${NC}"
@@ -1164,8 +1171,8 @@ install_single_fallback_docker_app() {
 
     echo -e "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
     log_message "${YELLOW}正在下载 ${app_name} 的Docker Compose配置...${NC}"
-    mkdir -p "${DOCKER_DIR}/${app_dir_name}" &>> "$LOG_DIR/pttools.log" # Ensure app base dir exists
-    if curl -fsSL "$compose_url" -o "$temp_compose_file" &>> "$LOG_DIR/pttools.log"; then
+    mkdir -p "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" # Ensure app base dir exists
+    if curl -fsSL "$compose_url" -o "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"; then
         log_message "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
         echo -e "${GREEN}${app_name} Docker Compose配置下载成功${NC}"
     else
@@ -1177,19 +1184,19 @@ install_single_fallback_docker_app() {
     fi
 
     echo -e "${YELLOW}正在创建应用目录: ${DOCKER_DIR}/${app_dir_name}/config ...${NC}"
-    mkdir -p "${DOCKER_DIR}/${app_dir_name}/config" &>> "$LOG_DIR/pttools.log"
+    mkdir -p "${DOCKER_DIR}/${app_dir_name}/config" &>> "$PTTOOLS_LOG_FILE"
     echo -e "${YELLOW}正在创建下载目录: ${DOWNLOADS_DIR} ...${NC}"
-    mkdir -p "${DOWNLOADS_DIR}" &>> "$LOG_DIR/pttools.log"
-    chmod -R 777 "${DOCKER_DIR}/${app_dir_name}" &>> "$LOG_DIR/pttools.log" # 赋权
-    chmod -R 777 "${DOWNLOADS_DIR}" &>> "$LOG_DIR/pttools.log" # 赋权
+    mkdir -p "${DOWNLOADS_DIR}" &>> "$PTTOOLS_LOG_FILE"
+    chmod -R 777 "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" # 赋权
+    chmod -R 777 "${DOWNLOADS_DIR}" &>> "$PTTOOLS_LOG_FILE" # 赋权
     log_message "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
     echo -e "${GREEN}应用目录和下载目录创建完成并赋权${NC}"
 
     # Replace variables in the compose file
     echo -e "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
     log_message "${YELLOW}正在替换 Docker Compose 文件中的路径变量...${NC}"
-    sed -i "s|/opt/docker/应用名/config|${DOCKER_DIR}/${app_dir_name}/config|g" "$temp_compose_file" &>> "$LOG_DIR/pttools.log"
-    sed -i "s|/opt/downloads|${DOWNLOADS_DIR}|g" "$temp_compose_file" &>> "$LOG_DIR/pttools.log"
+    sed -i "s|/opt/docker/应用名/config|${DOCKER_DIR}/${app_dir_name}/config|g" "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"
+    sed -i "s|/opt/downloads|${DOWNLOADS_DIR}|g" "$temp_compose_file" &>> "$PTTOOLS_LOG_FILE"
     
     echo -e "${YELLOW}启动 ${app_name} 容器...${NC}"
     log_message "${YELLOW}启动 ${app_name} 容器...${NC}"
@@ -1208,7 +1215,7 @@ install_single_fallback_docker_app() {
     fi
 
     local current_dir=$(pwd)
-    cd "${DOCKER_DIR}/${app_dir_name}" &>> "$LOG_DIR/pttools.log" || { 
+    cd "${DOCKER_DIR}/${app_dir_name}" &>> "$PTTOOLS_LOG_FILE" || { 
         log_message "${RED}切换目录失败: ${DOCKER_DIR}/${app_dir_name}${NC}"; 
         echo -e "${RED}错误：无法进入应用目录 ${DOCKER_DIR}/${app_dir_name}！${NC}"; 
         rm -f "$temp_compose_file" &>/dev/null; # Ensure cleanup on error
@@ -1216,7 +1223,7 @@ install_single_fallback_docker_app() {
         return 1; 
     }
 
-    if eval "$docker_compose_bin" -f "${yml_file}" up -d &>> "$LOG_DIR/pttools.log"; then
+    if eval "$docker_compose_bin" -f "${yml_file}" up -d &>> "$PTTOOLS_LOG_FILE"; then
         log_message "${GREEN}${app_name} 安装成功${NC}"
         echo -e "${GREEN}================================================${NC}"
         echo -e "${GREEN}${app_name} 安装成功！${NC}"
@@ -1241,10 +1248,10 @@ install_single_fallback_docker_app() {
             log_message "${RED}容器 ${app_dir_name} 未运行或不存在${NC}"
         fi
     else
-        log_message "${RED}${app_name} 安装失败！详情请查看日志：$LOG_DIR/pttools.log${NC}"
+        log_message "${RED}${app_name} 安装失败！详情请查看日志：$PTTOOLS_LOG_FILE${NC}"
         echo -e "${RED}================================================${NC}"
         echo -e "${RED}${app_name} 安装失败！${NC}"
-        echo -e "${RED}请检查网络连接和配置文件，详情请查看日志：$LOG_DIR/pttools.log${NC}"
+        echo -e "${RED}请检查网络连接和配置文件，详情请查看日志：$PTTOOLS_LOG_FILE${NC}"
         echo -e "${RED}================================================${NC}"
     fi
 
