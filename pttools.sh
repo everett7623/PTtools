@@ -1053,6 +1053,7 @@ pt_docker_apps() {
     echo -e "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}...${NC}"
     log_message "${YELLOW}正在尝试下载PT Docker应用管理脚本: ${ptdocker_url}${NC}"
     
+    local download_output=""
     # 使用 curl -fsSL --retry 3 --retry-delay 5 尝试下载
     if ! download_output=$(curl -fsSL --retry 3 --retry-delay 5 "$ptdocker_url" -o "$ptdocker_script_temp_path" 2>&1); then
         log_message "${RED}PT Docker应用管理脚本下载失败。URL: ${ptdocker_url}。输出：\n$download_output${NC}"
@@ -1090,6 +1091,7 @@ pt_docker_apps() {
         return # 返回到 pttools.sh 的主循环
     fi
 }
+
 
 # 卸载应用
 uninstall_apps() {
@@ -1678,7 +1680,7 @@ final_cleanup() {
 # 验证qBittorrent卸载结果
 verify_qbittorrent_removal() {
     echo -e "${BLUE}验证卸载结果：${NC}"
-    log_message "${BLUE}验证卸载结果：${NC}"
+    log_message "${BLUE}验证qBittorrent卸载结果：${NC}"
 
     local all_clean=true
 
